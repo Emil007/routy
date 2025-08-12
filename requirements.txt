@@ -1,0 +1,4 @@
+discord.py==2.4.0
+mysql-connector-python==9.0.0
+gpxpy==1.6.2
+configparser==7.0.0

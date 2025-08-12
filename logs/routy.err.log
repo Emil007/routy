@@ -1,0 +1,206 @@
+2025-08-12 19:09:47: [2025-08-12 19:09:47] [INFO    ] discord.client: logging in using static token
+2025-08-12 19:09:48: [2025-08-12 19:09:48] [INFO    ] discord.gateway: Shard ID None has connected to Gateway (Session ID: ae7811a42e38b02e0e846050fc05575e).
+2025-08-12 19:14:34: [2025-08-12 19:14:34] [INFO    ] discord.client: logging in using static token
+2025-08-12 19:14:35: [2025-08-12 19:14:35] [INFO    ] discord.gateway: Shard ID None has connected to Gateway (Session ID: eb02fd676f7020ffd16064d83a53fc25).
+2025-08-12 19:20:18: Traceback (most recent call last):
+2025-08-12 19:20:18:   File "<frozen runpy>", line 189, in _run_module_as_main
+2025-08-12 19:20:18:   File "<frozen runpy>", line 159, in _get_module_details
+2025-08-12 19:20:18:   File "<frozen importlib._bootstrap_external>", line 1074, in get_code
+2025-08-12 19:20:18:   File "<frozen importlib._bootstrap_external>", line 1004, in source_to_code
+2025-08-12 19:20:18:   File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+2025-08-12 19:20:18:   File "/home/emil007/routy/bot/bot.py", line 104
+2025-08-12 19:20:18:     def overlap_score(a_ids, b_ids):
+2025-08-12 19:20:18:     ^
+2025-08-12 19:20:18: IndentationError: expected an indented block after function definition on line 102
+2025-08-12 19:20:20: Traceback (most recent call last):
+2025-08-12 19:20:20:   File "<frozen runpy>", line 189, in _run_module_as_main
+2025-08-12 19:20:20:   File "<frozen runpy>", line 159, in _get_module_details
+2025-08-12 19:20:20:   File "<frozen importlib._bootstrap_external>", line 1074, in get_code
+2025-08-12 19:20:20:   File "<frozen importlib._bootstrap_external>", line 1004, in source_to_code
+2025-08-12 19:20:20:   File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+2025-08-12 19:20:20:   File "/home/emil007/routy/bot/bot.py", line 104
+2025-08-12 19:20:20:     def overlap_score(a_ids, b_ids):
+2025-08-12 19:20:20:     ^
+2025-08-12 19:20:20: IndentationError: expected an indented block after function definition on line 102
+2025-08-12 19:20:22: Traceback (most recent call last):
+2025-08-12 19:20:22:   File "<frozen runpy>", line 189, in _run_module_as_main
+2025-08-12 19:20:22:   File "<frozen runpy>", line 159, in _get_module_details
+2025-08-12 19:20:22:   File "<frozen importlib._bootstrap_external>", line 1074, in get_code
+2025-08-12 19:20:22:   File "<frozen importlib._bootstrap_external>", line 1004, in source_to_code
+2025-08-12 19:20:22:   File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+2025-08-12 19:20:22:   File "/home/emil007/routy/bot/bot.py", line 104
+2025-08-12 19:20:22:     def overlap_score(a_ids, b_ids):
+2025-08-12 19:20:22:     ^
+2025-08-12 19:20:22: IndentationError: expected an indented block after function definition on line 102
+2025-08-12 19:20:24: Traceback (most recent call last):
+2025-08-12 19:20:24:   File "<frozen runpy>", line 189, in _run_module_as_main
+2025-08-12 19:20:24:   File "<frozen runpy>", line 159, in _get_module_details
+2025-08-12 19:20:24:   File "<frozen importlib._bootstrap_external>", line 1074, in get_code
+2025-08-12 19:20:24:   File "<frozen importlib._bootstrap_external>", line 1004, in source_to_code
+2025-08-12 19:20:24:   File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+2025-08-12 19:20:24:   File "/home/emil007/routy/bot/bot.py", line 104
+2025-08-12 19:20:24:     def overlap_score(a_ids, b_ids):
+2025-08-12 19:20:24:     ^
+2025-08-12 19:20:24: IndentationError: expected an indented block after function definition on line 102
+2025-08-12 19:20:26: Traceback (most recent call last):
+2025-08-12 19:20:26:   File "<frozen runpy>", line 189, in _run_module_as_main
+2025-08-12 19:20:26:   File "<frozen runpy>", line 159, in _get_module_details
+2025-08-12 19:20:26:   File "<frozen importlib._bootstrap_external>", line 1074, in get_code
+2025-08-12 19:20:26:   File "<frozen importlib._bootstrap_external>", line 1004, in source_to_code
+2025-08-12 19:20:26:   File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+2025-08-12 19:20:26:   File "/home/emil007/routy/bot/bot.py", line 104
+2025-08-12 19:20:26:     def overlap_score(a_ids, b_ids):
+2025-08-12 19:20:26:     ^
+2025-08-12 19:20:26: IndentationError: expected an indented block after function definition on line 102
+2025-08-12 19:20:28: Traceback (most recent call last):
+2025-08-12 19:20:28:   File "<frozen runpy>", line 189, in _run_module_as_main
+2025-08-12 19:20:28:   File "<frozen runpy>", line 159, in _get_module_details
+2025-08-12 19:20:28:   File "<frozen importlib._bootstrap_external>", line 1074, in get_code
+2025-08-12 19:20:28:   File "<frozen importlib._bootstrap_external>", line 1004, in source_to_code
+2025-08-12 19:20:28:   File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+2025-08-12 19:20:28:   File "/home/emil007/routy/bot/bot.py", line 104
+2025-08-12 19:20:28:     def overlap_score(a_ids, b_ids):
+2025-08-12 19:20:28:     ^
+2025-08-12 19:20:28: IndentationError: expected an indented block after function definition on line 102
+2025-08-12 19:20:30: Traceback (most recent call last):
+2025-08-12 19:20:30:   File "<frozen runpy>", line 189, in _run_module_as_main
+2025-08-12 19:20:30:   File "<frozen runpy>", line 159, in _get_module_details
+2025-08-12 19:20:30:   File "<frozen importlib._bootstrap_external>", line 1074, in get_code
+2025-08-12 19:20:30:   File "<frozen importlib._bootstrap_external>", line 1004, in source_to_code
+2025-08-12 19:20:30:   File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+2025-08-12 19:20:30:   File "/home/emil007/routy/bot/bot.py", line 104
+2025-08-12 19:20:30:     def overlap_score(a_ids, b_ids):
+2025-08-12 19:20:30:     ^
+2025-08-12 19:20:30: IndentationError: expected an indented block after function definition on line 102
+2025-08-12 19:20:32: Traceback (most recent call last):
+2025-08-12 19:20:32:   File "<frozen runpy>", line 189, in _run_module_as_main
+2025-08-12 19:20:32:   File "<frozen runpy>", line 159, in _get_module_details
+2025-08-12 19:20:32:   File "<frozen importlib._bootstrap_external>", line 1074, in get_code
+2025-08-12 19:20:32:   File "<frozen importlib._bootstrap_external>", line 1004, in source_to_code
+2025-08-12 19:20:32:   File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+2025-08-12 19:20:32:   File "/home/emil007/routy/bot/bot.py", line 104
+2025-08-12 19:20:32:     def overlap_score(a_ids, b_ids):
+2025-08-12 19:20:32:     ^
+2025-08-12 19:20:32: IndentationError: expected an indented block after function definition on line 102
+2025-08-12 19:20:34: Traceback (most recent call last):
+2025-08-12 19:20:34:   File "<frozen runpy>", line 189, in _run_module_as_main
+2025-08-12 19:20:34:   File "<frozen runpy>", line 159, in _get_module_details
+2025-08-12 19:20:34:   File "<frozen importlib._bootstrap_external>", line 1074, in get_code
+2025-08-12 19:20:34:   File "<frozen importlib._bootstrap_external>", line 1004, in source_to_code
+2025-08-12 19:20:34:   File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+2025-08-12 19:20:34:   File "/home/emil007/routy/bot/bot.py", line 104
+2025-08-12 19:20:34:     def overlap_score(a_ids, b_ids):
+2025-08-12 19:20:34:     ^
+2025-08-12 19:20:34: IndentationError: expected an indented block after function definition on line 102
+2025-08-12 19:20:36: Traceback (most recent call last):
+2025-08-12 19:20:36:   File "<frozen runpy>", line 189, in _run_module_as_main
+2025-08-12 19:20:36:   File "<frozen runpy>", line 159, in _get_module_details
+2025-08-12 19:20:36:   File "<frozen importlib._bootstrap_external>", line 1074, in get_code
+2025-08-12 19:20:36:   File "<frozen importlib._bootstrap_external>", line 1004, in source_to_code
+2025-08-12 19:20:36:   File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+2025-08-12 19:20:36:   File "/home/emil007/routy/bot/bot.py", line 104
+2025-08-12 19:20:36:     def overlap_score(a_ids, b_ids):
+2025-08-12 19:20:36:     ^
+2025-08-12 19:20:36: IndentationError: expected an indented block after function definition on line 102
+2025-08-12 19:20:38: Traceback (most recent call last):
+2025-08-12 19:20:38:   File "<frozen runpy>", line 189, in _run_module_as_main
+2025-08-12 19:20:38:   File "<frozen runpy>", line 159, in _get_module_details
+2025-08-12 19:20:38:   File "<frozen importlib._bootstrap_external>", line 1074, in get_code
+2025-08-12 19:20:38:   File "<frozen importlib._bootstrap_external>", line 1004, in source_to_code
+2025-08-12 19:20:38:   File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+2025-08-12 19:20:38:   File "/home/emil007/routy/bot/bot.py", line 104
+2025-08-12 19:20:38:     def overlap_score(a_ids, b_ids):
+2025-08-12 19:20:38:     ^
+2025-08-12 19:20:38: IndentationError: expected an indented block after function definition on line 102
+2025-08-12 19:20:40: Traceback (most recent call last):
+2025-08-12 19:20:40:   File "<frozen runpy>", line 189, in _run_module_as_main
+2025-08-12 19:20:40:   File "<frozen runpy>", line 159, in _get_module_details
+2025-08-12 19:20:40:   File "<frozen importlib._bootstrap_external>", line 1074, in get_code
+2025-08-12 19:20:40:   File "<frozen importlib._bootstrap_external>", line 1004, in source_to_code
+2025-08-12 19:20:40:   File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+2025-08-12 19:20:40:   File "/home/emil007/routy/bot/bot.py", line 104
+2025-08-12 19:20:40:     def overlap_score(a_ids, b_ids):
+2025-08-12 19:20:40:     ^
+2025-08-12 19:20:40: IndentationError: expected an indented block after function definition on line 102
+2025-08-12 19:20:42: Traceback (most recent call last):
+2025-08-12 19:20:42:   File "<frozen runpy>", line 189, in _run_module_as_main
+2025-08-12 19:20:42:   File "<frozen runpy>", line 159, in _get_module_details
+2025-08-12 19:20:42:   File "<frozen importlib._bootstrap_external>", line 1074, in get_code
+2025-08-12 19:20:42:   File "<frozen importlib._bootstrap_external>", line 1004, in source_to_code
+2025-08-12 19:20:42:   File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+2025-08-12 19:20:42:   File "/home/emil007/routy/bot/bot.py", line 104
+2025-08-12 19:20:42:     def overlap_score(a_ids, b_ids):
+2025-08-12 19:20:42:     ^
+2025-08-12 19:20:42: IndentationError: expected an indented block after function definition on line 102
+2025-08-12 19:20:44: Traceback (most recent call last):
+2025-08-12 19:20:44:   File "<frozen runpy>", line 189, in _run_module_as_main
+2025-08-12 19:20:44:   File "<frozen runpy>", line 159, in _get_module_details
+2025-08-12 19:20:44:   File "<frozen importlib._bootstrap_external>", line 1074, in get_code
+2025-08-12 19:20:44:   File "<frozen importlib._bootstrap_external>", line 1004, in source_to_code
+2025-08-12 19:20:44:   File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+2025-08-12 19:20:44:   File "/home/emil007/routy/bot/bot.py", line 104
+2025-08-12 19:20:44:     def overlap_score(a_ids, b_ids):
+2025-08-12 19:20:44:     ^
+2025-08-12 19:20:44: IndentationError: expected an indented block after function definition on line 102
+2025-08-12 19:20:46: Traceback (most recent call last):
+2025-08-12 19:20:46:   File "<frozen runpy>", line 189, in _run_module_as_main
+2025-08-12 19:20:46:   File "<frozen runpy>", line 159, in _get_module_details
+2025-08-12 19:20:46:   File "<frozen importlib._bootstrap_external>", line 1074, in get_code
+2025-08-12 19:20:46:   File "<frozen importlib._bootstrap_external>", line 1004, in source_to_code
+2025-08-12 19:20:46:   File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+2025-08-12 19:20:46:   File "/home/emil007/routy/bot/bot.py", line 104
+2025-08-12 19:20:46:     def overlap_score(a_ids, b_ids):
+2025-08-12 19:20:46:     ^
+2025-08-12 19:20:46: IndentationError: expected an indented block after function definition on line 102
+2025-08-12 19:20:48: Traceback (most recent call last):
+2025-08-12 19:20:48:   File "<frozen runpy>", line 189, in _run_module_as_main
+2025-08-12 19:20:48:   File "<frozen runpy>", line 159, in _get_module_details
+2025-08-12 19:20:48:   File "<frozen importlib._bootstrap_external>", line 1074, in get_code
+2025-08-12 19:20:48:   File "<frozen importlib._bootstrap_external>", line 1004, in source_to_code
+2025-08-12 19:20:48:   File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+2025-08-12 19:20:48:   File "/home/emil007/routy/bot/bot.py", line 104
+2025-08-12 19:20:48:     def overlap_score(a_ids, b_ids):
+2025-08-12 19:20:48:     ^
+2025-08-12 19:20:48: IndentationError: expected an indented block after function definition on line 102
+2025-08-12 19:20:50: Traceback (most recent call last):
+2025-08-12 19:20:50:   File "<frozen runpy>", line 189, in _run_module_as_main
+2025-08-12 19:20:50:   File "<frozen runpy>", line 159, in _get_module_details
+2025-08-12 19:20:50:   File "<frozen importlib._bootstrap_external>", line 1074, in get_code
+2025-08-12 19:20:50:   File "<frozen importlib._bootstrap_external>", line 1004, in source_to_code
+2025-08-12 19:20:50:   File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+2025-08-12 19:20:50:   File "/home/emil007/routy/bot/bot.py", line 104
+2025-08-12 19:20:50:     def overlap_score(a_ids, b_ids):
+2025-08-12 19:20:50:     ^
+2025-08-12 19:20:50: IndentationError: expected an indented block after function definition on line 102
+2025-08-12 19:20:53: Traceback (most recent call last):
+2025-08-12 19:20:53:   File "<frozen runpy>", line 189, in _run_module_as_main
+2025-08-12 19:20:53:   File "<frozen runpy>", line 159, in _get_module_details
+2025-08-12 19:20:53:   File "<frozen importlib._bootstrap_external>", line 1074, in get_code
+2025-08-12 19:20:53:   File "<frozen importlib._bootstrap_external>", line 1004, in source_to_code
+2025-08-12 19:20:53:   File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+2025-08-12 19:20:53:   File "/home/emil007/routy/bot/bot.py", line 104
+2025-08-12 19:20:53:     def overlap_score(a_ids, b_ids):
+2025-08-12 19:20:53:     ^
+2025-08-12 19:20:53: IndentationError: expected an indented block after function definition on line 102
+2025-08-12 19:20:55: Traceback (most recent call last):
+2025-08-12 19:20:55:   File "<frozen runpy>", line 189, in _run_module_as_main
+2025-08-12 19:20:55:   File "<frozen runpy>", line 159, in _get_module_details
+2025-08-12 19:20:55:   File "<frozen importlib._bootstrap_external>", line 1074, in get_code
+2025-08-12 19:20:55:   File "<frozen importlib._bootstrap_external>", line 1004, in source_to_code
+2025-08-12 19:20:55:   File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+2025-08-12 19:20:55:   File "/home/emil007/routy/bot/bot.py", line 104
+2025-08-12 19:20:55:     def overlap_score(a_ids, b_ids):
+2025-08-12 19:20:55:     ^
+2025-08-12 19:20:55: IndentationError: expected an indented block after function definition on line 102
+2025-08-12 19:20:57: Traceback (most recent call last):
+2025-08-12 19:20:57:   File "<frozen runpy>", line 189, in _run_module_as_main
+2025-08-12 19:20:57:   File "<frozen runpy>", line 159, in _get_module_details
+2025-08-12 19:20:57:   File "<frozen importlib._bootstrap_external>", line 1074, in get_code
+2025-08-12 19:20:57:   File "<frozen importlib._bootstrap_external>", line 1004, in source_to_code
+2025-08-12 19:20:57:   File "<frozen importlib._bootstrap>", line 241, in _call_with_frames_removed
+2025-08-12 19:20:57:   File "/home/emil007/routy/bot/bot.py", line 104
+2025-08-12 19:20:57:     def overlap_score(a_ids, b_ids):
+2025-08-12 19:20:57:     ^
+2025-08-12 19:20:57: IndentationError: expected an indented block after function definition on line 102
+2025-08-12 19:27:48: [2025-08-12 19:27:48] [INFO    ] discord.client: logging in using static token
+2025-08-12 19:27:50: [2025-08-12 19:27:50] [INFO    ] discord.gateway: Shard ID None has connected to Gateway (Session ID: 77a95289da933c0900807015f0e3a11f).
