@@ -58,3 +58,47 @@ export function elevationStats(points: LatLng[]): ElevationStats | null {
 export function reversePoints(points: LatLng[]): LatLng[] {
   return [...points].reverse();
 }
+
+// Small-scale (tens to hundreds of meters) local projection — accurate enough for
+// finding where on a walking path a point falls, without pulling in a full
+// geodesy library.
+function equirectangularXY(ref: LatLng, p: LatLng): [number, number] {
+  const latRad = (ref.lat * Math.PI) / 180;
+  const mPerDegLat = 111320;
+  const mPerDegLng = 111320 * Math.cos(latRad);
+  return [(p.lng - ref.lng) * mPerDegLng, (p.lat - ref.lat) * mPerDegLat];
+}
+
+function fromEquirectangularXY(ref: LatLng, x: number, y: number): LatLng {
+  const latRad = (ref.lat * Math.PI) / 180;
+  const mPerDegLat = 111320;
+  const mPerDegLng = 111320 * Math.cos(latRad);
+  return { lat: ref.lat + y / mPerDegLat, lng: ref.lng + x / mPerDegLng };
+}
+
+export interface ClosestPointResult {
+  point: LatLng;
+  /** The point lies on the edge between path[index] and path[index + 1]. */
+  index: number;
+  distanceM: number;
+}
+
+/** Finds the closest point lying anywhere on the polyline `path` (not just its vertices) to `query`. */
+export function closestPointOnPath(path: LatLng[], query: LatLng): ClosestPointResult | null {
+  if (path.length < 2) return null;
+  let best: ClosestPointResult | null = null;
+  for (let i = 0; i < path.length - 1; i++) {
+    const a = path[i];
+    const b = path[i + 1];
+    const [bx, by] = equirectangularXY(a, b);
+    const [px, py] = equirectangularXY(a, query);
+    const lenSq = bx * bx + by * by;
+    let t = lenSq > 0 ? (px * bx + py * by) / lenSq : 0;
+    t = Math.max(0, Math.min(1, t));
+    const point = fromEquirectangularXY(a, t * bx, t * by);
+    if (typeof a.ele === "number" && typeof b.ele === "number") point.ele = a.ele + t * (b.ele - a.ele);
+    const distanceM = haversineMeters(point, query);
+    if (!best || distanceM < best.distanceM) best = { point, index: i, distanceM };
+  }
+  return best;
+}

@@ -11,6 +11,7 @@ export interface MapMarker {
   lng: number;
   label?: string;
   color?: string;
+  draggable?: boolean;
 }
 
 export interface MapLine {
@@ -68,7 +69,9 @@ export function MapView({
   circles = [],
   height = 360,
   onMarkerClick,
+  onMarkerDragEnd,
   onMapClick,
+  onLineClick,
   autoFit = true,
   className,
 }: {
@@ -77,7 +80,11 @@ export function MapView({
   circles?: MapCircle[];
   height?: number;
   onMarkerClick?: (id: number | string) => void;
+  /** Fired after a marker with `draggable: true` is released at a new position. */
+  onMarkerDragEnd?: (id: number | string, lat: number, lng: number) => void;
   onMapClick?: (lat: number, lng: number) => void;
+  /** Fired when a line is clicked, with the lat/lng of the click along it. */
+  onLineClick?: (id: number | string, lat: number, lng: number) => void;
   /** Re-fit the view whenever markers/lines change. Disable for interactive drawing,
    * where re-centering on every click would fight the user's own panning/zoom. */
   autoFit?: boolean;
@@ -98,7 +105,13 @@ export function MapView({
           url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
         />
         {lines.map((line) => (
-          <Polyline key={line.id} positions={line.points} color={line.color ?? "#2e6b49"} weight={line.weight ?? 4} />
+          <Polyline
+            key={line.id}
+            positions={line.points}
+            color={line.color ?? "#2e6b49"}
+            weight={line.weight ?? 4}
+            eventHandlers={onLineClick ? { click: (e) => onLineClick(line.id, e.latlng.lat, e.latlng.lng) } : undefined}
+          />
         ))}
         {circles.map((c) => (
           <Circle
@@ -113,7 +126,18 @@ export function MapView({
             key={marker.id}
             position={[marker.lat, marker.lng]}
             icon={dotIcon(marker.color ?? "#2e6b49")}
-            eventHandlers={onMarkerClick ? { click: () => onMarkerClick(marker.id) } : undefined}
+            draggable={marker.draggable ?? false}
+            eventHandlers={{
+              ...(onMarkerClick ? { click: () => onMarkerClick(marker.id) } : {}),
+              ...(marker.draggable && onMarkerDragEnd
+                ? {
+                    dragend: (e: L.DragEndEvent) => {
+                      const pos = (e.target as L.Marker).getLatLng();
+                      onMarkerDragEnd(marker.id, pos.lat, pos.lng);
+                    },
+                  }
+                : {}),
+            }}
           >
             {marker.label && <Tooltip direction="top">{marker.label}</Tooltip>}
           </Marker>

@@ -45,6 +45,7 @@ export function DrawPathWizard({
   const router = useRouter();
   const [points, setPoints] = useState<DrawPoint[]>([]);
   const [phase, setPhase] = useState<"drawing" | "confirm">("drawing");
+  const [snapEnabled, setSnapEnabled] = useState(true);
   const [startDecision, setStartDecision] = useState<EndpointDecision | null>(null);
   const [endDecision, setEndDecision] = useState<EndpointDecision | null>(null);
   const [markStartAsHome, setMarkStartAsHome] = useState(false);
@@ -66,8 +67,8 @@ export function DrawPathWizard({
     [points],
   );
   const draftMarkers: MapMarker[] = useMemo(
-    () => points.map((p, i) => ({ id: `draft-${i}`, lat: p.lat, lng: p.lng, color: "#9a3b29" })),
-    [points],
+    () => points.map((p, i) => ({ id: `draft-${i}`, lat: p.lat, lng: p.lng, color: "#9a3b29", draggable: phase === "drawing" })),
+    [points, phase],
   );
 
   function addPoint(lat: number, lng: number, snappedNodeId: number | null) {
@@ -81,15 +82,31 @@ export function DrawPathWizard({
 
   function handleMapClick(lat: number, lng: number) {
     if (phase !== "drawing") return;
-    const snap = findNodeCandidates(nodes, { lat, lng }, mergeRadiusM)[0];
-    if (snap) addPoint(snap.lat, snap.lng, snap.id);
-    else addPoint(lat, lng, null);
+    if (snapEnabled) {
+      const snap = findNodeCandidates(nodes, { lat, lng }, mergeRadiusM)[0];
+      if (snap) {
+        addPoint(snap.lat, snap.lng, snap.id);
+        return;
+      }
+    }
+    addPoint(lat, lng, null);
   }
 
   function handleMarkerClick(id: number | string) {
     if (phase !== "drawing" || typeof id !== "number") return;
     const node = nodes.find((n) => n.id === id);
     if (node) addPoint(node.lat, node.lng, node.id);
+  }
+
+  function handleDraftDragEnd(id: number | string, lat: number, lng: number) {
+    if (phase !== "drawing" || typeof id !== "string" || !id.startsWith("draft-")) return;
+    const index = Number(id.slice("draft-".length));
+    setPoints((prev) => {
+      const next = [...prev];
+      const snap = snapEnabled ? findNodeCandidates(nodes, { lat, lng }, mergeRadiusM)[0] : undefined;
+      next[index] = snap ? { lat: snap.lat, lng: snap.lng, snappedNodeId: snap.id } : { lat, lng, snappedNodeId: null };
+      return next;
+    });
   }
 
   function undo() {
@@ -158,6 +175,7 @@ export function DrawPathWizard({
   return (
     <div className="stack">
       <p style={{ color: "var(--ink-soft)", fontSize: "0.9rem" }}>{t(locale, "draw.instructions")}</p>
+      <p style={{ color: "var(--ink-soft)", fontSize: "0.9rem" }}>{t(locale, "draw.dragHint")}</p>
 
       <div className="card stack">
         <MapViewLazy
@@ -165,9 +183,10 @@ export function DrawPathWizard({
           autoFit={false}
           lines={[...networkLines, ...draftLine]}
           markers={[...nodeMarkers, ...draftMarkers]}
-          circles={phase === "drawing" ? nodeCircles : []}
+          circles={phase === "drawing" && snapEnabled ? nodeCircles : []}
           onMapClick={phase === "drawing" ? handleMapClick : undefined}
           onMarkerClick={phase === "drawing" ? handleMarkerClick : undefined}
+          onMarkerDragEnd={phase === "drawing" ? handleDraftDragEnd : undefined}
         />
 
         <div className="btn-row">
@@ -176,6 +195,15 @@ export function DrawPathWizard({
             {t(locale, "draw.distanceSoFar")}: {(lengthM / 1000).toFixed(2)} {t(locale, "common.km")}
           </span>
         </div>
+
+        {phase === "drawing" ? (
+          <div className="btn-row">
+            <label className="checkbox">
+              <input type="checkbox" checked={snapEnabled} onChange={(e) => setSnapEnabled(e.target.checked)} />
+              {t(locale, "draw.snapToggle")}
+            </label>
+          </div>
+        ) : null}
 
         {phase === "drawing" ? (
           <div className="btn-row">

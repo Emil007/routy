@@ -1,10 +1,12 @@
 import { requireUser } from "@/lib/session";
 import { resolveLocale } from "@/lib/locale";
 import { t } from "@/lib/i18n";
+import Link from "next/link";
 import { listNodes } from "@/lib/nodes";
 import { listSegments, getUsageMap, isCanonicalSegment } from "@/lib/segments";
 import { MapViewLazy } from "@/components/MapViewLazy";
-import { renameNodeAction, setHomeNodeAction } from "./actions";
+import { ConfirmSubmitForm } from "@/components/ConfirmSubmitForm";
+import { renameNodeAction, setHomeNodeAction, deleteSegmentAction } from "./actions";
 
 export default async function MapPage() {
   const user = await requireUser();
@@ -94,6 +96,7 @@ export default async function MapPage() {
                 <th>{t(locale, "import.length")}</th>
                 <th>{t(locale, "import.duration")}</th>
                 <th>{t(locale, "map.usageHeading")}</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -106,6 +109,20 @@ export default async function MapPage() {
                     <td>{(s.lengthM / 1000).toFixed(2)} {t(locale, "common.km")}</td>
                     <td>{s.durationMin} {t(locale, "common.min")}</td>
                     <td>{t(locale, "map.usageCount", { count: usage.get(s.id) ?? 0 })}</td>
+                    <td>
+                      <div className="btn-row">
+                        <Link href={`/map/edit/${s.id}`} className="btn-secondary">
+                          {t(locale, "map.edit")}
+                        </Link>
+                        <ConfirmSubmitForm
+                          action={deleteSegmentAction}
+                          confirmMessage={t(locale, "map.deleteConfirm")}
+                          hiddenName="segmentId"
+                          hiddenValue={s.id}
+                          buttonLabel={t(locale, "map.delete")}
+                        />
+                      </div>
+                    </td>
                   </tr>
                 ))}
             </tbody>

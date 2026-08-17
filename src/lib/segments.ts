@@ -1,6 +1,8 @@
 import { db } from "./db";
-import { type LatLng, reversePoints } from "./geo";
+import { type LatLng, reversePoints, pathLengthMeters, estimateMinutes, elevationStats, closestPointOnPath } from "./geo";
 import type { ElevationStats } from "./geo";
+import { createNode, listNodes } from "./nodes";
+import { findNodeCandidates } from "./nodeMatching";
 
 export interface SegmentRow {
   id: number;
@@ -183,4 +185,137 @@ export function recordWalk(userId: number, nodeChain: number[], segmentIds: numb
     for (const id of segmentIds) bump.run(id);
   });
   tx();
+}
+
+/**
+ * Deletes a segment. Because the forward/reverse pair reference each other via
+ * `reverse_of` (both `ON DELETE CASCADE`), deleting either row automatically
+ * deletes its counterpart and both `segment_usage` rows.
+ */
+export function deleteSegment(id: number): void {
+  db.prepare("DELETE FROM segments WHERE id = ?").run(id);
+}
+
+function resolveCanonical(id: number): SegmentRow | null {
+  const row = getSegment(id);
+  if (!row) return null;
+  if (isCanonicalSegment(row)) return row;
+  return row.reverseOf !== null ? getSegment(row.reverseOf) : null;
+}
+
+/**
+ * Repositions the interior points of a segment (its two endpoints stay pinned to
+ * their nodes) — for correcting the shape of an already-submitted path without
+ * changing what it connects.
+ */
+export function updateSegmentGeometry(
+  segmentId: number,
+  points: LatLng[],
+  walkSpeedKmh: number,
+): { ok: true } | { error: "not_found" | "point_count_mismatch" } {
+  const canonical = resolveCanonical(segmentId);
+  if (!canonical || canonical.reverseOf === null) return { error: "not_found" };
+  const reverse = getSegment(canonical.reverseOf);
+  if (!reverse) return { error: "not_found" };
+  if (points.length !== canonical.geometry.length) return { error: "point_count_mismatch" };
+
+  const fixedPoints = points.map((p, i) =>
+    i === 0 || i === points.length - 1 ? canonical.geometry[i] : p,
+  );
+  const lengthM = Math.round(pathLengthMeters(fixedPoints));
+  const durationMin = estimateMinutes(lengthM, walkSpeedKmh);
+  const elevation = elevationStats(fixedPoints);
+  const reversePts = reversePoints(fixedPoints);
+  const reverseElevation: ElevationStats | null = elevation
+    ? { gainM: elevation.lossM, lossM: elevation.gainM, minM: elevation.minM, maxM: elevation.maxM }
+    : null;
+
+  const update = db.prepare(
+    `UPDATE segments SET geometry = ?, length_m = ?, duration_min = ?, ele_gain_m = ?, ele_loss_m = ?, ele_min_m = ?, ele_max_m = ? WHERE id = ?`,
+  );
+  const tx = db.transaction(() => {
+    update.run(
+      JSON.stringify(fixedPoints),
+      lengthM,
+      durationMin,
+      elevation?.gainM ?? null,
+      elevation?.lossM ?? null,
+      elevation?.minM ?? null,
+      elevation?.maxM ?? null,
+      canonical.id,
+    );
+    update.run(
+      JSON.stringify(reversePts),
+      lengthM,
+      durationMin,
+      reverseElevation?.gainM ?? null,
+      reverseElevation?.lossM ?? null,
+      reverseElevation?.minM ?? null,
+      reverseElevation?.maxM ?? null,
+      reverse.id,
+    );
+  });
+  tx();
+  return { ok: true };
+}
+
+/**
+ * Splits a segment into two at the point on its path closest to `near` — for
+ * introducing a new junction (e.g. a crossing path) into an already-submitted
+ * segment. Reuses a nearby existing node instead of creating a duplicate one
+ * when `near` already lands within the merge radius of one.
+ */
+export function splitSegment(
+  segmentId: number,
+  near: LatLng,
+  newNodeName: string | null,
+  submittedBy: number,
+  walkSpeedKmh: number,
+  mergeRadiusM: number,
+): { newNodeId: number } | { error: "not_found" | "too_far" | "too_close_to_endpoint" } {
+  const canonical = resolveCanonical(segmentId);
+  if (!canonical) return { error: "not_found" };
+
+  const closest = closestPointOnPath(canonical.geometry, near);
+  if (!closest) return { error: "not_found" };
+  if (closest.distanceM > 100) return { error: "too_far" };
+
+  const geomA = [...canonical.geometry.slice(0, closest.index + 1), closest.point];
+  const geomB = [closest.point, ...canonical.geometry.slice(closest.index + 1)];
+  const lengthA = pathLengthMeters(geomA);
+  const lengthB = pathLengthMeters(geomB);
+  if (lengthA < 2 || lengthB < 2) return { error: "too_close_to_endpoint" };
+
+  const nodes = listNodes();
+  const nearbyExisting = findNodeCandidates(nodes, closest.point, mergeRadiusM)[0];
+  const midNode = nearbyExisting
+    ? nodes.find((n) => n.id === nearbyExisting.id)!
+    : createNode(newNodeName, closest.point);
+
+  const tx = db.transaction(() => {
+    createSegmentWithReverse({
+      startNodeId: canonical.startNodeId,
+      endNodeId: midNode.id,
+      points: geomA,
+      lengthM: Math.round(lengthA),
+      durationMin: estimateMinutes(lengthA, walkSpeedKmh),
+      elevation: elevationStats(geomA),
+      source: canonical.source,
+      submittedBy,
+    });
+    createSegmentWithReverse({
+      startNodeId: midNode.id,
+      endNodeId: canonical.endNodeId,
+      points: geomB,
+      lengthM: Math.round(lengthB),
+      durationMin: estimateMinutes(lengthB, walkSpeedKmh),
+      elevation: elevationStats(geomB),
+      source: canonical.source,
+      submittedBy,
+    });
+    deleteSegment(canonical.id);
+  });
+  tx();
+
+  return { newNodeId: midNode.id };
 }

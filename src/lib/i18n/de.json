@@ -109,7 +109,10 @@
     "rename": "Umbenennen",
     "usageCount": "{count}× genutzt",
     "unnamedNode": "Unbenannt",
-    "home": "Zuhause"
+    "home": "Zuhause",
+    "edit": "Bearbeiten",
+    "delete": "Löschen",
+    "deleteConfirm": "Diesen Wegabschnitt wirklich löschen? Das kann nicht rückgängig gemacht werden."
   },
   "settings": {
     "title": "Einstellungen",
@@ -160,6 +163,21 @@
     "confirmTitle": "Weg bestätigen",
     "save": "Weg speichern",
     "saving": "Speichere …",
-    "success": "Weg gespeichert."
+    "success": "Weg gespeichert.",
+    "snapToggle": "Automatisch an Knoten einrasten",
+    "dragHint": "Gesetzte Punkte lassen sich per Ziehen genauer platzieren."
+  },
+  "edit": {
+    "title": "Weg bearbeiten",
+    "subtitle": "Ziehe einzelne Punkte, um den Wegverlauf zu korrigieren, oder klicke auf den Weg, um ihn an einer neuen Kreuzung zu teilen.",
+    "saveGeometry": "Änderungen speichern",
+    "saving": "Speichere …",
+    "saved": "Wegverlauf aktualisiert.",
+    "saveError": "Änderungen konnten nicht gespeichert werden.",
+    "backToMap": "Zurück zum Netzwerk",
+    "splitConfirmTitle": "Weg an dieser Stelle teilen?",
+    "splitButton": "Teilen",
+    "splitting": "Teile …",
+    "splitError": "Der Weg konnte nicht geteilt werden."
   }
 }
