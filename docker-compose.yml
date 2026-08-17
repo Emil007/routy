@@ -12,12 +12,11 @@ services:
       # All persistent state (the SQLite database) lives here, on the host —
       # outside the container and outside this project checkout — so it
       # survives image updates, `git pull`, or Docker itself being wiped.
-      # Point DATA_DIR (see .env.example) at the same place you keep
-      # appdata/config for your other containers; defaults to a "data"
-      # folder next to this file if you don't set it.
-      - ${DATA_DIR:-./data}:/app/data
+      # Change the left side to wherever you keep appdata/config for your
+      # other containers (e.g. /volume1/docker/routy on Synology).
+      - ./data:/app/data
     environment:
       # Your reverse proxy already terminates HTTPS in front of this container,
-      # so cookies can safely be marked Secure. Set COOKIE_SECURE=false in .env
-      # if you access Routy directly over plain HTTP (e.g. only in your LAN).
-      - COOKIE_SECURE=${COOKIE_SECURE:-true}
+      # so cookies can safely be marked Secure. Set this to "false" if you
+      # access Routy directly over plain HTTP (e.g. only inside your LAN).
+      - COOKIE_SECURE=true
