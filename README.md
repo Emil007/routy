@@ -1,91 +1,97 @@
 # Routy
 
-Eine eigenständige Web-Plattform, die aus eingereichten Wegabschnitten (GPX-Dateien)
-Hundespaziergang-Routen generiert, passend zur gewünschten Länge oder Dauer. Nachfolger
-des ursprünglichen Discord-Bots (siehe [`legacy/`](./legacy)), diesmal als selbst
-gehostetes Web-Portal mit Login.
+A standalone web platform that generates dog-walk routes from submitted path
+segments (GPX files), matching a target length or duration. Successor to the
+original Discord bot (see [`legacy/`](./legacy)) — this time as a self-hosted
+web portal with login.
 
-## Features (aktueller Stand)
+## Features (current state)
 
-- **Login mit mehreren Profilen** — getrennte Konten, gemeinsames Wegenetz.
-- **GPX-Import mit Knotenpunkt-Bestätigung** — beim Hochladen erkennt Routy, ob Start-
-  oder Endpunkt eines Tracks in der Nähe eines bereits bekannten Knotens liegt
-  (konfigurierbarer Radius), und lässt dich das pro Track bestätigen oder einen neuen
-  Knoten benennen. Für jedes Segment wird automatisch die Gegenrichtung angelegt.
-- **Routen-Generator** — Ziel-Distanz oder -Dauer eingeben, Start/Ziel frei wählen
-  (Rundweg oder Strecke A→B, optional mit einem dritten Wegpunkt), Route auf der Karte
-  ansehen und mit „Neue Route“ / „Diese nehmen“ / „Abbrechen“ bestätigen.
-  - Kein sofortiges Umdrehen auf demselben Weg — außer an einer echten Sackgasse
-    (z. B. Stichweg zu einem Aussichtspunkt), dort ist es ausdrücklich erlaubt.
-  - Jede Wegrichtung höchstens einmal pro Route.
-  - Faire Auswahl: bevorzugt selten genutzte Wege, bestraft heute schon gegangene
-    Segmente zusätzlich und vermeidet Überlappung mit zuvor in der Sitzung gezeigten
-    Alternativen.
-- **Netzwerk-Übersicht** — alle Knoten und Wegabschnitte auf einer Karte, inkl.
-  Umbenennen und Zuhause-Punkt festlegen.
-- **Einstellungen** — Zusammenführungs-Radius, Toleranzen, Diversitäts-Gewichtung usw.
-  direkt in der Oberfläche änderbar.
-- **Mehrsprachig** — Deutsch/Englisch, dateibasiert (`src/lib/i18n/*.json`) und ohne
-  Code-Änderung um weitere Sprachen erweiterbar.
-- **Höhenprofil** — wenn die GPX-Datei Höhendaten enthält, werden Anstieg/Abstieg pro
-  Segment und pro generierter Route angezeigt.
+- **Login with multiple profiles** — separate accounts, shared path network.
+- **GPX import with node confirmation** — on upload, Routy detects whether a
+  track's start or end point is near an already-known node (configurable
+  radius) and lets you confirm that per track, or name a new node. Every
+  segment automatically gets its reverse-direction counterpart created too.
+- **Route generator** — enter a target distance or duration, freely choose
+  start/destination (a loop or an A→B route, optionally with a third
+  waypoint), preview the route on the map, and confirm with "New route" /
+  "Take this one" / "Cancel".
+  - No immediate doubling back on the same path — except at a genuine dead
+    end (e.g. a spur trail to a lookout point), where that's explicitly
+    allowed.
+  - Each direction of a path is used at most once per route.
+  - Fair selection: prefers rarely used paths, additionally penalizes
+    segments already walked today, and avoids overlap with alternatives
+    already shown earlier in the session.
+- **Network overview** — all nodes and path segments on a map, including
+  renaming and setting the home point.
+- **Settings** — merge radius, tolerances, diversity weighting, etc.,
+  changeable directly in the UI.
+- **Multi-language** — German/English, file-based (`src/lib/i18n/*.json`)
+  and extensible with more languages without any code changes.
+- **Elevation profile** — if the GPX file contains elevation data, ascent/
+  descent are shown per segment and per generated route.
 
-Geplant für spätere Ausbaustufen: freies Zeichnen von Wegen direkt auf der Karte
-(mit Snapping an bestehende Segmente), Statistik-Dashboard und Achievements pro Profil.
+Planned for later stages: freehand drawing of paths directly on the map
+(with snapping to existing segments), a stats dashboard, and achievements
+per profile.
 
-## Betrieb (Docker, empfohlen)
+## Running it (Docker, recommended)
 
-Jeder Push auf `main` baut das Image automatisch (per GitHub Actions) und
-veröffentlicht es unter `ghcr.io/emil007/routy` — dein NAS muss also nichts
-selbst kompilieren:
+A prebuilt image is published to `ghcr.io/emil007/routy` on every push to
+`main`, so no local build step is required:
 
 ```bash
 git clone https://github.com/Emil007/routy.git
 cd routy
-cp .env.example .env   # optional: Werte anpassen
 docker compose pull
 docker compose up -d
 ```
 
-Für ein Update später reicht `docker compose pull && docker compose up -d`.
+This runs with sensible defaults out of the box — there are no credentials or
+API keys to configure. To use a different data directory, edit the volume
+path in `docker-compose.yml` directly (see the comment above the `volumes:`
+line).
 
-> Falls das Paket beim ersten Mal noch als privat markiert ist, meldet
-> `docker compose pull` einen Zugriffsfehler — dann einmalig unter
-> github.com/Emil007/routy → Packages → routy → Package settings die
-> Sichtbarkeit auf „Public" stellen (unkritisch, das Image enthält nur den
-> App-Code, keine Nutzerdaten).
->
-> Alternativ lässt sich das Image auch lokal bauen: in `docker-compose.yml`
-> die `image:`-Zeile aus- und die `build: .`-Zeile einkommentieren, dann
+To update, run `docker compose pull && docker compose up -d` again.
+
+> The image can also be built locally instead: in `docker-compose.yml`,
+> comment out the `image:` line and uncomment `build: .`, then run
 > `docker compose up -d --build`.
 
-Der Container hört auf Port `3000`. Ein Reverse Proxy mit HTTPS davor wird
-vorausgesetzt (`COOKIE_SECURE=true` ist der Standard — auf `false` setzen, falls du
-nur unverschlüsselt im Heimnetz zugreifst).
+The container listens on port `3000`. A reverse proxy with HTTPS in front of
+it is assumed (`COOKIE_SECURE=true` is the default — set it to `false` if you
+access Routy over plain, unencrypted HTTP instead).
 
-Alle Daten (SQLite-Datenbank) liegen im gemounteten Volume `./data`. Backup = diesen
-Ordner sichern.
+All data (the SQLite database) lives in the mounted volume (`./data` by
+default, or wherever you pointed it). Back up that folder to back up Routy.
 
-Beim allerersten Öffnen der Seite fragt Routy nach den Daten für das erste Profil —
-kein Setup per Umgebungsvariable nötig. Weitere Profile legt jede:r angemeldete
-Nutzer:in über „Neues Profil“ im Menü an.
+**Map data:** Routy loads map tiles directly from `tile.openstreetmap.org`
+(with attribution) — no API key needed. That's the free, public OSM tile
+server; its usage policy is explicitly intended for light, small-scale use
+like this. A dedicated tile provider (e.g. MapTiler, which has a free tier)
+would only be worth setting up at significantly higher traffic.
 
-## Entwicklung
+The very first time you open the site, Routy asks you to set up the first
+profile — no setup via environment variable needed. Any signed-in user can
+create further profiles via "New profile" in the menu.
+
+## Development
 
 ```bash
 npm install
 npm run dev
 ```
 
-Die SQLite-Datei landet standardmäßig unter `./data/routy.db` (per `DATABASE_PATH`
-änderbar).
+The SQLite file lands under `./data/routy.db` by default (changeable via
+`DATABASE_PATH`).
 
-## Projektstruktur
+## Project structure
 
 ```
 src/
-  app/            Next.js App Router: Seiten, Server Actions, API-Routen
-  components/     Client-Komponenten (Karte, Routen-Generator, Import-Assistent, …)
-  lib/            Datenbank, Geo-Mathematik, GPX-Parsing, Routing-Algorithmus, i18n
-legacy/           Der ursprüngliche Discord-Bot-Prototyp (Referenz, nicht aktiv)
+  app/            Next.js App Router: pages, server actions, API routes
+  components/     Client components (map, route generator, import wizard, …)
+  lib/            Database, geo math, GPX parsing, routing algorithm, i18n
+legacy/           The original Discord bot prototype (reference, not active)
 ```
