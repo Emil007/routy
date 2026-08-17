@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { MapContainer, TileLayer, Marker, Polyline, Tooltip, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Polyline, Circle, Tooltip, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -18,6 +18,14 @@ export interface MapLine {
   points: [number, number][];
   color?: string;
   weight?: number;
+}
+
+export interface MapCircle {
+  id: number | string;
+  lat: number;
+  lng: number;
+  radiusM: number;
+  color?: string;
 }
 
 function dotIcon(color: string) {
@@ -47,24 +55,40 @@ function FitBounds({ markers, lines }: { markers: MapMarker[]; lines: MapLine[] 
   return null;
 }
 
+function ClickHandler({ onMapClick }: { onMapClick: (lat: number, lng: number) => void }) {
+  useMapEvents({
+    click: (e) => onMapClick(e.latlng.lat, e.latlng.lng),
+  });
+  return null;
+}
+
 export function MapView({
   markers = [],
   lines = [],
+  circles = [],
   height = 360,
   onMarkerClick,
+  onMapClick,
+  autoFit = true,
   className,
 }: {
   markers?: MapMarker[];
   lines?: MapLine[];
+  circles?: MapCircle[];
   height?: number;
   onMarkerClick?: (id: number | string) => void;
+  onMapClick?: (lat: number, lng: number) => void;
+  /** Re-fit the view whenever markers/lines change. Disable for interactive drawing,
+   * where re-centering on every click would fight the user's own panning/zoom. */
+  autoFit?: boolean;
   className?: string;
 }) {
   const defaultCenter = useMemo<[number, number]>(() => {
     if (markers[0]) return [markers[0].lat, markers[0].lng];
     if (lines[0]?.points[0]) return lines[0].points[0];
     return [51.1657, 10.4515]; // Germany, fallback
-  }, [markers, lines]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className={`map-box ${className ?? ""}`} style={{ height }}>
@@ -76,6 +100,14 @@ export function MapView({
         {lines.map((line) => (
           <Polyline key={line.id} positions={line.points} color={line.color ?? "#2e6b49"} weight={line.weight ?? 4} />
         ))}
+        {circles.map((c) => (
+          <Circle
+            key={c.id}
+            center={[c.lat, c.lng]}
+            radius={c.radiusM}
+            pathOptions={{ color: c.color ?? "#a5711c", weight: 1, dashArray: "4 4", fillOpacity: 0.05 }}
+          />
+        ))}
         {markers.map((marker) => (
           <Marker
             key={marker.id}
@@ -86,7 +118,8 @@ export function MapView({
             {marker.label && <Tooltip direction="top">{marker.label}</Tooltip>}
           </Marker>
         ))}
-        <FitBounds markers={markers} lines={lines} />
+        {autoFit && <FitBounds markers={markers} lines={lines} />}
+        {onMapClick && <ClickHandler onMapClick={onMapClick} />}
       </MapContainer>
     </div>
   );

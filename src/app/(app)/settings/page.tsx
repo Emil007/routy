@@ -2,17 +2,22 @@ import { requireUser } from "@/lib/session";
 import { resolveLocale } from "@/lib/locale";
 import { t } from "@/lib/i18n";
 import { getSettings, SETTINGS_KEYS, type Settings } from "@/lib/settings";
-import { saveSettingsAction } from "./actions";
+import { saveSettingsAction, createProfileAction } from "./actions";
 
 const STEP: Partial<Record<keyof Settings, number>> = {
   daily_diversity_weight: 0.5,
   walk_speed_kmh: 0.5,
 };
 
-export default async function SettingsPage() {
+export default async function SettingsPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ profileError?: string; profileSuccess?: string }>;
+}) {
   const user = await requireUser();
   const locale = await resolveLocale(user.locale);
   const settings = getSettings();
+  const { profileError, profileSuccess } = await searchParams;
 
   return (
     <>
@@ -39,6 +44,54 @@ export default async function SettingsPage() {
           ))}
           <button type="submit" className="btn-primary">
             {t(locale, "common.save")}
+          </button>
+        </form>
+      </div>
+
+      <div className="card">
+        <h2 style={{ fontSize: "1.1rem", marginBottom: "0.3rem" }}>{t(locale, "profile.title")}</h2>
+        <p style={{ color: "var(--ink-soft)", fontSize: "0.9rem", marginBottom: "1rem" }}>
+          {t(locale, "profile.subtitle")}
+        </p>
+
+        {profileSuccess && (
+          <div className="alert alert-success" style={{ marginBottom: "1rem" }}>
+            {t(locale, "profile.success")}
+          </div>
+        )}
+        {profileError === "taken" && (
+          <div className="alert alert-error" style={{ marginBottom: "1rem" }}>
+            {t(locale, "profile.usernameTaken")}
+          </div>
+        )}
+        {profileError === "invalid" && (
+          <div className="alert alert-error" style={{ marginBottom: "1rem" }}>
+            {t(locale, "common.error")}
+          </div>
+        )}
+
+        <form action={createProfileAction} className="stack">
+          <div className="field">
+            <label htmlFor="displayName">{t(locale, "profile.displayName")}</label>
+            <input type="text" id="displayName" name="displayName" required />
+          </div>
+          <div className="field">
+            <label htmlFor="username">{t(locale, "profile.username")}</label>
+            <input type="text" id="username" name="username" required />
+          </div>
+          <div className="field">
+            <label htmlFor="password">{t(locale, "profile.password")}</label>
+            <input type="password" id="password" name="password" minLength={6} required />
+          </div>
+          <div className="field">
+            <label htmlFor="profileLocale">{t(locale, "profile.locale")}</label>
+            <select id="profileLocale" name="locale" defaultValue={locale}>
+              <option value="de">Deutsch</option>
+              <option value="en">English</option>
+            </select>
+          </div>
+          <button type="submit" className="btn-secondary">
+            {t(locale, "profile.submit")}
           </button>
         </form>
       </div>

@@ -11,8 +11,8 @@ export default async function AppLayout({ children }: { children: React.ReactNod
     { href: "/route", label: t(locale, "nav.route") },
     { href: "/import", label: t(locale, "nav.import") },
     { href: "/map", label: t(locale, "nav.map") },
+    { href: "/stats", label: t(locale, "nav.stats") },
     { href: "/settings", label: t(locale, "nav.settings") },
-    { href: "/profile/new", label: t(locale, "nav.newProfile") },
   ];
 
   return (

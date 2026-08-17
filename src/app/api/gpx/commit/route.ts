@@ -25,6 +25,7 @@ const trackSchema = z.object({
   start: endpointSchema,
   end: endpointSchema,
   markStartAsHome: z.boolean().optional(),
+  source: z.enum(["gpx", "drawn"]).default("gpx"),
 });
 
 const bodySchema = z.object({ tracks: z.array(trackSchema).min(1).max(50) });
@@ -81,7 +82,7 @@ export async function POST(request: Request) {
       lengthM: track.lengthM,
       durationMin: track.durationMin,
       elevation: track.elevation,
-      source: "gpx",
+      source: track.source,
       submittedBy: user.id,
     });
     saved++;

@@ -12,15 +12,17 @@
     "error": "Etwas ist schiefgelaufen.",
     "yes": "Ja",
     "no": "Nein",
-    "optional": "optional"
+    "optional": "optional",
+    "hours": "Std."
   },
   "nav": {
     "route": "Route",
     "import": "Weg einreichen",
     "map": "Netzwerk",
+    "stats": "Statistik",
     "settings": "Einstellungen",
-    "logout": "Abmelden",
     "newProfile": "Neues Profil",
+    "logout": "Abmelden",
     "greeting": "Hallo, {name}"
   },
   "login": {
@@ -75,6 +77,8 @@
   "import": {
     "title": "Weg einreichen",
     "subtitle": "Lade eine GPX-Datei hoch. Enthaltene Tracks werden erkannt und du bestätigst pro Track, welchem Knotenpunkt Start und Ende entsprechen.",
+    "uploadMode": "GPX hochladen",
+    "drawMode": "Auf Karte zeichnen",
     "chooseFile": "GPX-Datei auswählen",
     "upload": "Hochladen & analysieren",
     "parsing": "Analysiere GPX …",
@@ -125,5 +129,37 @@
     "walk_speed_kmh": "Angenommene Gehgeschwindigkeit (km/h)",
     "walk_speed_kmh_hint": "Wird verwendet, wenn eine GPX-Datei keine Zeitstempel enthält.",
     "saved": "Einstellungen gespeichert."
+  },
+  "stats": {
+    "title": "Statistik",
+    "subtitle": "Deine Spaziergänge und wie das Wegenetz insgesamt genutzt wird.",
+    "yourStats": "Deine Werte",
+    "totalDistance": "Gesamtstrecke",
+    "totalWalks": "Spaziergänge",
+    "totalTime": "Gesamtzeit",
+    "segmentsExplored": "Wege erkundet",
+    "recentWalks": "Letzte Spaziergänge",
+    "noWalksYet": "Noch keine Route bestätigt.",
+    "date": "Datum",
+    "networkStats": "Netzwerk",
+    "mostUsed": "Meistgenutzte Wege",
+    "leastUsed": "Am wenigsten genutzte Wege",
+    "noSegments": "Noch keine Wegabschnitte im Netzwerk."
+  },
+  "draw": {
+    "title": "Auf der Karte zeichnen",
+    "instructions": "Klicke auf die Karte, um Punkte zu setzen. In der Nähe eines bekannten Knotens (gestrichelter Kreis) rastet der Klick automatisch dort ein.",
+    "undo": "Letzten Punkt entfernen",
+    "clear": "Zeichnung löschen",
+    "finish": "Fertig zeichnen",
+    "backToDrawing": "Zurück zum Zeichnen",
+    "distanceSoFar": "Bisherige Länge",
+    "pointsSoFar": "{count} Punkte",
+    "needMorePoints": "Mindestens 2 Punkte nötig.",
+    "snappedTo": "Eingerastet bei {name}",
+    "confirmTitle": "Weg bestätigen",
+    "save": "Weg speichern",
+    "saving": "Speichere …",
+    "success": "Weg gespeichert."
   }
 }

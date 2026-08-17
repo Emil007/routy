@@ -2,7 +2,7 @@ import { requireUser } from "@/lib/session";
 import { resolveLocale } from "@/lib/locale";
 import { t } from "@/lib/i18n";
 import { listNodes } from "@/lib/nodes";
-import { listSegments, getUsageMap } from "@/lib/segments";
+import { listSegments, getUsageMap, isCanonicalSegment } from "@/lib/segments";
 import { MapViewLazy } from "@/components/MapViewLazy";
 import { renameNodeAction, setHomeNodeAction } from "./actions";
 
@@ -32,7 +32,7 @@ export default async function MapPage() {
             color: n.isHome ? "#a5711c" : "#2e6b49",
           }))}
           lines={segments
-            .filter((s) => s.reverseOf === null)
+            .filter(isCanonicalSegment)
             .map((s) => ({
               id: s.id,
               points: s.geometry.map((p): [number, number] => [p.lat, p.lng]),
@@ -98,7 +98,7 @@ export default async function MapPage() {
             </thead>
             <tbody>
               {segments
-                .filter((s) => s.reverseOf === null)
+                .filter(isCanonicalSegment)
                 .map((s) => (
                   <tr key={s.id}>
                     <td>{nodesById.get(s.startNodeId)?.name || `#${s.startNodeId}`}</td>
