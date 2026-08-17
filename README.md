@@ -42,9 +42,18 @@ selbst kompilieren:
 ```bash
 git clone https://github.com/Emil007/routy.git
 cd routy
-cp .env.example .env   # optional: Werte anpassen
 docker compose pull
 docker compose up -d
+```
+
+Das läuft bereits ohne `.env` mit sinnvollen Standardwerten — es gibt keine
+Zugangsdaten oder API-Keys zu konfigurieren. Falls du den Datenordner an
+deiner gewohnten Stelle für App-Daten liegen haben willst (statt im
+`data`-Unterordner dieses Checkouts), leg eine `.env` an:
+
+```bash
+cp .env.example .env
+# DATA_DIR darin z. B. auf /volume1/docker/routy setzen
 ```
 
 Für ein Update später reicht `docker compose pull && docker compose up -d`.
@@ -63,8 +72,15 @@ Der Container hört auf Port `3000`. Ein Reverse Proxy mit HTTPS davor wird
 vorausgesetzt (`COOKIE_SECURE=true` ist der Standard — auf `false` setzen, falls du
 nur unverschlüsselt im Heimnetz zugreifst).
 
-Alle Daten (SQLite-Datenbank) liegen im gemounteten Volume `./data`. Backup = diesen
-Ordner sichern.
+Alle Daten (SQLite-Datenbank) liegen im gemounteten Volume (`DATA_DIR`, Standard
+`./data`). Backup = diesen Ordner sichern.
+
+**Kartendaten:** Routy lädt Kartenkacheln direkt von `tile.openstreetmap.org`
+(mit Attribution) — kein API-Key nötig. Das ist der öffentliche, kostenlose
+OSM-Tileserver; seine Nutzungsrichtlinie ist für kleine, private Projekte wie
+dieses (ein Haushalt, ein paar Kartenaufrufe pro Tag) ausdrücklich gedacht.
+Erst bei deutlich höherem Traffic würde sich ein eigener Tile-Anbieter
+(z. B. MapTiler, mit kostenlosem Kontingent) lohnen.
 
 Beim allerersten Öffnen der Seite fragt Routy nach den Daten für das erste Profil —
 kein Setup per Umgebungsvariable nötig. Weitere Profile legt jede:r angemeldete
