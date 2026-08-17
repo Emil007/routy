@@ -25,7 +25,12 @@ ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
 ENV DATABASE_PATH=/app/data/routy.db
 
-RUN groupadd --system --gid 1001 nodejs \
+# gosu lets the entrypoint start as root (to fix up the bind-mounted data
+# volume's ownership, which defaults to root on the host) and then drop to
+# the unprivileged user before actually running the app.
+RUN apt-get update && apt-get install -y --no-install-recommends gosu \
+  && rm -rf /var/lib/apt/lists/* \
+  && groupadd --system --gid 1001 nodejs \
   && useradd --system --uid 1001 --gid nodejs nextjs \
   && mkdir -p /app/data \
   && chown -R nextjs:nodejs /app/data
@@ -33,9 +38,10 @@ RUN groupadd --system --gid 1001 nodejs \
 COPY --from=builder /app/public ./public
 COPY --from=builder --chown=nextjs:nodejs /app/.next/standalone ./
 COPY --from=builder --chown=nextjs:nodejs /app/.next/static ./.next/static
+COPY --chmod=755 entrypoint.sh ./entrypoint.sh
 
-USER nextjs
 EXPOSE 3000
 VOLUME ["/app/data"]
 
+ENTRYPOINT ["./entrypoint.sh"]
 CMD ["node", "server.js"]

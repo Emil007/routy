@@ -35,10 +35,29 @@ Geplant für spätere Ausbaustufen: freies Zeichnen von Wegen direkt auf der Kar
 
 ## Betrieb (Docker, empfohlen)
 
+Jeder Push auf `main` baut das Image automatisch (per GitHub Actions) und
+veröffentlicht es unter `ghcr.io/emil007/routy` — dein NAS muss also nichts
+selbst kompilieren:
+
 ```bash
+git clone https://github.com/Emil007/routy.git
+cd routy
 cp .env.example .env   # optional: Werte anpassen
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 ```
+
+Für ein Update später reicht `docker compose pull && docker compose up -d`.
+
+> Falls das Paket beim ersten Mal noch als privat markiert ist, meldet
+> `docker compose pull` einen Zugriffsfehler — dann einmalig unter
+> github.com/Emil007/routy → Packages → routy → Package settings die
+> Sichtbarkeit auf „Public" stellen (unkritisch, das Image enthält nur den
+> App-Code, keine Nutzerdaten).
+>
+> Alternativ lässt sich das Image auch lokal bauen: in `docker-compose.yml`
+> die `image:`-Zeile aus- und die `build: .`-Zeile einkommentieren, dann
+> `docker compose up -d --build`.
 
 Der Container hört auf Port `3000`. Ein Reverse Proxy mit HTTPS davor wird
 vorausgesetzt (`COOKIE_SECURE=true` ist der Standard — auf `false` setzen, falls du
