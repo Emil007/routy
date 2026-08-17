@@ -148,8 +148,9 @@ export function EditSegmentWizard({
     if (res.ok) {
       router.push("/map");
     } else {
+      const body = (await res.json().catch(() => null)) as { error?: string } | null;
       setSplitStatus("error");
-      setSplitMessage(t(locale, "edit.splitError"));
+      setSplitMessage(body?.error === "segment_active" ? t(locale, "edit.splitBlockedActive") : t(locale, "edit.splitError"));
     }
   }
 

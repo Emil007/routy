@@ -171,7 +171,8 @@
     "networkStats": "Network",
     "mostUsed": "Most-used paths",
     "leastUsed": "Least-used paths",
-    "noSegments": "No path segments in the network yet."
+    "noSegments": "No path segments in the network yet.",
+    "deleteWalkConfirm": "Really delete this walk from your history? Your stats will be adjusted accordingly."
   },
   "draw": {
     "title": "Draw on the map",
@@ -203,6 +204,7 @@
     "splitConfirmTitle": "Split the path here?",
     "splitButton": "Split",
     "splitting": "Splitting …",
-    "splitError": "Could not split the path."
+    "splitError": "Could not split the path.",
+    "splitBlockedActive": "This path can't be split right now — it's currently used by an active route."
   }
 }

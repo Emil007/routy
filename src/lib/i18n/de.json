@@ -171,7 +171,8 @@
     "networkStats": "Netzwerk",
     "mostUsed": "Meistgenutzte Wege",
     "leastUsed": "Am wenigsten genutzte Wege",
-    "noSegments": "Noch keine Wegabschnitte im Netzwerk."
+    "noSegments": "Noch keine Wegabschnitte im Netzwerk.",
+    "deleteWalkConfirm": "Diesen Spaziergang wirklich aus dem Verlauf löschen? Die Statistik wird entsprechend angepasst."
   },
   "draw": {
     "title": "Auf der Karte zeichnen",
@@ -203,6 +204,7 @@
     "splitConfirmTitle": "Weg an dieser Stelle teilen?",
     "splitButton": "Teilen",
     "splitting": "Teile …",
-    "splitError": "Der Weg konnte nicht geteilt werden."
+    "splitError": "Der Weg konnte nicht geteilt werden.",
+    "splitBlockedActive": "Dieser Weg kann gerade nicht geteilt werden — er wird von einer aktiven Route genutzt."
   }
 }

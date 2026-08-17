@@ -196,6 +196,31 @@ export function deleteSegment(id: number): void {
   db.prepare("DELETE FROM segments WHERE id = ?").run(id);
 }
 
+/**
+ * Removes a logged walk from a profile's history — e.g. one confirmed by
+ * mistake. Reverses the usage-count bump `recordWalk` made for it so stats
+ * don't stay inflated for a walk that no longer counts. Scoped to `userId` so
+ * one profile can't delete another's history. Returns false if no matching
+ * entry was found (already deleted, or belongs to someone else).
+ */
+export function deleteWalkLogEntry(id: number, userId: number): boolean {
+  const row = db.prepare("SELECT segment_ids FROM walk_log WHERE id = ? AND user_id = ?").get(id, userId) as
+    | { segment_ids: string }
+    | undefined;
+  if (!row) return false;
+
+  const segmentIds = JSON.parse(row.segment_ids) as number[];
+  const tx = db.transaction(() => {
+    db.prepare("DELETE FROM walk_log WHERE id = ?").run(id);
+    const decrement = db.prepare(
+      "UPDATE segment_usage SET usage_count = MAX(0, usage_count - 1) WHERE segment_id = ?",
+    );
+    for (const segId of segmentIds) decrement.run(segId);
+  });
+  tx();
+  return true;
+}
+
 function resolveCanonical(id: number): SegmentRow | null {
   const row = getSegment(id);
   if (!row) return null;
