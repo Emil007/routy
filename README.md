@@ -38,9 +38,8 @@ per profile.
 
 ## Running it (Docker, recommended)
 
-Every push to `main` automatically builds the image (via GitHub Actions) and
-publishes it to `ghcr.io/emil007/routy` — your NAS doesn't need to compile
-anything itself:
+A prebuilt image is published to `ghcr.io/emil007/routy` on every push to
+`main`, so no local build step is required:
 
 ```bash
 git clone https://github.com/Emil007/routy.git
@@ -49,12 +48,12 @@ docker compose pull
 docker compose up -d
 ```
 
-This already runs with sensible defaults — there are no credentials or API
-keys to configure. If you'd rather keep the data folder somewhere else (e.g.
-alongside your other containers' appdata), just edit the volume path in
-`docker-compose.yml` directly — see the comment above the `volumes:` line.
+This runs with sensible defaults out of the box — there are no credentials or
+API keys to configure. To use a different data directory, edit the volume
+path in `docker-compose.yml` directly (see the comment above the `volumes:`
+line).
 
-To update later, `docker compose pull && docker compose up -d` is enough.
+To update, run `docker compose pull && docker compose up -d` again.
 
 > The image can also be built locally instead: in `docker-compose.yml`,
 > comment out the `image:` line and uncomment `build: .`, then run
@@ -69,10 +68,9 @@ default, or wherever you pointed it). Back up that folder to back up Routy.
 
 **Map data:** Routy loads map tiles directly from `tile.openstreetmap.org`
 (with attribution) — no API key needed. That's the free, public OSM tile
-server; its usage policy is explicitly intended for small, personal projects
-like this one (one household, a handful of map loads a day). Only at
-significantly higher traffic would a dedicated tile provider (e.g. MapTiler,
-which has a free tier) be worth setting up.
+server; its usage policy is explicitly intended for light, small-scale use
+like this. A dedicated tile provider (e.g. MapTiler, which has a free tier)
+would only be worth setting up at significantly higher traffic.
 
 The very first time you open the site, Routy asks you to set up the first
 profile — no setup via environment variable needed. Any signed-in user can
