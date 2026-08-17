@@ -282,6 +282,18 @@ th {
   overflow-x: auto;
 }
 
+.grid-2-cols {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+}
+
+@media (max-width: 560px) {
+  .grid-2-cols {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ---- top nav ---- */
 .topnav {
   display: flex;

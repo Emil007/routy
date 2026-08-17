@@ -1,5 +1,7 @@
 import { db } from "./db";
-import { type LatLng, haversineMeters } from "./geo";
+import { type LatLng } from "./geo";
+
+export { type NodeCandidate, findNodeCandidates, findNameConflict } from "./nodeMatching";
 
 export interface NodeRow {
   id: number;
@@ -62,37 +64,3 @@ export function setHomeNode(id: number): void {
   tx();
 }
 
-export interface NodeCandidate {
-  id: number;
-  name: string | null;
-  lat: number;
-  lng: number;
-  distanceM: number;
-}
-
-export function findNodeCandidates(nodes: NodeRow[], point: LatLng, radiusM: number): NodeCandidate[] {
-  return nodes
-    .map((n) => ({ id: n.id, name: n.name, lat: n.lat, lng: n.lng, distanceM: haversineMeters(point, n) }))
-    .filter((c) => c.distanceM <= radiusM)
-    .sort((a, b) => a.distanceM - b.distanceM);
-}
-
-/** Finds an existing node with the same name guess but suspiciously far away. */
-export function findNameConflict(
-  nodes: NodeRow[],
-  point: LatLng,
-  nameGuess: string | null,
-  warnDistanceM: number,
-): NodeCandidate | null {
-  if (!nameGuess) return null;
-  let best: NodeCandidate | null = null;
-  for (const n of nodes) {
-    if (n.name === nameGuess) {
-      const d = haversineMeters(point, n);
-      if (d > warnDistanceM && (!best || d < best.distanceM)) {
-        best = { id: n.id, name: n.name, lat: n.lat, lng: n.lng, distanceM: d };
-      }
-    }
-  }
-  return best;
-}

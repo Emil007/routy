@@ -12,15 +12,17 @@
     "error": "Something went wrong.",
     "yes": "Yes",
     "no": "No",
-    "optional": "optional"
+    "optional": "optional",
+    "hours": "h"
   },
   "nav": {
     "route": "Route",
     "import": "Submit a path",
     "map": "Network",
+    "stats": "Stats",
     "settings": "Settings",
-    "logout": "Log out",
     "newProfile": "New profile",
+    "logout": "Log out",
     "greeting": "Hi, {name}"
   },
   "login": {
@@ -75,6 +77,8 @@
   "import": {
     "title": "Submit a path",
     "subtitle": "Upload a GPX file. Any tracks it contains are detected, and you confirm which known node each start and end point belongs to.",
+    "uploadMode": "Upload GPX",
+    "drawMode": "Draw on map",
     "chooseFile": "Choose GPX file",
     "upload": "Upload & analyze",
     "parsing": "Analyzing GPX …",
@@ -125,5 +129,37 @@
     "walk_speed_kmh": "Assumed walking speed (km/h)",
     "walk_speed_kmh_hint": "Used when a GPX file has no timestamps.",
     "saved": "Settings saved."
+  },
+  "stats": {
+    "title": "Stats",
+    "subtitle": "Your walks, and how the path network is used overall.",
+    "yourStats": "Your stats",
+    "totalDistance": "Total distance",
+    "totalWalks": "Walks",
+    "totalTime": "Total time",
+    "segmentsExplored": "Paths explored",
+    "recentWalks": "Recent walks",
+    "noWalksYet": "No route accepted yet.",
+    "date": "Date",
+    "networkStats": "Network",
+    "mostUsed": "Most-used paths",
+    "leastUsed": "Least-used paths",
+    "noSegments": "No path segments in the network yet."
+  },
+  "draw": {
+    "title": "Draw on the map",
+    "instructions": "Click the map to place points. Near a known node (dashed circle) a click snaps to it automatically.",
+    "undo": "Remove last point",
+    "clear": "Clear drawing",
+    "finish": "Finish drawing",
+    "backToDrawing": "Back to drawing",
+    "distanceSoFar": "Length so far",
+    "pointsSoFar": "{count} points",
+    "needMorePoints": "At least 2 points needed.",
+    "snappedTo": "Snapped to {name}",
+    "confirmTitle": "Confirm path",
+    "save": "Save path",
+    "saving": "Saving …",
+    "success": "Path saved."
   }
 }

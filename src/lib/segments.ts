@@ -62,6 +62,17 @@ export function getSegment(id: number): SegmentRow | null {
   return row ? mapSegment(row) : null;
 }
 
+/**
+ * Each physical path is stored as two rows (forward + auto-generated reverse)
+ * whose reverse_of columns point at each other, so neither is ever null.
+ * The forward row is always inserted first and therefore has the lower id —
+ * that's the canonical, one-row-per-physical-path representative to use
+ * whenever a UI should show each path once (not once per direction).
+ */
+export function isCanonicalSegment(s: Pick<SegmentRow, "id" | "reverseOf">): boolean {
+  return s.reverseOf === null || s.id < s.reverseOf;
+}
+
 export interface NewSegmentInput {
   startNodeId: number;
   endNodeId: number;
