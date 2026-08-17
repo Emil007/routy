@@ -1,40 +1,52 @@
 # Routy
 
-A standalone web platform that generates dog-walk routes from submitted path
-segments (GPX files), matching a target length or duration. Successor to the
-original Discord bot (see [`legacy/`](./legacy)) — this time as a self-hosted
-web portal with login.
+A standalone web platform that suggests dog-walk routes from a shared network
+of submitted path segments (uploaded as GPX files or drawn on the map),
+favoring your preferred length and paths you haven't walked in a while.
+Successor to the original Discord bot (see [`legacy/`](./legacy)) — this time
+as a self-hosted web portal with login.
 
 ## Features (current state)
 
 - **Login with multiple profiles** — separate accounts, shared path network.
-- **GPX import with node confirmation** — on upload, Routy detects whether a
-  track's start or end point is near an already-known node (configurable
-  radius) and lets you confirm that per track, or name a new node. Every
-  segment automatically gets its reverse-direction counterpart created too.
-- **Route generator** — enter a target distance or duration, freely choose
-  start/destination (a loop or an A→B route, optionally with a third
-  waypoint), preview the route on the map, and confirm with "New route" /
-  "Take this one" / "Cancel".
-  - No immediate doubling back on the same path — except at a genuine dead
-    end (e.g. a spur trail to a lookout point), where that's explicitly
-    allowed.
-  - Each direction of a path is used at most once per route.
-  - Fair selection: prefers rarely used paths, additionally penalizes
-    segments already walked today, and avoids overlap with alternatives
-    already shown earlier in the session.
-- **Network overview** — all nodes and path segments on a map, including
-  renaming and setting the home point.
-- **Settings** — merge radius, tolerances, diversity weighting, etc.,
-  changeable directly in the UI.
+  New profiles are created from Settings by any signed-in user.
+- **Two ways to submit a path**: upload a GPX file, or draw it directly on
+  the map by clicking points (with optional snapping to nearby known nodes,
+  toggleable, and points can be dragged to place them more precisely before
+  saving). Either way, Routy detects whether the start/end point is near an
+  already-known node (configurable radius) and lets you confirm that, or
+  name a new node — every path automatically gets its reverse-direction
+  counterpart created too.
+- **Route suggestions** — no need to type an exact distance: Routy suggests
+  a route from a preferred length band (configurable in Settings), then
+  "Longer" / "Shorter" refine it in that direction, or "Another route" tries
+  a different one at roughly the same length. Preview on the map and confirm
+  with "Take this one" / "Cancel".
+  - Routes are scored to avoid re-walking the same physical path in both
+    directions (no pointless out-and-back detours) ahead of preferring
+    rarely used paths, additionally penalizing segments already walked
+    today, and avoiding overlap with alternatives already shown earlier in
+    the session.
+  - The route summary only names actual decision points (real forks),
+    skipping plain pass-through waypoints.
+- **Network editing** — the network overview map is interactive: click a
+  path to open its editor (drag points to correct its shape, or click along
+  it to split it into two at a new junction — e.g. when a crossing path
+  appears later), click a node to rename it, move it (drags the connected
+  paths' endpoints along with it), or delete it. Paths and nodes can also be
+  deleted/edited from the lists below the map.
+- **Stats** — personal totals (distance, walk count, time, paths explored)
+  and network-wide most/least-used paths.
+- **Settings** — merge radius, route-suggestion length band and step size,
+  tolerances, diversity weighting, etc., changeable directly in the UI.
 - **Multi-language** — German/English, file-based (`src/lib/i18n/*.json`)
   and extensible with more languages without any code changes.
-- **Elevation profile** — if the GPX file contains elevation data, ascent/
-  descent are shown per segment and per generated route.
+- **Elevation profile** — ascent/descent are shown per path and per
+  generated route. If a GPX file has no recorded elevation, or a path was
+  drawn on the map, elevation is looked up automatically (best-effort, via
+  the free Open-Meteo API — never blocks saving if unreachable).
 
-Planned for later stages: freehand drawing of paths directly on the map
-(with snapping to existing segments), a stats dashboard, and achievements
-per profile.
+Planned for later stages: achievements per profile.
 
 ## Running it (Docker, recommended)
 
@@ -66,15 +78,19 @@ access Routy over plain, unencrypted HTTP instead).
 All data (the SQLite database) lives in the mounted volume (`./data` by
 default, or wherever you pointed it). Back up that folder to back up Routy.
 
-**Map data:** Routy loads map tiles directly from `tile.openstreetmap.org`
-(with attribution) — no API key needed. That's the free, public OSM tile
-server; its usage policy is explicitly intended for light, small-scale use
-like this. A dedicated tile provider (e.g. MapTiler, which has a free tier)
-would only be worth setting up at significantly higher traffic.
+**External services:** Routy loads map tiles directly from
+`tile.openstreetmap.org` (with attribution) — no API key needed. That's the
+free, public OSM tile server; its usage policy is explicitly intended for
+light, small-scale use like this. A dedicated tile provider (e.g. MapTiler,
+which has a free tier) would only be worth setting up at significantly
+higher traffic. Elevation lookups (for paths without recorded elevation) use
+the free Open-Meteo API, also without a key; if the container has no
+outbound internet access, or that service is unreachable, saving a path
+still works fine — it's simply saved without elevation data.
 
 The very first time you open the site, Routy asks you to set up the first
 profile — no setup via environment variable needed. Any signed-in user can
-create further profiles via "New profile" in the menu.
+create further profiles from the Settings page.
 
 ## Development
 
