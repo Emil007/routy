@@ -5,11 +5,20 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { t, type Locale } from "@/lib/i18n";
 import { pathLengthMeters, closestPointOnPath, type LatLng } from "@/lib/geo";
+import { findNodeCandidates } from "@/lib/nodeMatching";
 import { MapViewLazy } from "./MapViewLazy";
+import { EndpointFields } from "./EndpointFields";
+import type { NodeRow } from "@/lib/nodes";
 import type { MapMarker, MapLine } from "./MapView";
 
 interface SplitTarget {
   point: LatLng;
+}
+
+interface SplitDecision {
+  choice: "existing" | "new";
+  nodeId: number | null;
+  newName: string;
 }
 
 export function EditSegmentWizard({
@@ -19,6 +28,8 @@ export function EditSegmentWizard({
   startNodeName,
   endNodeName,
   networkLines,
+  nodes,
+  mergeRadiusM,
 }: {
   locale: Locale;
   segmentId: number;
@@ -26,6 +37,8 @@ export function EditSegmentWizard({
   startNodeName: string;
   endNodeName: string;
   networkLines: MapLine[];
+  nodes: NodeRow[];
+  mergeRadiusM: number;
 }) {
   const router = useRouter();
   const [points, setPoints] = useState<LatLng[]>(initialPoints);
@@ -33,7 +46,7 @@ export function EditSegmentWizard({
   const [geometryMessage, setGeometryMessage] = useState<string | null>(null);
 
   const [splitTarget, setSplitTarget] = useState<SplitTarget | null>(null);
-  const [splitName, setSplitName] = useState("");
+  const [splitDecision, setSplitDecision] = useState<SplitDecision | null>(null);
   const [splitStatus, setSplitStatus] = useState<"idle" | "saving" | "error">("idle");
   const [splitMessage, setSplitMessage] = useState<string | null>(null);
 
@@ -60,6 +73,11 @@ export function EditSegmentWizard({
     ? [{ id: "split-preview", lat: splitTarget.point.lat, lng: splitTarget.point.lng, color: "#1e4a32" }]
     : [];
 
+  const splitCandidates = useMemo(
+    () => (splitTarget ? findNodeCandidates(nodes, splitTarget.point, mergeRadiusM) : []),
+    [splitTarget, nodes, mergeRadiusM],
+  );
+
   function handleVertexDragEnd(id: number | string, lat: number, lng: number) {
     if (typeof id !== "string" || !id.startsWith("v-")) return;
     const index = Number(id.slice(2));
@@ -76,14 +94,20 @@ export function EditSegmentWizard({
     if (id !== "edit") return;
     const closest = closestPointOnPath(points, { lat, lng });
     if (!closest) return;
+    const candidates = findNodeCandidates(nodes, closest.point, mergeRadiusM);
     setSplitTarget({ point: closest.point });
-    setSplitName("");
+    setSplitDecision(
+      candidates.length > 0
+        ? { choice: "existing", nodeId: candidates[0].id, newName: "" }
+        : { choice: "new", nodeId: null, newName: "" },
+    );
     setSplitStatus("idle");
     setSplitMessage(null);
   }
 
   function cancelSplit() {
     setSplitTarget(null);
+    setSplitDecision(null);
   }
 
   async function saveGeometry() {
@@ -105,7 +129,7 @@ export function EditSegmentWizard({
   }
 
   async function confirmSplit() {
-    if (!splitTarget) return;
+    if (!splitTarget || !splitDecision) return;
     setSplitStatus("saving");
     setSplitMessage(null);
     const res = await fetch("/api/segments/split", {
@@ -115,7 +139,10 @@ export function EditSegmentWizard({
         segmentId,
         lat: splitTarget.point.lat,
         lng: splitTarget.point.lng,
-        nodeName: splitName.trim() || null,
+        endpoint:
+          splitDecision.choice === "existing" && splitDecision.nodeId
+            ? { nodeId: splitDecision.nodeId }
+            : { newName: splitDecision.newName || null },
       }),
     });
     if (res.ok) {
@@ -161,13 +188,23 @@ export function EditSegmentWizard({
         )}
       </div>
 
-      {splitTarget && (
+      {splitTarget && splitDecision && (
         <div className="card stack">
           <h3 style={{ fontSize: "1rem" }}>{t(locale, "edit.splitConfirmTitle")}</h3>
-          <div className="field">
-            <label>{t(locale, "import.newNodeName")}</label>
-            <input type="text" value={splitName} onChange={(e) => setSplitName(e.target.value)} />
-          </div>
+
+          <EndpointFields
+            locale={locale}
+            role="split"
+            candidates={splitCandidates}
+            nameConflict={null}
+            decisionChoice={splitDecision.choice}
+            decisionNodeId={splitDecision.nodeId}
+            decisionNewName={splitDecision.newName}
+            onChoice={(v) => setSplitDecision((d) => (d ? { ...d, choice: v } : d))}
+            onNodeId={(v) => setSplitDecision((d) => (d ? { ...d, nodeId: v } : d))}
+            onNewName={(v) => setSplitDecision((d) => (d ? { ...d, newName: v } : d))}
+          />
+
           <div className="btn-row">
             <button type="button" className="btn-primary" onClick={confirmSplit} disabled={splitStatus === "saving"}>
               {splitStatus === "saving" ? t(locale, "edit.splitting") : t(locale, "edit.splitButton")}

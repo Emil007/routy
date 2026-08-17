@@ -4,8 +4,8 @@ import { t } from "@/lib/i18n";
 import Link from "next/link";
 import { listNodes } from "@/lib/nodes";
 import { listSegments, getUsageMap, isCanonicalSegment } from "@/lib/segments";
-import { MapViewLazy } from "@/components/MapViewLazy";
 import { ConfirmSubmitForm } from "@/components/ConfirmSubmitForm";
+import { MapPageClient } from "./MapPageClient";
 import { renameNodeAction, setHomeNodeAction, deleteSegmentAction } from "./actions";
 
 export default async function MapPage() {
@@ -15,6 +15,13 @@ export default async function MapPage() {
   const segments = listSegments();
   const usage = getUsageMap();
   const nodesById = new Map(nodes.map((n) => [n.id, n]));
+  const canonicalSegments = segments.filter(isCanonicalSegment);
+
+  const segmentCounts = new Map<number, number>();
+  for (const s of canonicalSegments) {
+    segmentCounts.set(s.startNodeId, (segmentCounts.get(s.startNodeId) ?? 0) + 1);
+    segmentCounts.set(s.endNodeId, (segmentCounts.get(s.endNodeId) ?? 0) + 1);
+  }
 
   return (
     <>
@@ -23,24 +30,15 @@ export default async function MapPage() {
         <p>{t(locale, "map.subtitle")}</p>
       </div>
 
-      <div className="card">
-        <MapViewLazy
-          height={420}
-          markers={nodes.map((n) => ({
-            id: n.id,
-            lat: n.lat,
-            lng: n.lng,
-            label: n.name || t(locale, "map.unnamedNode"),
-            color: n.isHome ? "#a5711c" : "#2e6b49",
-          }))}
-          lines={segments
-            .filter(isCanonicalSegment)
-            .map((s) => ({
-              id: s.id,
-              points: s.geometry.map((p): [number, number] => [p.lat, p.lng]),
-            }))}
-        />
-      </div>
+      <MapPageClient
+        locale={locale}
+        nodes={nodes}
+        lines={canonicalSegments.map((s) => ({
+          id: s.id,
+          points: s.geometry.map((p): [number, number] => [p.lat, p.lng]),
+        }))}
+        segmentCounts={segmentCounts}
+      />
 
       <div className="card">
         <h2 style={{ fontSize: "1.1rem" }}>{t(locale, "map.nodesHeading")}</h2>
@@ -100,9 +98,7 @@ export default async function MapPage() {
               </tr>
             </thead>
             <tbody>
-              {segments
-                .filter(isCanonicalSegment)
-                .map((s) => (
+              {canonicalSegments.map((s) => (
                   <tr key={s.id}>
                     <td>{nodesById.get(s.startNodeId)?.name || `#${s.startNodeId}`}</td>
                     <td>{nodesById.get(s.endNodeId)?.name || `#${s.endNodeId}`}</td>

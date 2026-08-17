@@ -3,7 +3,8 @@ import { requireUser } from "@/lib/session";
 import { resolveLocale } from "@/lib/locale";
 import { t } from "@/lib/i18n";
 import { getSegment, listSegments, isCanonicalSegment } from "@/lib/segments";
-import { getNode } from "@/lib/nodes";
+import { getNode, listNodes } from "@/lib/nodes";
+import { getSettings } from "@/lib/settings";
 import { EditSegmentWizard } from "@/components/EditSegmentWizard";
 
 export default async function EditSegmentPage({ params }: { params: Promise<{ id: string }> }) {
@@ -22,6 +23,8 @@ export default async function EditSegmentPage({ params }: { params: Promise<{ id
     .filter(isCanonicalSegment)
     .filter((s) => s.id !== canonical.id)
     .map((s) => ({ id: s.id, points: s.geometry.map((p): [number, number] => [p.lat, p.lng]) }));
+  const nodes = listNodes();
+  const settings = getSettings();
 
   return (
     <>
@@ -36,6 +39,8 @@ export default async function EditSegmentPage({ params }: { params: Promise<{ id
         startNodeName={startNode?.name || `#${canonical.startNodeId}`}
         endNodeName={endNode?.name || `#${canonical.endNodeId}`}
         networkLines={networkLines}
+        nodes={nodes}
+        mergeRadiusM={settings.merge_radius_m}
       />
     </>
   );

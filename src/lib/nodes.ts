@@ -56,6 +56,15 @@ export function renameNode(id: number, name: string): void {
   db.prepare("UPDATE nodes SET name = ? WHERE id = ?").run(name, id);
 }
 
+export function updateNodePosition(id: number, point: LatLng): void {
+  db.prepare("UPDATE nodes SET lat = ?, lng = ? WHERE id = ?").run(point.lat, point.lng, id);
+}
+
+/** Also deletes every segment touching this node (start_node_id/end_node_id cascade). */
+export function deleteNode(id: number): void {
+  db.prepare("DELETE FROM nodes WHERE id = ?").run(id);
+}
+
 export function setHomeNode(id: number): void {
   const tx = db.transaction(() => {
     db.prepare("UPDATE nodes SET is_home = 0 WHERE is_home = 1").run();

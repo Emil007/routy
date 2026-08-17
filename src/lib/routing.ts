@@ -200,9 +200,28 @@ export function segmentSetKey(ids: number[]): string {
   return [...ids].sort((a, b) => a - b).join(",");
 }
 
+/**
+ * Counts how many times a route walks the same physical path more than once
+ * (its forward and reverse directions count as the same path) — an out-and-back
+ * stretch scores high here even though it never immediately reverses onto the
+ * edge it just came from. Zero means a genuine loop that never repeats a path.
+ */
+export function backtrackScore(segmentIds: number[], pairOf: Map<number, number>): number {
+  const canonicalCounts = new Map<number, number>();
+  for (const id of segmentIds) {
+    const pair = pairOf.get(id);
+    const canonical = pair !== undefined ? Math.min(id, pair) : id;
+    canonicalCounts.set(canonical, (canonicalCounts.get(canonical) ?? 0) + 1);
+  }
+  let extra = 0;
+  for (const count of canonicalCounts.values()) if (count > 1) extra += count - 1;
+  return extra;
+}
+
 export interface ScoredRoute {
   route: RouteResult;
   key: string;
+  backtrack: number;
   weightedUsage: number;
   overlap: number;
   delta: number;
@@ -210,6 +229,7 @@ export interface ScoredRoute {
 
 export function scoreRoutes(
   routes: RouteResult[],
+  pairOf: Map<number, number>,
   usageMap: Map<number, number>,
   dailyMap: Map<number, number>,
   dailyWeight: number,
@@ -232,6 +252,7 @@ export function scoreRoutes(
     return {
       route,
       key: segmentSetKey(route.segmentIds),
+      backtrack: backtrackScore(route.segmentIds, pairOf),
       weightedUsage: usageSum + dailySum,
       overlap,
       delta: Math.abs(actual - targetValue),
@@ -245,9 +266,11 @@ export function pickBest(scored: ScoredRoute[], excludeKeys: Set<string>): Score
     if (excludeKeys.has(s.key)) continue;
     if (
       !best ||
-      s.weightedUsage < best.weightedUsage ||
-      (s.weightedUsage === best.weightedUsage &&
-        (s.overlap < best.overlap || (s.overlap === best.overlap && s.delta < best.delta)))
+      s.backtrack < best.backtrack ||
+      (s.backtrack === best.backtrack &&
+        (s.weightedUsage < best.weightedUsage ||
+          (s.weightedUsage === best.weightedUsage &&
+            (s.overlap < best.overlap || (s.overlap === best.overlap && s.delta < best.delta)))))
     ) {
       best = s;
     }
@@ -261,4 +284,37 @@ export function toleranceRange(
 ): { minValue: number; maxValue: number } {
   const tol = target * (tolerancePercent / 100);
   return { minValue: Math.max(0, target - tol), maxValue: target + tol };
+}
+
+/**
+ * Reduces a route's node chain to the waypoints worth calling out by name for a
+ * walker following directions: the start, the destination, any explicitly
+ * requested waypoint, and every node where a genuine choice exists — i.e. some
+ * other way forward besides the one just walked in on. A node with only one way
+ * onward (no fork) is a plain pass-through and gets dropped from the summary.
+ */
+export function findCornerstoneIndices(
+  nodeChain: number[],
+  segmentIds: number[],
+  graph: Graph,
+  pairOf: Map<number, number>,
+  forceKeepNodeIds?: Set<number>,
+): number[] {
+  const indices: number[] = [];
+  if (nodeChain.length === 0) return indices;
+  indices.push(0);
+  for (let i = 1; i < nodeChain.length - 1; i++) {
+    if (forceKeepNodeIds?.has(nodeChain[i])) {
+      indices.push(i);
+      continue;
+    }
+    const incomingEdgeId = segmentIds[i - 1];
+    const outgoingEdgeId = segmentIds[i];
+    const reverseOfIncoming = pairOf.get(incomingEdgeId);
+    const edgesHere = graph.adjacency.get(nodeChain[i]) ?? [];
+    const otherOptions = edgesHere.filter((e) => e.id !== outgoingEdgeId && e.id !== reverseOfIncoming);
+    if (otherOptions.length > 0) indices.push(i);
+  }
+  if (nodeChain.length > 1) indices.push(nodeChain.length - 1);
+  return indices;
 }

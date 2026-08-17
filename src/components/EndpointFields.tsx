@@ -16,7 +16,7 @@ export function EndpointFields({
   onNewName,
 }: {
   locale: Locale;
-  role: "start" | "end";
+  role: "start" | "end" | "split";
   candidates: NodeCandidate[];
   nameConflict: NodeCandidate | null;
   decisionChoice: "existing" | "new";
@@ -28,7 +28,9 @@ export function EndpointFields({
 }) {
   return (
     <div className="field">
-      <label>{t(locale, role === "start" ? "import.startNode" : "import.endNode")}</label>
+      <label>
+        {t(locale, role === "start" ? "import.startNode" : role === "end" ? "import.endNode" : "edit.splitPointLabel")}
+      </label>
       <div className="btn-row" style={{ marginBottom: "0.4rem" }}>
         <button
           type="button"

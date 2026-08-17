@@ -4,7 +4,7 @@ import { getCurrentUser } from "@/lib/session";
 import { getSettings } from "@/lib/settings";
 import { getUsageMap, getDailyUsageMap } from "@/lib/segments";
 import { loadGraphContext } from "@/lib/routeContext";
-import { findDirectRoutes, findWaypointRoutes, scoreRoutes, pickBest, toleranceRange } from "@/lib/routing";
+import { findDirectRoutes, findWaypointRoutes, scoreRoutes, pickBest, toleranceRange, findCornerstoneIndices } from "@/lib/routing";
 import { getRouteSession, updateRouteSession } from "@/lib/routeSessions";
 import { buildRouteDisplay } from "@/lib/routeDisplay";
 
@@ -58,6 +58,7 @@ export async function POST(request: Request) {
   const dailyMap = getDailyUsageMap();
   const scored = scoreRoutes(
     candidates,
+    pairOf,
     usageMap,
     dailyMap,
     settings.daily_diversity_weight,
@@ -86,6 +87,13 @@ export async function POST(request: Request) {
     widenSteps: nextWidenSteps,
   });
 
+  const cornerstoneIndices = findCornerstoneIndices(
+    best.route.nodeChain,
+    best.route.segmentIds,
+    graph,
+    pairOf,
+    session.waypointNodeId ? new Set([session.waypointNodeId]) : undefined,
+  );
   const display = buildRouteDisplay(
     best.route.nodeChain,
     best.route.segmentIds,
@@ -93,6 +101,7 @@ export async function POST(request: Request) {
     best.route.durationMin,
     nodesById,
     segmentsById,
+    cornerstoneIndices,
   );
 
   return NextResponse.json({ token: parsed.data.token, route: display, tolerancePercent: effectiveTolerance });

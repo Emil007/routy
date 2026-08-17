@@ -1,8 +1,7 @@
 import { db } from "./db";
 import { type LatLng, reversePoints, pathLengthMeters, estimateMinutes, elevationStats, closestPointOnPath } from "./geo";
 import type { ElevationStats } from "./geo";
-import { createNode, listNodes } from "./nodes";
-import { findNodeCandidates } from "./nodeMatching";
+import { createNode, getNode, updateNodePosition, type NodeRow } from "./nodes";
 
 export interface SegmentRow {
   id: number;
@@ -203,6 +202,41 @@ function resolveCanonical(id: number): SegmentRow | null {
   return row.reverseOf !== null ? getSegment(row.reverseOf) : null;
 }
 
+/** Writes new geometry to a canonical/reverse pair, recomputing length/duration/elevation for both. */
+function writeSegmentGeometry(canonical: SegmentRow, reverse: SegmentRow, points: LatLng[], walkSpeedKmh: number): void {
+  const lengthM = Math.round(pathLengthMeters(points));
+  const durationMin = estimateMinutes(lengthM, walkSpeedKmh);
+  const elevation = elevationStats(points);
+  const reversePts = reversePoints(points);
+  const reverseElevation: ElevationStats | null = elevation
+    ? { gainM: elevation.lossM, lossM: elevation.gainM, minM: elevation.minM, maxM: elevation.maxM }
+    : null;
+
+  const update = db.prepare(
+    `UPDATE segments SET geometry = ?, length_m = ?, duration_min = ?, ele_gain_m = ?, ele_loss_m = ?, ele_min_m = ?, ele_max_m = ? WHERE id = ?`,
+  );
+  update.run(
+    JSON.stringify(points),
+    lengthM,
+    durationMin,
+    elevation?.gainM ?? null,
+    elevation?.lossM ?? null,
+    elevation?.minM ?? null,
+    elevation?.maxM ?? null,
+    canonical.id,
+  );
+  update.run(
+    JSON.stringify(reversePts),
+    lengthM,
+    durationMin,
+    reverseElevation?.gainM ?? null,
+    reverseElevation?.lossM ?? null,
+    reverseElevation?.minM ?? null,
+    reverseElevation?.maxM ?? null,
+    reverse.id,
+  );
+}
+
 /**
  * Repositions the interior points of a segment (its two endpoints stay pinned to
  * their nodes) — for correcting the shape of an already-submitted path without
@@ -222,41 +256,35 @@ export function updateSegmentGeometry(
   const fixedPoints = points.map((p, i) =>
     i === 0 || i === points.length - 1 ? canonical.geometry[i] : p,
   );
-  const lengthM = Math.round(pathLengthMeters(fixedPoints));
-  const durationMin = estimateMinutes(lengthM, walkSpeedKmh);
-  const elevation = elevationStats(fixedPoints);
-  const reversePts = reversePoints(fixedPoints);
-  const reverseElevation: ElevationStats | null = elevation
-    ? { gainM: elevation.lossM, lossM: elevation.gainM, minM: elevation.minM, maxM: elevation.maxM }
-    : null;
-
-  const update = db.prepare(
-    `UPDATE segments SET geometry = ?, length_m = ?, duration_min = ?, ele_gain_m = ?, ele_loss_m = ?, ele_min_m = ?, ele_max_m = ? WHERE id = ?`,
-  );
-  const tx = db.transaction(() => {
-    update.run(
-      JSON.stringify(fixedPoints),
-      lengthM,
-      durationMin,
-      elevation?.gainM ?? null,
-      elevation?.lossM ?? null,
-      elevation?.minM ?? null,
-      elevation?.maxM ?? null,
-      canonical.id,
-    );
-    update.run(
-      JSON.stringify(reversePts),
-      lengthM,
-      durationMin,
-      reverseElevation?.gainM ?? null,
-      reverseElevation?.lossM ?? null,
-      reverseElevation?.minM ?? null,
-      reverseElevation?.maxM ?? null,
-      reverse.id,
-    );
-  });
+  const tx = db.transaction(() => writeSegmentGeometry(canonical, reverse, fixedPoints, walkSpeedKmh));
   tx();
   return { ok: true };
+}
+
+/**
+ * Moves a node and drags along the touching end of every segment connected to
+ * it, so the network stays visually consistent (no gap between a moved node
+ * and the paths that meet it).
+ */
+export function moveNode(nodeId: number, point: LatLng, walkSpeedKmh: number): { touchedSegments: number } {
+  const touching = listSegments()
+    .filter(isCanonicalSegment)
+    .filter((s) => s.startNodeId === nodeId || s.endNodeId === nodeId);
+
+  const tx = db.transaction(() => {
+    updateNodePosition(nodeId, point);
+    for (const s of touching) {
+      if (s.reverseOf === null) continue;
+      const reverse = getSegment(s.reverseOf);
+      if (!reverse) continue;
+      const geometry = [...s.geometry];
+      if (s.startNodeId === nodeId) geometry[0] = point;
+      if (s.endNodeId === nodeId) geometry[geometry.length - 1] = point;
+      writeSegmentGeometry(s, reverse, geometry, walkSpeedKmh);
+    }
+  });
+  tx();
+  return { touchedSegments: touching.length };
 }
 
 /**
@@ -268,11 +296,10 @@ export function updateSegmentGeometry(
 export function splitSegment(
   segmentId: number,
   near: LatLng,
-  newNodeName: string | null,
+  endpoint: { nodeId: number } | { newName: string | null },
   submittedBy: number,
   walkSpeedKmh: number,
-  mergeRadiusM: number,
-): { newNodeId: number } | { error: "not_found" | "too_far" | "too_close_to_endpoint" } {
+): { newNodeId: number } | { error: "not_found" | "too_far" | "too_close_to_endpoint" | "unknown_node" } {
   const canonical = resolveCanonical(segmentId);
   if (!canonical) return { error: "not_found" };
 
@@ -286,11 +313,14 @@ export function splitSegment(
   const lengthB = pathLengthMeters(geomB);
   if (lengthA < 2 || lengthB < 2) return { error: "too_close_to_endpoint" };
 
-  const nodes = listNodes();
-  const nearbyExisting = findNodeCandidates(nodes, closest.point, mergeRadiusM)[0];
-  const midNode = nearbyExisting
-    ? nodes.find((n) => n.id === nearbyExisting.id)!
-    : createNode(newNodeName, closest.point);
+  let midNode: NodeRow;
+  if ("nodeId" in endpoint) {
+    const node = getNode(endpoint.nodeId);
+    if (!node) return { error: "unknown_node" };
+    midNode = node;
+  } else {
+    midNode = createNode(endpoint.newName, closest.point);
+  }
 
   const tx = db.transaction(() => {
     createSegmentWithReverse({

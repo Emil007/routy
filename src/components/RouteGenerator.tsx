@@ -5,12 +5,20 @@ import { t, type Locale } from "@/lib/i18n";
 import { MapViewLazy } from "./MapViewLazy";
 import type { NodeRow } from "@/lib/nodes";
 
+interface RouteStation {
+  nodeId: number;
+  name: string | null;
+  lat: number;
+  lng: number;
+}
+
 interface RouteDisplayPayload {
   nodeChain: number[];
   segmentIds: number[];
   lengthM: number;
   durationMin: number;
-  stations: { nodeId: number; name: string | null; lat: number; lng: number }[];
+  stations: RouteStation[];
+  cornerstones: RouteStation[];
   elevation: { gainM: number; lossM: number } | null;
   geometry: [number, number][];
 }
@@ -18,12 +26,9 @@ interface RouteDisplayPayload {
 interface GenerateResponse {
   token: string;
   route: RouteDisplayPayload;
-  tolerancePercent: number;
 }
 
 export function RouteGenerator({ locale, nodes, homeNodeId }: { locale: Locale; nodes: NodeRow[]; homeNodeId: number | null }) {
-  const [mode, setMode] = useState<"km" | "min">("km");
-  const [targetValue, setTargetValue] = useState("2");
   const [startNodeId, setStartNodeId] = useState<number | "">(homeNodeId ?? "");
   const [isLoop, setIsLoop] = useState(true);
   const [destinationNodeId, setDestinationNodeId] = useState<number | "">(homeNodeId ?? "");
@@ -45,14 +50,12 @@ export function RouteGenerator({ locale, nodes, homeNodeId }: { locale: Locale; 
     });
   }
 
-  async function handleGenerate(e: React.FormEvent) {
+  async function handleSuggest(e: React.FormEvent) {
     e.preventDefault();
     if (!startNodeId) return;
     setStatus("loading");
     setMessage(null);
     const res = await callApi("/api/route/generate", {
-      mode,
-      targetValue: Number(targetValue),
       startNodeId,
       destinationNodeId: isLoop ? startNodeId : destinationNodeId || startNodeId,
       waypointNodeId: waypointNodeId || null,
@@ -68,7 +71,7 @@ export function RouteGenerator({ locale, nodes, homeNodeId }: { locale: Locale; 
     }
   }
 
-  async function handleNewRoute() {
+  async function handleAnother() {
     if (!result) return;
     setStatus("loading");
     const res = await callApi("/api/route/widen", { token: result.token });
@@ -76,7 +79,22 @@ export function RouteGenerator({ locale, nodes, homeNodeId }: { locale: Locale; 
       const data = (await res.json()) as GenerateResponse;
       setResult(data);
       setStatus("idle");
-      setMessage(t(locale, "route.widenedTolerance", { percent: data.tolerancePercent.toFixed(0) }));
+      setMessage(null);
+    } else {
+      setStatus("idle");
+      setMessage(t(locale, "route.noAlternative"));
+    }
+  }
+
+  async function handleAdjust(direction: "longer" | "shorter") {
+    if (!result) return;
+    setStatus("loading");
+    const res = await callApi("/api/route/adjust", { token: result.token, direction });
+    if (res.ok) {
+      const data = (await res.json()) as GenerateResponse;
+      setResult(data);
+      setStatus("idle");
+      setMessage(null);
     } else {
       setStatus("idle");
       setMessage(t(locale, "route.noAlternative"));
@@ -107,34 +125,7 @@ export function RouteGenerator({ locale, nodes, homeNodeId }: { locale: Locale; 
   return (
     <div className="stack">
       <div className="card">
-        <form onSubmit={handleGenerate} className="stack">
-          <div className="field">
-            <label>{t(locale, "route.targetMode")}</label>
-            <div className="btn-row">
-              <button type="button" className={mode === "km" ? "btn-primary" : "btn-secondary"} onClick={() => setMode("km")}>
-                {t(locale, "route.targetDistance")}
-              </button>
-              <button type="button" className={mode === "min" ? "btn-primary" : "btn-secondary"} onClick={() => setMode("min")}>
-                {t(locale, "route.targetDuration")}
-              </button>
-            </div>
-          </div>
-
-          <div className="field">
-            <label htmlFor="targetValue">
-              {t(locale, "route.targetValue")} ({mode === "km" ? t(locale, "common.km") : t(locale, "common.min")})
-            </label>
-            <input
-              id="targetValue"
-              type="number"
-              min={0.1}
-              step={0.1}
-              value={targetValue}
-              onChange={(e) => setTargetValue(e.target.value)}
-              required
-            />
-          </div>
-
+        <form onSubmit={handleSuggest} className="stack">
           <div className="field">
             <label htmlFor="startNode">{t(locale, "route.start")}</label>
             <select id="startNode" value={startNodeId} onChange={(e) => setStartNodeId(Number(e.target.value))}>
@@ -190,7 +181,7 @@ export function RouteGenerator({ locale, nodes, homeNodeId }: { locale: Locale; 
           </div>
 
           <button type="submit" className="btn-primary" disabled={status === "loading" || !startNodeId}>
-            {status === "loading" ? t(locale, "route.generating") : t(locale, "route.generate")}
+            {status === "loading" ? t(locale, "route.generating") : t(locale, "route.suggest")}
           </button>
         </form>
       </div>
@@ -233,12 +224,18 @@ export function RouteGenerator({ locale, nodes, homeNodeId }: { locale: Locale; 
           <div>
             <strong style={{ fontSize: "0.85rem", color: "var(--ink-soft)" }}>{t(locale, "route.stationList")}</strong>
             <p style={{ marginTop: "0.3rem" }}>
-              {result.route.stations.map((s) => s.name || nodeName(s.nodeId)).join(" › ")}
+              {result.route.cornerstones.map((s) => s.name || nodeName(s.nodeId)).join(" › ")}
             </p>
           </div>
 
           <div className="btn-row">
-            <button type="button" className="btn-secondary" onClick={handleNewRoute} disabled={status === "loading"}>
+            <button type="button" className="btn-secondary" onClick={() => handleAdjust("shorter")} disabled={status === "loading"}>
+              {t(locale, "route.shorter")}
+            </button>
+            <button type="button" className="btn-secondary" onClick={() => handleAdjust("longer")} disabled={status === "loading"}>
+              {t(locale, "route.longer")}
+            </button>
+            <button type="button" className="btn-secondary" onClick={handleAnother} disabled={status === "loading"}>
               {t(locale, "route.newRoute")}
             </button>
             <button type="button" className="btn-primary" onClick={handleAccept} disabled={status === "loading"}>

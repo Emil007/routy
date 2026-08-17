@@ -7,6 +7,9 @@ import { saveSettingsAction, createProfileAction } from "./actions";
 const STEP: Partial<Record<keyof Settings, number>> = {
   daily_diversity_weight: 0.5,
   walk_speed_kmh: 0.5,
+  suggest_min_km: 0.5,
+  suggest_max_km: 0.5,
+  adjust_step_percent: 5,
 };
 
 export default async function SettingsPage({

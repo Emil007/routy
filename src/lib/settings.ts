@@ -8,6 +8,9 @@ export interface Settings {
   widen_max_percent: number;
   daily_diversity_weight: number;
   walk_speed_kmh: number;
+  suggest_min_km: number;
+  suggest_max_km: number;
+  adjust_step_percent: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -18,6 +21,9 @@ export const DEFAULT_SETTINGS: Settings = {
   widen_max_percent: 30,
   daily_diversity_weight: 1,
   walk_speed_kmh: 5,
+  suggest_min_km: 2,
+  suggest_max_km: 5,
+  adjust_step_percent: 25,
 };
 
 export const SETTINGS_KEYS = Object.keys(DEFAULT_SETTINGS) as (keyof Settings)[];
