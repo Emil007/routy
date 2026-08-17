@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
-import { renameNode, setHomeNode } from "@/lib/nodes";
+import { renameNode, setHomeNode, deleteNode } from "@/lib/nodes";
 import { deleteSegment } from "@/lib/segments";
 
 export async function renameNodeAction(formData: FormData) {
@@ -27,5 +27,13 @@ export async function deleteSegmentAction(formData: FormData) {
   const id = Number(formData.get("segmentId"));
   if (!id) return;
   deleteSegment(id);
+  revalidatePath("/map");
+}
+
+export async function deleteNodeAction(formData: FormData) {
+  await requireUser();
+  const id = Number(formData.get("nodeId"));
+  if (!id) return;
+  deleteNode(id);
   revalidatePath("/map");
 }

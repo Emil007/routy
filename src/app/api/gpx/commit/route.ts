@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
-import { createNode, getNode, setHomeNode, listNodes, findNodeCandidates, type NodeRow } from "@/lib/nodes";
+import { createNode, getNode, setHomeNode, findNodeCandidates, type NodeRow } from "@/lib/nodes";
 import { createSegmentWithReverse } from "@/lib/segments";
 import { getSettings } from "@/lib/settings";
-import type { LatLng } from "@/lib/geo";
+import { elevationStats, type LatLng } from "@/lib/geo";
+import { attachElevation } from "@/lib/elevation";
 
 const pointSchema = z.object({ lat: z.number(), lng: z.number(), ele: z.number().optional() });
 
@@ -43,9 +44,14 @@ export async function POST(request: Request) {
   const settings = getSettings();
   // Tracks in the same upload often share an endpoint (that's the whole point of a
   // batch import) even though none of those nodes existed yet when /gpx/parse ran.
-  // Keep a running list so later tracks in this same commit snap onto nodes that
-  // earlier tracks in the *same* batch just created, instead of duplicating them.
-  const knownNodes: NodeRow[] = listNodes();
+  // Keep a running list of nodes created *within this same commit* so later tracks
+  // snap onto them instead of duplicating them. This must NOT include pre-existing
+  // nodes: when the client explicitly says "create a new node" (a `newName`
+  // endpoint), that choice was already made in the UI — usually after showing the
+  // user any nearby existing node and letting them decide against reusing it — so
+  // silently reusing a pre-existing node here would discard that decision and the
+  // name they typed.
+  const createdThisBatch: NodeRow[] = [];
 
   function resolveEndpoint(
     endpoint: { nodeId: number } | { newName: string | null },
@@ -55,10 +61,10 @@ export async function POST(request: Request) {
       const node = getNode(endpoint.nodeId);
       return node ? node.id : null;
     }
-    const nearby = findNodeCandidates(knownNodes, point, settings.merge_radius_m)[0];
+    const nearby = findNodeCandidates(createdThisBatch, point, settings.merge_radius_m)[0];
     if (nearby) return nearby.id;
     const created = createNode(endpoint.newName, point);
-    knownNodes.push(created);
+    createdThisBatch.push(created);
     return created.id;
   }
 
@@ -75,13 +81,27 @@ export async function POST(request: Request) {
 
     if (track.markStartAsHome) setHomeNode(startNodeId);
 
+    // GPX tracks usually carry recorded elevation already; drawn paths never do
+    // (a map click has no altitude). Either way, if it's missing, look it up —
+    // best-effort, never blocks the save if the lookup fails or times out.
+    let points = track.points;
+    let elevation = track.elevation;
+    if (!elevation) {
+      const withElevation = await attachElevation(points);
+      const computed = elevationStats(withElevation);
+      if (computed) {
+        points = withElevation;
+        elevation = computed;
+      }
+    }
+
     createSegmentWithReverse({
       startNodeId,
       endNodeId,
-      points: track.points,
+      points,
       lengthM: track.lengthM,
       durationMin: track.durationMin,
-      elevation: track.elevation,
+      elevation,
       source: track.source,
       submittedBy: user.id,
     });

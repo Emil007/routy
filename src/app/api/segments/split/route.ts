@@ -4,11 +4,16 @@ import { getCurrentUser } from "@/lib/session";
 import { splitSegment } from "@/lib/segments";
 import { getSettings } from "@/lib/settings";
 
+const endpointSchema = z.union([
+  z.object({ nodeId: z.number().int().positive() }),
+  z.object({ newName: z.string().trim().max(255).nullable() }),
+]);
+
 const bodySchema = z.object({
   segmentId: z.number().int().positive(),
   lat: z.number(),
   lng: z.number(),
-  nodeName: z.string().trim().max(255).nullable(),
+  endpoint: endpointSchema,
 });
 
 export async function POST(request: Request) {
@@ -23,10 +28,9 @@ export async function POST(request: Request) {
   const result = splitSegment(
     parsed.data.segmentId,
     { lat: parsed.data.lat, lng: parsed.data.lng },
-    parsed.data.nodeName,
+    parsed.data.endpoint,
     user.id,
     settings.walk_speed_kmh,
-    settings.merge_radius_m,
   );
   if ("error" in result) return NextResponse.json({ error: result.error }, { status: 400 });
   return NextResponse.json({ ok: true, newNodeId: result.newNodeId });

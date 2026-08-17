@@ -19,6 +19,8 @@ export interface RouteDisplay {
   lengthM: number;
   durationMin: number;
   stations: RouteStation[];
+  /** Subset of `stations` worth naming in a text summary — see findCornerstoneIndices. */
+  cornerstones: RouteStation[];
   elevation: RouteElevation | null;
   geometry: [number, number][];
 }
@@ -30,11 +32,13 @@ export function buildRouteDisplay(
   durationMin: number,
   nodesById: Map<number, NodeRow>,
   segmentsById: Map<number, SegmentRow>,
+  cornerstoneIndices: number[],
 ): RouteDisplay {
   const stations = nodeChain.map((id) => {
     const node = nodesById.get(id);
     return { nodeId: id, name: node?.name ?? null, lat: node?.lat ?? 0, lng: node?.lng ?? 0 };
   });
+  const cornerstones = cornerstoneIndices.map((i) => stations[i]);
 
   let hasElevation = false;
   let gainM = 0;
@@ -59,6 +63,7 @@ export function buildRouteDisplay(
     lengthM,
     durationMin,
     stations,
+    cornerstones,
     elevation: hasElevation ? { gainM: Math.round(gainM), lossM: Math.round(lossM) } : null,
     geometry,
   };

@@ -5,13 +5,11 @@ import { getSettings } from "@/lib/settings";
 import { getHomeNode } from "@/lib/nodes";
 import { getUsageMap, getDailyUsageMap } from "@/lib/segments";
 import { loadGraphContext } from "@/lib/routeContext";
-import { findDirectRoutes, findWaypointRoutes, scoreRoutes, pickBest, toleranceRange } from "@/lib/routing";
+import { findDirectRoutes, findWaypointRoutes, scoreRoutes, pickBest, findCornerstoneIndices } from "@/lib/routing";
 import { createRouteSession } from "@/lib/routeSessions";
 import { buildRouteDisplay } from "@/lib/routeDisplay";
 
 const bodySchema = z.object({
-  mode: z.enum(["km", "min"]),
-  targetValue: z.number().positive().max(1000),
   startNodeId: z.number().int().positive().optional(),
   destinationNodeId: z.number().int().positive().optional(),
   waypointNodeId: z.number().int().positive().nullable().optional(),
@@ -26,11 +24,7 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: "invalid_body", issues: parsed.error.issues }, { status: 400 });
   }
-  const { mode, targetValue, waypointNodeId } = parsed.data;
-  // Segments store length/duration as plain meters/minutes; the form collects the
-  // target in km, so convert once here and keep everything downstream (including
-  // the stored route session) in that same search unit.
-  const targetSearchValue = mode === "km" ? targetValue * 1000 : targetValue;
+  const { waypointNodeId } = parsed.data;
 
   const home = getHomeNode();
   const startNodeId = parsed.data.startNodeId ?? home?.id;
@@ -41,7 +35,12 @@ export async function POST(request: Request) {
 
   const settings = getSettings();
   const { graph, pairOf, nodesById, segmentsById } = loadGraphContext();
-  const { minValue, maxValue } = toleranceRange(targetSearchValue, settings.tolerance_percent);
+  // No exact target: search the whole preferred-length band and let the scorer
+  // (least backtracking, then least-used segments) pick the nicest route in it,
+  // rather than fixating on hitting one specific number of meters.
+  const minValue = settings.suggest_min_km * 1000;
+  const maxValue = settings.suggest_max_km * 1000;
+  const mode = "km" as const;
 
   const candidates =
     waypointNodeId && waypointNodeId !== startNodeId && waypointNodeId !== destinationNodeId
@@ -56,11 +55,12 @@ export async function POST(request: Request) {
   const dailyMap = getDailyUsageMap();
   const scored = scoreRoutes(
     candidates,
+    pairOf,
     usageMap,
     dailyMap,
     settings.daily_diversity_weight,
     new Set(),
-    targetSearchValue,
+    (minValue + maxValue) / 2,
     mode,
   );
   const best = pickBest(scored, new Set());
@@ -71,7 +71,7 @@ export async function POST(request: Request) {
   const token = createRouteSession({
     userId: user.id,
     mode,
-    targetValue: targetSearchValue,
+    targetValue: (minValue + maxValue) / 2,
     startNodeId,
     destinationNodeId,
     waypointNodeId: waypointNodeId ?? null,
@@ -86,6 +86,13 @@ export async function POST(request: Request) {
     widenSteps: 0,
   });
 
+  const cornerstoneIndices = findCornerstoneIndices(
+    best.route.nodeChain,
+    best.route.segmentIds,
+    graph,
+    pairOf,
+    waypointNodeId ? new Set([waypointNodeId]) : undefined,
+  );
   const display = buildRouteDisplay(
     best.route.nodeChain,
     best.route.segmentIds,
@@ -93,7 +100,8 @@ export async function POST(request: Request) {
     best.route.durationMin,
     nodesById,
     segmentsById,
+    cornerstoneIndices,
   );
 
-  return NextResponse.json({ token, route: display, tolerancePercent: settings.tolerance_percent });
+  return NextResponse.json({ token, route: display });
 }
