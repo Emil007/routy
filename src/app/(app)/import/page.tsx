@@ -3,7 +3,7 @@ import { resolveLocale } from "@/lib/locale";
 import { t } from "@/lib/i18n";
 import { listNodes } from "@/lib/nodes";
 import { listSegments, isCanonicalSegment } from "@/lib/segments";
-import { getSettings } from "@/lib/settings";
+import { getSettings, effectiveWalkSpeedKmh } from "@/lib/settings";
 import { ImportModeSwitch } from "@/components/ImportModeSwitch";
 
 export default async function ImportPage() {
@@ -26,7 +26,7 @@ export default async function ImportPage() {
         nodes={nodes}
         networkLines={networkLines}
         mergeRadiusM={settings.merge_radius_m}
-        walkSpeedKmh={settings.walk_speed_kmh}
+        walkSpeedKmh={effectiveWalkSpeedKmh(user.walkSpeedKmh, settings)}
       />
     </>
   );

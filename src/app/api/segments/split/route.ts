@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { splitSegment } from "@/lib/segments";
-import { getSettings } from "@/lib/settings";
+import { getSettings, effectiveWalkSpeedKmh } from "@/lib/settings";
 
 const endpointSchema = z.union([
   z.object({ nodeId: z.number().int().positive() }),
@@ -30,7 +30,7 @@ export async function POST(request: Request) {
     { lat: parsed.data.lat, lng: parsed.data.lng },
     parsed.data.endpoint,
     user.id,
-    settings.walk_speed_kmh,
+    effectiveWalkSpeedKmh(user.walkSpeedKmh, settings),
   );
   if ("error" in result) return NextResponse.json({ error: result.error }, { status: 400 });
   return NextResponse.json({ ok: true, newNodeId: result.newNodeId });

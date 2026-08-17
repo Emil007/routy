@@ -71,7 +71,27 @@ CREATE TABLE IF NOT EXISTS settings (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+
+-- A route a profile has accepted but not yet confirmed as walked. One per
+-- profile; it persists in the database (not just an in-memory session) so it
+-- shows up on any device that profile signs in on until confirmed or discarded.
+CREATE TABLE IF NOT EXISTS active_route (
+  user_id INTEGER PRIMARY KEY REFERENCES users(id) ON DELETE CASCADE,
+  node_chain TEXT NOT NULL,
+  segment_ids TEXT NOT NULL,
+  length_m INTEGER NOT NULL,
+  duration_min INTEGER NOT NULL,
+  accepted_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `;
+
+/** Column additions to already-deployed tables — CREATE TABLE IF NOT EXISTS above only covers fresh installs. */
+function runMigrations(db: Database.Database): void {
+  const userColumns = db.prepare("PRAGMA table_info(users)").all() as { name: string }[];
+  if (!userColumns.some((c) => c.name === "walk_speed_kmh")) {
+    db.exec("ALTER TABLE users ADD COLUMN walk_speed_kmh REAL");
+  }
+}
 
 declare global {
    
@@ -85,6 +105,7 @@ function openDb(): Database.Database {
   db.pragma("journal_mode = WAL");
   db.pragma("foreign_keys = ON");
   db.exec(SCHEMA);
+  runMigrations(db);
   return db;
 }
 

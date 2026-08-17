@@ -55,3 +55,8 @@ export function updateSettings(partial: Partial<Settings>): Settings {
   if (entries.length) tx(entries);
   return getSettings();
 }
+
+/** A profile's own walking speed, if they've set one, else the network-wide default. */
+export function effectiveWalkSpeedKmh(userWalkSpeedKmh: number | null, settings: Settings): number {
+  return userWalkSpeedKmh ?? settings.walk_speed_kmh;
+}

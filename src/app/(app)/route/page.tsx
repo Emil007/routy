@@ -2,6 +2,10 @@ import { requireUser } from "@/lib/session";
 import { resolveLocale } from "@/lib/locale";
 import { t } from "@/lib/i18n";
 import { listNodes, getHomeNode } from "@/lib/nodes";
+import { getActiveRoute } from "@/lib/activeRoute";
+import { loadGraphContext } from "@/lib/routeContext";
+import { findCornerstoneIndices } from "@/lib/routing";
+import { buildRouteDisplay } from "@/lib/routeDisplay";
 import { RouteGenerator } from "@/components/RouteGenerator";
 
 export default async function RoutePage() {
@@ -9,6 +13,23 @@ export default async function RoutePage() {
   const locale = await resolveLocale(user.locale);
   const nodes = listNodes();
   const home = getHomeNode();
+
+  const active = getActiveRoute(user.id);
+  const activeDisplay = active
+    ? (() => {
+        const { segmentsById, nodesById } = loadGraphContext();
+        const cornerstoneIndices = findCornerstoneIndices(active.nodeChain, active.segmentIds, segmentsById);
+        return buildRouteDisplay(
+          active.nodeChain,
+          active.segmentIds,
+          active.lengthM,
+          active.durationMin,
+          nodesById,
+          segmentsById,
+          cornerstoneIndices,
+        );
+      })()
+    : null;
 
   return (
     <>
@@ -20,7 +41,7 @@ export default async function RoutePage() {
           <p>{t(locale, "import.noTracks")}</p>
         </div>
       ) : (
-        <RouteGenerator locale={locale} nodes={nodes} homeNodeId={home?.id ?? null} />
+        <RouteGenerator locale={locale} nodes={nodes} homeNodeId={home?.id ?? null} initialActiveRoute={activeDisplay} />
       )}
     </>
   );

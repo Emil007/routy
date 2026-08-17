@@ -90,8 +90,7 @@ export async function POST(request: Request) {
   const cornerstoneIndices = findCornerstoneIndices(
     best.route.nodeChain,
     best.route.segmentIds,
-    graph,
-    pairOf,
+    segmentsById,
     session.waypointNodeId ? new Set([session.waypointNodeId]) : undefined,
   );
   const display = buildRouteDisplay(

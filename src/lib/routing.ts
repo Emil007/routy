@@ -1,6 +1,8 @@
 // Route-finding: ported from the legacy Python bot's DFS approach, extended with
 // a dead-end exception and start/destination/waypoint support.
 
+import { bearing, angleDiff, type LatLng } from "./geo";
+
 export interface SegmentEdge {
   id: number;
   from: number;
@@ -65,6 +67,20 @@ interface SearchParams {
 
 const DEFAULT_STEP_LIMIT = 150000;
 
+/** Fisher-Yates shuffle — used so repeated searches explore edges in a different
+ * order instead of always finding the same early candidates first. This is what
+ * makes suggestions vary between calls, and also improves the odds of finding a
+ * low-backtrack loop within the maxResults/stepLimit cap instead of only ever
+ * sampling the same left-to-right traversal. */
+function shuffled<T>(items: T[]): T[] {
+  const copy = [...items];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
 function searchPaths(params: SearchParams): RouteResult[] {
   const { graph, pairOf, start, destination, mode, minValue, maxValue, maxResults } = params;
   const stepLimit = params.stepLimit ?? DEFAULT_STEP_LIMIT;
@@ -107,7 +123,7 @@ function searchPaths(params: SearchParams): RouteResult[] {
     // unused option left at this node (dead end / spur trail exception).
     const nonReverseEdges =
       lastEdgeId === null ? availableEdges : availableEdges.filter((e) => pairOf.get(lastEdgeId) !== e.id);
-    const candidateEdges = nonReverseEdges.length > 0 ? nonReverseEdges : availableEdges;
+    const candidateEdges = shuffled(nonReverseEdges.length > 0 ? nonReverseEdges : availableEdges);
 
     for (const edge of candidateEdges) {
       usedEdges.add(edge.id);
@@ -286,18 +302,22 @@ export function toleranceRange(
   return { minValue: Math.max(0, target - tol), maxValue: target + tol };
 }
 
+const CORNERSTONE_TURN_THRESHOLD_DEG = 35;
+
 /**
  * Reduces a route's node chain to the waypoints worth calling out by name for a
  * walker following directions: the start, the destination, any explicitly
- * requested waypoint, and every node where a genuine choice exists — i.e. some
- * other way forward besides the one just walked in on. A node with only one way
- * onward (no fork) is a plain pass-through and gets dropped from the summary.
+ * requested waypoint, and every node where the path actually turns (comparing
+ * the direction of travel just before and just after that point). A node
+ * where the path continues essentially straight through needs no mention —
+ * even if other paths happen to branch off there, since nothing about
+ * *this* route changes course at that point. A real turn (including the
+ * dead-end u-turn at a spur's end) always stays.
  */
 export function findCornerstoneIndices(
   nodeChain: number[],
   segmentIds: number[],
-  graph: Graph,
-  pairOf: Map<number, number>,
+  segmentsById: Map<number, { geometry: LatLng[] }>,
   forceKeepNodeIds?: Set<number>,
 ): number[] {
   const indices: number[] = [];
@@ -308,12 +328,15 @@ export function findCornerstoneIndices(
       indices.push(i);
       continue;
     }
-    const incomingEdgeId = segmentIds[i - 1];
-    const outgoingEdgeId = segmentIds[i];
-    const reverseOfIncoming = pairOf.get(incomingEdgeId);
-    const edgesHere = graph.adjacency.get(nodeChain[i]) ?? [];
-    const otherOptions = edgesHere.filter((e) => e.id !== outgoingEdgeId && e.id !== reverseOfIncoming);
-    if (otherOptions.length > 0) indices.push(i);
+    const incoming = segmentsById.get(segmentIds[i - 1])?.geometry;
+    const outgoing = segmentsById.get(segmentIds[i])?.geometry;
+    if (!incoming || incoming.length < 2 || !outgoing || outgoing.length < 2) {
+      indices.push(i); // can't tell — keep it rather than risk hiding a real turn
+      continue;
+    }
+    const incomingBearing = bearing(incoming[incoming.length - 2], incoming[incoming.length - 1]);
+    const outgoingBearing = bearing(outgoing[0], outgoing[1]);
+    if (angleDiff(incomingBearing, outgoingBearing) >= CORNERSTONE_TURN_THRESHOLD_DEG) indices.push(i);
   }
   if (nodeChain.length > 1) indices.push(nodeChain.length - 1);
   return indices;

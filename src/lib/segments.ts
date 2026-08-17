@@ -2,6 +2,7 @@ import { db } from "./db";
 import { type LatLng, reversePoints, pathLengthMeters, estimateMinutes, elevationStats, closestPointOnPath } from "./geo";
 import type { ElevationStats } from "./geo";
 import { createNode, getNode, updateNodePosition, type NodeRow } from "./nodes";
+import { attachElevation } from "./elevation";
 
 export interface SegmentRow {
   id: number;
@@ -348,4 +349,52 @@ export function splitSegment(
   tx();
 
   return { newNodeId: midNode.id };
+}
+
+function writeSegmentElevationOnly(id: number, geometry: LatLng[], elevation: ElevationStats | null): void {
+  db.prepare(
+    "UPDATE segments SET geometry = ?, ele_gain_m = ?, ele_loss_m = ?, ele_min_m = ?, ele_max_m = ? WHERE id = ?",
+  ).run(
+    JSON.stringify(geometry),
+    elevation?.gainM ?? null,
+    elevation?.lossM ?? null,
+    elevation?.minM ?? null,
+    elevation?.maxM ?? null,
+    id,
+  );
+}
+
+/**
+ * Looks up elevation for every canonical segment that has none yet — mainly for
+ * a network built before elevation lookup existed. Only touches the geometry's
+ * `ele` values and the derived gain/loss/min/max; length and duration (which
+ * may come from real GPX timestamps) are left untouched. Best-effort per
+ * segment: a failed lookup just leaves that one segment without elevation, it
+ * doesn't stop the rest.
+ */
+export async function backfillMissingElevation(): Promise<{ updated: number; attempted: number }> {
+  const candidates = listSegments().filter(isCanonicalSegment).filter((s) => s.elevation === null);
+  let updated = 0;
+  for (const canonical of candidates) {
+    if (canonical.reverseOf === null) continue;
+    const reverse = getSegment(canonical.reverseOf);
+    if (!reverse) continue;
+
+    const withElevation = await attachElevation(canonical.geometry);
+    const elevation = elevationStats(withElevation);
+    if (!elevation) continue;
+
+    const reverseElevation: ElevationStats = {
+      gainM: elevation.lossM,
+      lossM: elevation.gainM,
+      minM: elevation.minM,
+      maxM: elevation.maxM,
+    };
+    writeSegmentElevationOnly(canonical.id, withElevation, elevation);
+    writeSegmentElevationOnly(reverse.id, reversePoints(withElevation), reverseElevation);
+    updated++;
+    // Be polite to the free public API rather than hammering it in a tight loop.
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  return { updated, attempted: candidates.length };
 }

@@ -32,6 +32,8 @@ export interface SessionUser {
   username: string;
   displayName: string;
   locale: string;
+  /** Null means "use the network-wide default from Settings". */
+  walkSpeedKmh: number | null;
 }
 
 interface SessionRow {
@@ -39,6 +41,7 @@ interface SessionRow {
   username: string;
   displayName: string;
   locale: string;
+  walkSpeedKmh: number | null;
   expiresAt: string;
 }
 
@@ -50,7 +53,8 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   const tokenHash = hashToken(token);
   const row = db
     .prepare(
-      `SELECT u.id as id, u.username as username, u.display_name as displayName, u.locale as locale, s.expires_at as expiresAt
+      `SELECT u.id as id, u.username as username, u.display_name as displayName, u.locale as locale,
+              u.walk_speed_kmh as walkSpeedKmh, s.expires_at as expiresAt
        FROM sessions s JOIN users u ON u.id = s.user_id
        WHERE s.token_hash = ?`,
     )
@@ -62,7 +66,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     return null;
   }
 
-  return { id: row.id, username: row.username, displayName: row.displayName, locale: row.locale };
+  return { id: row.id, username: row.username, displayName: row.displayName, locale: row.locale, walkSpeedKmh: row.walkSpeedKmh };
 }
 
 export async function requireUser(): Promise<SessionUser> {

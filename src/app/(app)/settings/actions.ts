@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
 import { updateSettings, SETTINGS_KEYS } from "@/lib/settings";
-import { createUser, findUserByUsername } from "@/lib/users";
+import { createUser, findUserByUsername, updateUserWalkSpeed } from "@/lib/users";
 
 export async function saveSettingsAction(formData: FormData) {
   await requireUser();
@@ -17,6 +17,18 @@ export async function saveSettingsAction(formData: FormData) {
     }
   }
   updateSettings(partial);
+  revalidatePath("/settings");
+}
+
+export async function saveWalkSpeedAction(formData: FormData) {
+  const user = await requireUser();
+  const raw = String(formData.get("walkSpeedKmh") || "").trim();
+  if (raw === "") {
+    updateUserWalkSpeed(user.id, null);
+  } else {
+    const num = Number(raw);
+    if (!Number.isNaN(num) && num > 0) updateUserWalkSpeed(user.id, num);
+  }
   revalidatePath("/settings");
 }
 

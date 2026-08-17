@@ -6,11 +6,16 @@ import { listNodes } from "@/lib/nodes";
 import { listSegments, getUsageMap, isCanonicalSegment } from "@/lib/segments";
 import { ConfirmSubmitForm } from "@/components/ConfirmSubmitForm";
 import { MapPageClient } from "./MapPageClient";
-import { renameNodeAction, setHomeNodeAction, deleteSegmentAction } from "./actions";
+import { deleteSegmentAction } from "./actions";
 
-export default async function MapPage() {
+export default async function MapPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ deleteError?: string }>;
+}) {
   const user = await requireUser();
   const locale = await resolveLocale(user.locale);
+  const { deleteError } = await searchParams;
   const nodes = listNodes();
   const segments = listSegments();
   const usage = getUsageMap();
@@ -30,6 +35,9 @@ export default async function MapPage() {
         <p>{t(locale, "map.subtitle")}</p>
       </div>
 
+      {deleteError === "node_active" && <div className="alert alert-error">{t(locale, "map.deleteBlockedNode")}</div>}
+      {deleteError === "segment_active" && <div className="alert alert-error">{t(locale, "map.deleteBlockedSegment")}</div>}
+
       <MapPageClient
         locale={locale}
         nodes={nodes}
@@ -39,49 +47,6 @@ export default async function MapPage() {
         }))}
         segmentCounts={segmentCounts}
       />
-
-      <div className="card">
-        <h2 style={{ fontSize: "1.1rem" }}>{t(locale, "map.nodesHeading")}</h2>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>{t(locale, "map.nameHeading")}</th>
-                <th>{t(locale, "map.home")}</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {nodes.map((n) => (
-                <tr key={n.id}>
-                  <td>{n.id}</td>
-                  <td>
-                    <form action={renameNodeAction} className="btn-row">
-                      <input type="hidden" name="nodeId" value={n.id} />
-                      <input type="text" name="name" defaultValue={n.name ?? ""} style={{ maxWidth: 200 }} />
-                      <button type="submit" className="btn-secondary">
-                        {t(locale, "map.rename")}
-                      </button>
-                    </form>
-                  </td>
-                  <td>{n.isHome ? "🏠" : ""}</td>
-                  <td>
-                    {!n.isHome && (
-                      <form action={setHomeNodeAction}>
-                        <input type="hidden" name="nodeId" value={n.id} />
-                        <button type="submit" className="btn-secondary">
-                          {t(locale, "map.home")}
-                        </button>
-                      </form>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
 
       <div className="card">
         <h2 style={{ fontSize: "1.1rem" }}>{t(locale, "map.segmentsHeading")}</h2>
@@ -99,28 +64,28 @@ export default async function MapPage() {
             </thead>
             <tbody>
               {canonicalSegments.map((s) => (
-                  <tr key={s.id}>
-                    <td>{nodesById.get(s.startNodeId)?.name || `#${s.startNodeId}`}</td>
-                    <td>{nodesById.get(s.endNodeId)?.name || `#${s.endNodeId}`}</td>
-                    <td>{(s.lengthM / 1000).toFixed(2)} {t(locale, "common.km")}</td>
-                    <td>{s.durationMin} {t(locale, "common.min")}</td>
-                    <td>{t(locale, "map.usageCount", { count: usage.get(s.id) ?? 0 })}</td>
-                    <td>
-                      <div className="btn-row">
-                        <Link href={`/map/edit/${s.id}`} className="btn-secondary">
-                          {t(locale, "map.edit")}
-                        </Link>
-                        <ConfirmSubmitForm
-                          action={deleteSegmentAction}
-                          confirmMessage={t(locale, "map.deleteConfirm")}
-                          hiddenName="segmentId"
-                          hiddenValue={s.id}
-                          buttonLabel={t(locale, "map.delete")}
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                ))}
+                <tr key={s.id}>
+                  <td>{nodesById.get(s.startNodeId)?.name || `#${s.startNodeId}`}</td>
+                  <td>{nodesById.get(s.endNodeId)?.name || `#${s.endNodeId}`}</td>
+                  <td>{(s.lengthM / 1000).toFixed(2)} {t(locale, "common.km")}</td>
+                  <td>{s.durationMin} {t(locale, "common.min")}</td>
+                  <td>{t(locale, "map.usageCount", { count: usage.get(s.id) ?? 0 })}</td>
+                  <td>
+                    <div className="btn-row">
+                      <Link href={`/map/edit/${s.id}`} className="btn-secondary">
+                        {t(locale, "map.edit")}
+                      </Link>
+                      <ConfirmSubmitForm
+                        action={deleteSegmentAction}
+                        confirmMessage={t(locale, "map.deleteConfirm")}
+                        hiddenName="segmentId"
+                        hiddenValue={s.id}
+                        buttonLabel={t(locale, "map.delete")}
+                      />
+                    </div>
+                  </td>
+                </tr>
+              ))}
             </tbody>
           </table>
         </div>
