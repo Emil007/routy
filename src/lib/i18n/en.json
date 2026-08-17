@@ -109,7 +109,10 @@
     "rename": "Rename",
     "usageCount": "used {count}×",
     "unnamedNode": "Unnamed",
-    "home": "Home"
+    "home": "Home",
+    "edit": "Edit",
+    "delete": "Delete",
+    "deleteConfirm": "Really delete this path segment? This cannot be undone."
   },
   "settings": {
     "title": "Settings",
@@ -160,6 +163,21 @@
     "confirmTitle": "Confirm path",
     "save": "Save path",
     "saving": "Saving …",
-    "success": "Path saved."
+    "success": "Path saved.",
+    "snapToggle": "Snap to nearby nodes automatically",
+    "dragHint": "Drag a placed point to position it more precisely."
+  },
+  "edit": {
+    "title": "Edit path",
+    "subtitle": "Drag individual points to correct the path's shape, or click the path to split it at a new junction.",
+    "saveGeometry": "Save changes",
+    "saving": "Saving …",
+    "saved": "Path shape updated.",
+    "saveError": "Could not save the changes.",
+    "backToMap": "Back to the network",
+    "splitConfirmTitle": "Split the path here?",
+    "splitButton": "Split",
+    "splitting": "Splitting …",
+    "splitError": "Could not split the path."
   }
 }
