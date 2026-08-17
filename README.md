@@ -1,35 +1,72 @@
-# Routy v2 — Discord-Routenbot (IDs statt langer Namen)
+# Routy
 
-**Neu in v2**
-- Node-Merge per Radius (`[ingest] merge_radius_m`, Default 50 m)
-- Warnung bei gleichnamigen Punkten, die *weit* auseinander liegen (`name_far_warn_m`, Default 300 m)
-- Auto-Reverse-Segmente (für jede Kante A→B wird B→A angelegt, deine "kein sofort retour" Regel bleibt erhalten)
-- Routen speichern **ID-Ketten** (z. B. `1-2-5-1`) statt langer Namen → kompakt & robust
-- `gpx_sources` mit Hash-Primärschlüssel (keine Key-Length-Probleme)
+Eine eigenständige Web-Plattform, die aus eingereichten Wegabschnitten (GPX-Dateien)
+Hundespaziergang-Routen generiert, passend zur gewünschten Länge oder Dauer. Nachfolger
+des ursprünglichen Discord-Bots (siehe [`legacy/`](./legacy)), diesmal als selbst
+gehostetes Web-Portal mit Login.
 
-**Slash-Commands**
-- `/route 2km` oder `/route 30min` → passende Route plus StaticMap
-- `/debug_map` → zeigt die verwendete StaticMap-URL
+## Features (aktueller Stand)
 
-## Schnellstart
+- **Login mit mehreren Profilen** — getrennte Konten, gemeinsames Wegenetz.
+- **GPX-Import mit Knotenpunkt-Bestätigung** — beim Hochladen erkennt Routy, ob Start-
+  oder Endpunkt eines Tracks in der Nähe eines bereits bekannten Knotens liegt
+  (konfigurierbarer Radius), und lässt dich das pro Track bestätigen oder einen neuen
+  Knoten benennen. Für jedes Segment wird automatisch die Gegenrichtung angelegt.
+- **Routen-Generator** — Ziel-Distanz oder -Dauer eingeben, Start/Ziel frei wählen
+  (Rundweg oder Strecke A→B, optional mit einem dritten Wegpunkt), Route auf der Karte
+  ansehen und mit „Neue Route“ / „Diese nehmen“ / „Abbrechen“ bestätigen.
+  - Kein sofortiges Umdrehen auf demselben Weg — außer an einer echten Sackgasse
+    (z. B. Stichweg zu einem Aussichtspunkt), dort ist es ausdrücklich erlaubt.
+  - Jede Wegrichtung höchstens einmal pro Route.
+  - Faire Auswahl: bevorzugt selten genutzte Wege, bestraft heute schon gegangene
+    Segmente zusätzlich und vermeidet Überlappung mit zuvor in der Sitzung gezeigten
+    Alternativen.
+- **Netzwerk-Übersicht** — alle Knoten und Wegabschnitte auf einer Karte, inkl.
+  Umbenennen und Zuhause-Punkt festlegen.
+- **Einstellungen** — Zusammenführungs-Radius, Toleranzen, Diversitäts-Gewichtung usw.
+  direkt in der Oberfläche änderbar.
+- **Mehrsprachig** — Deutsch/Englisch, dateibasiert (`src/lib/i18n/*.json`) und ohne
+  Code-Änderung um weitere Sprachen erweiterbar.
+- **Höhenprofil** — wenn die GPX-Datei Höhendaten enthält, werden Anstieg/Abstieg pro
+  Segment und pro generierter Route angezeigt.
+
+Geplant für spätere Ausbaustufen: freies Zeichnen von Wegen direkt auf der Karte
+(mit Snapping an bestehende Segmente), Statistik-Dashboard und Achievements pro Profil.
+
+## Betrieb (Docker, empfohlen)
+
 ```bash
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
-
-cp config.example.ini config.ini
-# config.ini anpassen (DB, Bot-Token, StaticMap-URL, ingest.merge_radius_m usw.)
-
-# GPX in gpx/ legen
-python bootstrap.py
-python -m backend.compute_routes
-python -m bot.bot
+cp .env.example .env   # optional: Werte anpassen
+docker compose up -d --build
 ```
 
-## Einmalige Bereinigung (falls du schon doppelte Nodes hast)
-```bash
-python -m tools.merge_close_nodes
-```
-Dieser Schritt hängt Segmente auf Repräsentanten um, löscht Duplikate und räumt die Tabelle `segments` auf.
+Der Container hört auf Port `3000`. Ein Reverse Proxy mit HTTPS davor wird
+vorausgesetzt (`COOKIE_SECURE=true` ist der Standard — auf `false` setzen, falls du
+nur unverschlüsselt im Heimnetz zugreifst).
 
-> Hinweis: `routes_precalc` speichert `chain_sig` (z. B. `21-33-21`) und eine `node_chain_json`-Liste mit IDs. 
-> Die Anzeige-Namen baut der Bot zur Laufzeit aus der `nodes`-Tabelle.
+Alle Daten (SQLite-Datenbank) liegen im gemounteten Volume `./data`. Backup = diesen
+Ordner sichern.
+
+Beim allerersten Öffnen der Seite fragt Routy nach den Daten für das erste Profil —
+kein Setup per Umgebungsvariable nötig. Weitere Profile legt jede:r angemeldete
+Nutzer:in über „Neues Profil“ im Menü an.
+
+## Entwicklung
+
+```bash
+npm install
+npm run dev
+```
+
+Die SQLite-Datei landet standardmäßig unter `./data/routy.db` (per `DATABASE_PATH`
+änderbar).
+
+## Projektstruktur
+
+```
+src/
+  app/            Next.js App Router: Seiten, Server Actions, API-Routen
+  components/     Client-Komponenten (Karte, Routen-Generator, Import-Assistent, …)
+  lib/            Datenbank, Geo-Mathematik, GPX-Parsing, Routing-Algorithmus, i18n
+legacy/           Der ursprüngliche Discord-Bot-Prototyp (Referenz, nicht aktiv)
+```

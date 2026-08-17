@@ -1,0 +1,15 @@
+services:
+  routy:
+    build: .
+    # Or, once published: image: ghcr.io/<you>/routy:latest
+    container_name: routy
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./data:/app/data
+    environment:
+      # Your reverse proxy already terminates HTTPS in front of this container,
+      # so cookies can safely be marked Secure. Set to "false" if you access
+      # Routy directly over plain HTTP (e.g. only inside your home network).
+      - COOKIE_SECURE=true
