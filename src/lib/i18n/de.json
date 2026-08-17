@@ -59,7 +59,6 @@
     "longer": "Länger",
     "accept": "Diese nehmen",
     "cancel": "Abbrechen",
-    "accepted": "Route übernommen — viel Spaß beim Spaziergang!",
     "noRouteFound": "Im eingestellten Längenbereich wurde keine Route gefunden.",
     "noAlternative": "Keine weitere Alternative gefunden.",
     "distanceLabel": "Strecke",
@@ -68,6 +67,14 @@
     "elevationGain": "{gain} m bergauf",
     "elevationLoss": "{loss} m bergab",
     "stationList": "Stationen",
+    "activeNotice": "Du hast eine aktive Route. Bestätige sie als gegangen, oder verwirf sie, um eine neue vorzuschlagen.",
+    "completeButton": "Als gegangen bestätigen",
+    "discardButton": "Verwerfen",
+    "discardConfirm": "Diese Route wirklich verwerfen? Sie zählt dann nicht als gegangen.",
+    "completedMessage": "Nice, gut gemacht! Die Route zählt jetzt zu deiner Statistik.",
+    "showLocation": "Meinen Standort anzeigen",
+    "hideLocation": "Standort ausblenden",
+    "you": "Du",
     "sessionExpired": "Sitzung abgelaufen — bitte neu vorschlagen lassen.",
     "generating": "Suche passende Route …"
   },
@@ -113,7 +120,9 @@
     "interactionHint": "Klicke auf einen Weg, um ihn zu bearbeiten. Klicke auf einen Knoten für weitere Optionen.",
     "moveNode": "Position verschieben",
     "moveNodeActive": "Ziehen aktiv — Knoten auf der Karte ziehen",
-    "deleteNodeConfirm": "Diesen Knoten und die {count} damit verbundenen Wegabschnitte wirklich löschen? Das kann nicht rückgängig gemacht werden."
+    "deleteNodeConfirm": "Diesen Knoten und die {count} damit verbundenen Wegabschnitte wirklich löschen? Das kann nicht rückgängig gemacht werden.",
+    "deleteBlockedNode": "Dieser Knoten kann nicht gelöscht werden — er wird gerade von einer aktiven Route genutzt.",
+    "deleteBlockedSegment": "Dieser Wegabschnitt kann nicht gelöscht werden — er wird gerade von einer aktiven Route genutzt."
   },
   "settings": {
     "title": "Einstellungen",
@@ -131,7 +140,15 @@
     "daily_diversity_weight": "Tages-Diversitäts-Gewichtung",
     "daily_diversity_weight_hint": "Wie stark heute schon gegangene Wege bei neuen Vorschlägen bestraft werden.",
     "walk_speed_kmh": "Angenommene Gehgeschwindigkeit (km/h)",
-    "walk_speed_kmh_hint": "Wird verwendet, wenn eine GPX-Datei keine Zeitstempel enthält.",
+    "walk_speed_kmh_hint": "Standardwert für Profile ohne eigene Angabe, und für GPX-Dateien ohne Zeitstempel.",
+    "walkSpeedTitle": "Dein Tempo",
+    "walkSpeedSubtitle": "Überschreibt den Netzwerk-Standard nur für dein Profil — wirkt sich auf die geschätzte Dauer neuer Wege und Routen aus.",
+    "walkSpeedHint": "Leer lassen, um den Netzwerk-Standard zu verwenden (aktuell {default} km/h).",
+    "elevationTitle": "Höhendaten",
+    "elevationSubtitle": "Wege, die vor dieser Funktion oder ohne GPX-Höhendaten angelegt wurden, haben keine Höhendaten. Hiermit werden sie nachträglich abgerufen (kann je nach Anzahl der Wege etwas dauern).",
+    "elevationBackfillButton": "Fehlende Höhendaten nachladen",
+    "elevationBackfillRunning": "Lädt Höhendaten …",
+    "elevationBackfillResult": "{updated} von {attempted} Wegen aktualisiert.",
     "suggest_min_km": "Vorschlags-Länge, mindestens (km)",
     "suggest_min_km_hint": "Untere Grenze für den Längenbereich, aus dem eine Route vorgeschlagen wird.",
     "suggest_max_km": "Vorschlags-Länge, höchstens (km)",
@@ -154,7 +171,8 @@
     "networkStats": "Netzwerk",
     "mostUsed": "Meistgenutzte Wege",
     "leastUsed": "Am wenigsten genutzte Wege",
-    "noSegments": "Noch keine Wegabschnitte im Netzwerk."
+    "noSegments": "Noch keine Wegabschnitte im Netzwerk.",
+    "deleteWalkConfirm": "Diesen Spaziergang wirklich aus dem Verlauf löschen? Die Statistik wird entsprechend angepasst."
   },
   "draw": {
     "title": "Auf der Karte zeichnen",
@@ -186,6 +204,7 @@
     "splitConfirmTitle": "Weg an dieser Stelle teilen?",
     "splitButton": "Teilen",
     "splitting": "Teile …",
-    "splitError": "Der Weg konnte nicht geteilt werden."
+    "splitError": "Der Weg konnte nicht geteilt werden.",
+    "splitBlockedActive": "Dieser Weg kann gerade nicht geteilt werden — er wird von einer aktiven Route genutzt."
   }
 }

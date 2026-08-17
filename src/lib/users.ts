@@ -7,6 +7,8 @@ export interface UserRow {
   passwordHash: string;
   displayName: string;
   locale: string;
+  /** Null means "use the network-wide default from Settings". */
+  walkSpeedKmh: number | null;
 }
 
 interface UserDbRow {
@@ -15,14 +17,27 @@ interface UserDbRow {
   password_hash: string;
   display_name: string;
   locale: string;
+  walk_speed_kmh: number | null;
 }
 
 function mapUser(row: UserDbRow): UserRow {
-  return { id: row.id, username: row.username, passwordHash: row.password_hash, displayName: row.display_name, locale: row.locale };
+  return {
+    id: row.id,
+    username: row.username,
+    passwordHash: row.password_hash,
+    displayName: row.display_name,
+    locale: row.locale,
+    walkSpeedKmh: row.walk_speed_kmh,
+  };
 }
 
 export function findUserByUsername(username: string): UserRow | null {
   const row = db.prepare("SELECT * FROM users WHERE username = ?").get(username) as UserDbRow | undefined;
+  return row ? mapUser(row) : null;
+}
+
+export function getUser(id: number): UserRow | null {
+  const row = db.prepare("SELECT * FROM users WHERE id = ?").get(id) as UserDbRow | undefined;
   return row ? mapUser(row) : null;
 }
 
@@ -46,4 +61,9 @@ export function createUser(username: string, password: string, displayName: stri
 
 export function updateUserLocale(userId: number, locale: string): void {
   db.prepare("UPDATE users SET locale = ? WHERE id = ?").run(locale, userId);
+}
+
+/** Pass null to go back to using the network-wide default from Settings. */
+export function updateUserWalkSpeed(userId: number, walkSpeedKmh: number | null): void {
+  db.prepare("UPDATE users SET walk_speed_kmh = ? WHERE id = ?").run(walkSpeedKmh, userId);
 }

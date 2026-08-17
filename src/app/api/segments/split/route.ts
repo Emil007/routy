@@ -1,8 +1,9 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
-import { splitSegment } from "@/lib/segments";
-import { getSettings } from "@/lib/settings";
+import { splitSegment, getSegment } from "@/lib/segments";
+import { getSettings, effectiveWalkSpeedKmh } from "@/lib/settings";
+import { segmentUsedByActiveRoute } from "@/lib/activeRoute";
 
 const endpointSchema = z.union([
   z.object({ nodeId: z.number().int().positive() }),
@@ -24,13 +25,21 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) return NextResponse.json({ error: "invalid_body" }, { status: 400 });
 
+  // Splitting deletes the original segment (replacing it with two new ones), which
+  // would silently corrupt any active route's stored segment_ids if it depends on it.
+  const segment = getSegment(parsed.data.segmentId);
+  const relatedIds = segment ? [segment.id, ...(segment.reverseOf !== null ? [segment.reverseOf] : [])] : [parsed.data.segmentId];
+  if (segmentUsedByActiveRoute(relatedIds)) {
+    return NextResponse.json({ error: "segment_active" }, { status: 409 });
+  }
+
   const settings = getSettings();
   const result = splitSegment(
     parsed.data.segmentId,
     { lat: parsed.data.lat, lng: parsed.data.lng },
     parsed.data.endpoint,
     user.id,
-    settings.walk_speed_kmh,
+    effectiveWalkSpeedKmh(user.walkSpeedKmh, settings),
   );
   if ("error" in result) return NextResponse.json({ error: result.error }, { status: 400 });
   return NextResponse.json({ ok: true, newNodeId: result.newNodeId });

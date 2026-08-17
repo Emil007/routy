@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { getRouteSession, deleteRouteSession } from "@/lib/routeSessions";
-import { recordWalk } from "@/lib/segments";
+import { setActiveRoute } from "@/lib/activeRoute";
 
 const bodySchema = z.object({ token: z.string().min(1) });
 
@@ -17,13 +17,15 @@ export async function POST(request: Request) {
   const session = getRouteSession(parsed.data.token);
   if (!session) return NextResponse.json({ error: "session_expired" }, { status: 410 });
 
-  recordWalk(
-    user.id,
-    session.current.nodeChain,
-    session.current.segmentIds,
-    session.current.lengthM,
-    session.current.durationMin,
-  );
+  // Accepting doesn't record the walk yet — it becomes this profile's active
+  // route (persisted, visible on any device that profile signs in on) until
+  // explicitly confirmed as walked or discarded.
+  setActiveRoute(user.id, {
+    nodeChain: session.current.nodeChain,
+    segmentIds: session.current.segmentIds,
+    lengthM: session.current.lengthM,
+    durationMin: session.current.durationMin,
+  });
   deleteRouteSession(parsed.data.token);
 
   return NextResponse.json({ success: true });

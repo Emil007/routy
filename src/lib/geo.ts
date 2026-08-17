@@ -59,6 +59,23 @@ export function reversePoints(points: LatLng[]): LatLng[] {
   return [...points].reverse();
 }
 
+/** Initial compass bearing (0-360°) of travel from `a` to `b`. */
+export function bearing(a: LatLng, b: LatLng): number {
+  const lat1 = (a.lat * Math.PI) / 180;
+  const lat2 = (b.lat * Math.PI) / 180;
+  const dLng = ((b.lng - a.lng) * Math.PI) / 180;
+  const y = Math.sin(dLng) * Math.cos(lat2);
+  const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
+  const theta = Math.atan2(y, x);
+  return ((theta * 180) / Math.PI + 360) % 360;
+}
+
+/** Smallest angle (0-180°) between two compass bearings. */
+export function angleDiff(a: number, b: number): number {
+  const diff = Math.abs(a - b) % 360;
+  return diff > 180 ? 360 - diff : diff;
+}
+
 // Small-scale (tens to hundreds of meters) local projection — accurate enough for
 // finding where on a walking path a point falls, without pulling in a full
 // geodesy library.

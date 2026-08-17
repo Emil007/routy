@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
-import { getSettings } from "@/lib/settings";
+import { getSettings, effectiveWalkSpeedKmh } from "@/lib/settings";
 import { parseGpx, GpxParseError } from "@/lib/gpx";
 import { listNodes, findNodeCandidates, findNameConflict } from "@/lib/nodes";
 
@@ -19,7 +19,7 @@ export async function POST(request: Request) {
 
   let tracks;
   try {
-    tracks = parseGpx(text, settings.walk_speed_kmh);
+    tracks = parseGpx(text, effectiveWalkSpeedKmh(user.walkSpeedKmh, settings));
   } catch (err) {
     if (err instanceof GpxParseError) {
       return NextResponse.json({ error: "parse_error", message: err.message }, { status: 400 });

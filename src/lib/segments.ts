@@ -2,6 +2,7 @@ import { db } from "./db";
 import { type LatLng, reversePoints, pathLengthMeters, estimateMinutes, elevationStats, closestPointOnPath } from "./geo";
 import type { ElevationStats } from "./geo";
 import { createNode, getNode, updateNodePosition, type NodeRow } from "./nodes";
+import { attachElevation } from "./elevation";
 
 export interface SegmentRow {
   id: number;
@@ -195,6 +196,31 @@ export function deleteSegment(id: number): void {
   db.prepare("DELETE FROM segments WHERE id = ?").run(id);
 }
 
+/**
+ * Removes a logged walk from a profile's history — e.g. one confirmed by
+ * mistake. Reverses the usage-count bump `recordWalk` made for it so stats
+ * don't stay inflated for a walk that no longer counts. Scoped to `userId` so
+ * one profile can't delete another's history. Returns false if no matching
+ * entry was found (already deleted, or belongs to someone else).
+ */
+export function deleteWalkLogEntry(id: number, userId: number): boolean {
+  const row = db.prepare("SELECT segment_ids FROM walk_log WHERE id = ? AND user_id = ?").get(id, userId) as
+    | { segment_ids: string }
+    | undefined;
+  if (!row) return false;
+
+  const segmentIds = JSON.parse(row.segment_ids) as number[];
+  const tx = db.transaction(() => {
+    db.prepare("DELETE FROM walk_log WHERE id = ?").run(id);
+    const decrement = db.prepare(
+      "UPDATE segment_usage SET usage_count = MAX(0, usage_count - 1) WHERE segment_id = ?",
+    );
+    for (const segId of segmentIds) decrement.run(segId);
+  });
+  tx();
+  return true;
+}
+
 function resolveCanonical(id: number): SegmentRow | null {
   const row = getSegment(id);
   if (!row) return null;
@@ -348,4 +374,52 @@ export function splitSegment(
   tx();
 
   return { newNodeId: midNode.id };
+}
+
+function writeSegmentElevationOnly(id: number, geometry: LatLng[], elevation: ElevationStats | null): void {
+  db.prepare(
+    "UPDATE segments SET geometry = ?, ele_gain_m = ?, ele_loss_m = ?, ele_min_m = ?, ele_max_m = ? WHERE id = ?",
+  ).run(
+    JSON.stringify(geometry),
+    elevation?.gainM ?? null,
+    elevation?.lossM ?? null,
+    elevation?.minM ?? null,
+    elevation?.maxM ?? null,
+    id,
+  );
+}
+
+/**
+ * Looks up elevation for every canonical segment that has none yet — mainly for
+ * a network built before elevation lookup existed. Only touches the geometry's
+ * `ele` values and the derived gain/loss/min/max; length and duration (which
+ * may come from real GPX timestamps) are left untouched. Best-effort per
+ * segment: a failed lookup just leaves that one segment without elevation, it
+ * doesn't stop the rest.
+ */
+export async function backfillMissingElevation(): Promise<{ updated: number; attempted: number }> {
+  const candidates = listSegments().filter(isCanonicalSegment).filter((s) => s.elevation === null);
+  let updated = 0;
+  for (const canonical of candidates) {
+    if (canonical.reverseOf === null) continue;
+    const reverse = getSegment(canonical.reverseOf);
+    if (!reverse) continue;
+
+    const withElevation = await attachElevation(canonical.geometry);
+    const elevation = elevationStats(withElevation);
+    if (!elevation) continue;
+
+    const reverseElevation: ElevationStats = {
+      gainM: elevation.lossM,
+      lossM: elevation.gainM,
+      minM: elevation.minM,
+      maxM: elevation.maxM,
+    };
+    writeSegmentElevationOnly(canonical.id, withElevation, elevation);
+    writeSegmentElevationOnly(reverse.id, reversePoints(withElevation), reverseElevation);
+    updated++;
+    // Be polite to the free public API rather than hammering it in a tight loop.
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  return { updated, attempted: candidates.length };
 }

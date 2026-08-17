@@ -2,7 +2,8 @@ import { requireUser } from "@/lib/session";
 import { resolveLocale } from "@/lib/locale";
 import { t } from "@/lib/i18n";
 import { getSettings, SETTINGS_KEYS, type Settings } from "@/lib/settings";
-import { saveSettingsAction, createProfileAction } from "./actions";
+import { BackfillElevationButton } from "@/components/BackfillElevationButton";
+import { saveSettingsAction, saveWalkSpeedAction, createProfileAction } from "./actions";
 
 const STEP: Partial<Record<keyof Settings, number>> = {
   daily_diversity_weight: 0.5,
@@ -49,6 +50,39 @@ export default async function SettingsPage({
             {t(locale, "common.save")}
           </button>
         </form>
+      </div>
+
+      <div className="card">
+        <h2 style={{ fontSize: "1.1rem", marginBottom: "0.3rem" }}>{t(locale, "settings.walkSpeedTitle")}</h2>
+        <p style={{ color: "var(--ink-soft)", fontSize: "0.9rem", marginBottom: "1rem" }}>
+          {t(locale, "settings.walkSpeedSubtitle")}
+        </p>
+        <form action={saveWalkSpeedAction} className="stack">
+          <div className="field">
+            <label htmlFor="walkSpeedKmh">{t(locale, "settings.walk_speed_kmh")}</label>
+            <input
+              id="walkSpeedKmh"
+              name="walkSpeedKmh"
+              type="number"
+              step={0.5}
+              min={0}
+              defaultValue={user.walkSpeedKmh ?? ""}
+              placeholder={String(settings.walk_speed_kmh)}
+            />
+            <span className="hint">{t(locale, "settings.walkSpeedHint", { default: settings.walk_speed_kmh })}</span>
+          </div>
+          <button type="submit" className="btn-secondary">
+            {t(locale, "common.save")}
+          </button>
+        </form>
+      </div>
+
+      <div className="card">
+        <h2 style={{ fontSize: "1.1rem", marginBottom: "0.3rem" }}>{t(locale, "settings.elevationTitle")}</h2>
+        <p style={{ color: "var(--ink-soft)", fontSize: "0.9rem", marginBottom: "1rem" }}>
+          {t(locale, "settings.elevationSubtitle")}
+        </p>
+        <BackfillElevationButton locale={locale} />
       </div>
 
       <div className="card">

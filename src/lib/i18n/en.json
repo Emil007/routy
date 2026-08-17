@@ -59,7 +59,6 @@
     "longer": "Longer",
     "accept": "Take this one",
     "cancel": "Cancel",
-    "accepted": "Route accepted — enjoy the walk!",
     "noRouteFound": "No route found within the configured length range.",
     "noAlternative": "No further alternative found.",
     "distanceLabel": "Distance",
@@ -68,6 +67,14 @@
     "elevationGain": "{gain} m uphill",
     "elevationLoss": "{loss} m downhill",
     "stationList": "Waypoints",
+    "activeNotice": "You have an active route. Confirm it as walked, or discard it to get a new suggestion.",
+    "completeButton": "Confirm as walked",
+    "discardButton": "Discard",
+    "discardConfirm": "Really discard this route? It won't count as walked.",
+    "completedMessage": "Nice, well done! The route now counts toward your stats.",
+    "showLocation": "Show my location",
+    "hideLocation": "Hide location",
+    "you": "You",
     "sessionExpired": "Session expired — please suggest again.",
     "generating": "Searching for a matching route …"
   },
@@ -113,7 +120,9 @@
     "interactionHint": "Click a path to edit it. Click a node for more options.",
     "moveNode": "Move position",
     "moveNodeActive": "Drag active — drag the node on the map",
-    "deleteNodeConfirm": "Really delete this node and the {count} path segment(s) connected to it? This cannot be undone."
+    "deleteNodeConfirm": "Really delete this node and the {count} path segment(s) connected to it? This cannot be undone.",
+    "deleteBlockedNode": "This node can't be deleted — it's currently used by an active route.",
+    "deleteBlockedSegment": "This path can't be deleted — it's currently used by an active route."
   },
   "settings": {
     "title": "Settings",
@@ -131,7 +140,15 @@
     "daily_diversity_weight": "Daily diversity weight",
     "daily_diversity_weight_hint": "How strongly paths already walked today are penalized in new suggestions.",
     "walk_speed_kmh": "Assumed walking speed (km/h)",
-    "walk_speed_kmh_hint": "Used when a GPX file has no timestamps.",
+    "walk_speed_kmh_hint": "Default for profiles without their own value, and for GPX files with no timestamps.",
+    "walkSpeedTitle": "Your pace",
+    "walkSpeedSubtitle": "Overrides the network default for your profile only — affects the estimated duration of new paths and routes.",
+    "walkSpeedHint": "Leave empty to use the network default (currently {default} km/h).",
+    "elevationTitle": "Elevation data",
+    "elevationSubtitle": "Paths created before this feature existed, or without GPX elevation data, have none yet. This looks it up after the fact (may take a bit depending on how many paths there are).",
+    "elevationBackfillButton": "Fetch missing elevation data",
+    "elevationBackfillRunning": "Fetching elevation data …",
+    "elevationBackfillResult": "{updated} of {attempted} paths updated.",
     "suggest_min_km": "Suggested length, minimum (km)",
     "suggest_min_km_hint": "Lower bound of the length range a route is suggested from.",
     "suggest_max_km": "Suggested length, maximum (km)",
@@ -154,7 +171,8 @@
     "networkStats": "Network",
     "mostUsed": "Most-used paths",
     "leastUsed": "Least-used paths",
-    "noSegments": "No path segments in the network yet."
+    "noSegments": "No path segments in the network yet.",
+    "deleteWalkConfirm": "Really delete this walk from your history? Your stats will be adjusted accordingly."
   },
   "draw": {
     "title": "Draw on the map",
@@ -186,6 +204,7 @@
     "splitConfirmTitle": "Split the path here?",
     "splitButton": "Split",
     "splitting": "Splitting …",
-    "splitError": "Could not split the path."
+    "splitError": "Could not split the path.",
+    "splitBlockedActive": "This path can't be split right now — it's currently used by an active route."
   }
 }

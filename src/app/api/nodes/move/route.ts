@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { getNode } from "@/lib/nodes";
 import { moveNode } from "@/lib/segments";
-import { getSettings } from "@/lib/settings";
+import { getSettings, effectiveWalkSpeedKmh } from "@/lib/settings";
 
 const bodySchema = z.object({ nodeId: z.number().int().positive(), lat: z.number(), lng: z.number() });
 
@@ -19,6 +19,10 @@ export async function POST(request: Request) {
   if (!node) return NextResponse.json({ error: "not_found" }, { status: 404 });
 
   const settings = getSettings();
-  const result = moveNode(parsed.data.nodeId, { lat: parsed.data.lat, lng: parsed.data.lng }, settings.walk_speed_kmh);
+  const result = moveNode(
+    parsed.data.nodeId,
+    { lat: parsed.data.lat, lng: parsed.data.lng },
+    effectiveWalkSpeedKmh(user.walkSpeedKmh, settings),
+  );
   return NextResponse.json({ ok: true, touchedSegments: result.touchedSegments });
 }

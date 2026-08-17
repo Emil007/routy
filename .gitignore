@@ -43,7 +43,3 @@ next-env.d.ts
 # local sqlite database + uploaded data
 /data
 
-# legacy Discord bot (kept for reference only)
-legacy/config.ini
-legacy/gpx/**/*.gpx
-

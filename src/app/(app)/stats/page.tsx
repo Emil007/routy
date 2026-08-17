@@ -3,6 +3,8 @@ import { resolveLocale } from "@/lib/locale";
 import { t } from "@/lib/i18n";
 import { listNodes } from "@/lib/nodes";
 import { getUserStats, getRecentWalks, getSegmentUsageStats } from "@/lib/stats";
+import { ConfirmSubmitForm } from "@/components/ConfirmSubmitForm";
+import { deleteWalkAction } from "./actions";
 
 function formatDate(iso: string, locale: string): string {
   return new Date(iso.replace(" ", "T") + "Z").toLocaleString(locale === "de" ? "de-DE" : "en-US", {
@@ -66,6 +68,7 @@ export default async function StatsPage() {
                   <th>{t(locale, "route.stationList")}</th>
                   <th>{t(locale, "import.length")}</th>
                   <th>{t(locale, "import.duration")}</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
@@ -80,6 +83,15 @@ export default async function StatsPage() {
                     </td>
                     <td>
                       {w.durationMin} {t(locale, "common.min")}
+                    </td>
+                    <td>
+                      <ConfirmSubmitForm
+                        action={deleteWalkAction}
+                        confirmMessage={t(locale, "stats.deleteWalkConfirm")}
+                        hiddenName="walkId"
+                        hiddenValue={w.id}
+                        buttonLabel={t(locale, "map.delete")}
+                      />
                     </td>
                   </tr>
                 ))}
