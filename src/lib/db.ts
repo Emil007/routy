@@ -22,6 +22,13 @@ CREATE TABLE IF NOT EXISTS sessions (
   expires_at TEXT NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS name_parts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  text TEXT NOT NULL,
+  created_by INTEGER REFERENCES users(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 CREATE TABLE IF NOT EXISTS nodes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT,
@@ -29,6 +36,9 @@ CREATE TABLE IF NOT EXISTS nodes (
   lng REAL NOT NULL,
   is_home INTEGER NOT NULL DEFAULT 0,
   created_by INTEGER REFERENCES users(id),
+  name_part_1_id INTEGER REFERENCES name_parts(id),
+  name_part_2_id INTEGER REFERENCES name_parts(id),
+  name_separator TEXT NOT NULL DEFAULT '/',
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -46,6 +56,7 @@ CREATE TABLE IF NOT EXISTS segments (
   source TEXT NOT NULL DEFAULT 'gpx',
   reverse_of INTEGER REFERENCES segments(id) ON DELETE CASCADE,
   submitted_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  name TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -117,10 +128,27 @@ function runMigrations(db: Database.Database): void {
   if (!userColumns.some((c) => c.name === "deleted_at")) {
     db.exec("ALTER TABLE users ADD COLUMN deleted_at TEXT");
   }
+  if (!userColumns.some((c) => c.name === "theme")) {
+    db.exec("ALTER TABLE users ADD COLUMN theme TEXT NOT NULL DEFAULT 'auto'");
+  }
 
   const nodeColumns = db.prepare("PRAGMA table_info(nodes)").all() as { name: string }[];
   if (!nodeColumns.some((c) => c.name === "created_by")) {
     db.exec("ALTER TABLE nodes ADD COLUMN created_by INTEGER REFERENCES users(id)");
+  }
+  if (!nodeColumns.some((c) => c.name === "name_part_1_id")) {
+    db.exec("ALTER TABLE nodes ADD COLUMN name_part_1_id INTEGER REFERENCES name_parts(id)");
+  }
+  if (!nodeColumns.some((c) => c.name === "name_part_2_id")) {
+    db.exec("ALTER TABLE nodes ADD COLUMN name_part_2_id INTEGER REFERENCES name_parts(id)");
+  }
+  if (!nodeColumns.some((c) => c.name === "name_separator")) {
+    db.exec("ALTER TABLE nodes ADD COLUMN name_separator TEXT NOT NULL DEFAULT '/'");
+  }
+
+  const segmentColumns = db.prepare("PRAGMA table_info(segments)").all() as { name: string }[];
+  if (!segmentColumns.some((c) => c.name === "name")) {
+    db.exec("ALTER TABLE segments ADD COLUMN name TEXT");
   }
 
   // One-time promotion: on an already-deployed instance with no admin yet, the

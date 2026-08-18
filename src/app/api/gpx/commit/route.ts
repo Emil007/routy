@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { createNode, getNode, setHomeNode, findNodeCandidates, type NodeRow } from "@/lib/nodes";
 import { createSegmentWithReverse } from "@/lib/segments";
+import { resolveNamePartsInput } from "@/lib/nameParts";
 import { getSettings } from "@/lib/settings";
 import { elevationStats, type LatLng } from "@/lib/geo";
 import { attachElevation } from "@/lib/elevation";
@@ -11,7 +12,11 @@ const pointSchema = z.object({ lat: z.number(), lng: z.number(), ele: z.number()
 
 const endpointSchema = z.union([
   z.object({ nodeId: z.number().int().positive() }),
-  z.object({ newName: z.string().trim().max(255).nullable() }),
+  z.object({
+    part1: z.string().trim().max(255).default(""),
+    part2: z.string().trim().max(255).default(""),
+    separator: z.enum(["/", " "]).default("/"),
+  }),
 ]);
 
 const elevationSchema = z
@@ -55,7 +60,7 @@ export async function POST(request: Request) {
   const createdThisBatch: NodeRow[] = [];
 
   function resolveEndpoint(
-    endpoint: { nodeId: number } | { newName: string | null },
+    endpoint: { nodeId: number } | { part1: string; part2: string; separator: "/" | " " },
     point: LatLng,
   ): number | null {
     if ("nodeId" in endpoint) {
@@ -64,7 +69,8 @@ export async function POST(request: Request) {
     }
     const nearby = findNodeCandidates(createdThisBatch, point, settings.merge_radius_m)[0];
     if (nearby) return nearby.id;
-    const created = createNode(endpoint.newName, point, false, userId);
+    const { name, nameParts } = resolveNamePartsInput(endpoint.part1, endpoint.part2, endpoint.separator, userId);
+    const created = createNode(name, point, false, userId, nameParts);
     createdThisBatch.push(created);
     return created.id;
   }

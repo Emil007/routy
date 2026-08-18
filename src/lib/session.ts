@@ -49,6 +49,7 @@ export interface SessionUser {
   walkSpeedKmh: number | null;
   role: "admin" | "user";
   active: boolean;
+  theme: string;
 }
 
 interface SessionRow {
@@ -59,6 +60,7 @@ interface SessionRow {
   walkSpeedKmh: number | null;
   role: "admin" | "user";
   active: number;
+  theme: string;
   expiresAt: string;
 }
 
@@ -71,7 +73,8 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
   const row = db
     .prepare(
       `SELECT u.id as id, u.username as username, u.display_name as displayName, u.locale as locale,
-              u.walk_speed_kmh as walkSpeedKmh, u.role as role, u.active as active, s.expires_at as expiresAt
+              u.walk_speed_kmh as walkSpeedKmh, u.role as role, u.active as active, u.theme as theme,
+              s.expires_at as expiresAt
        FROM sessions s JOIN users u ON u.id = s.user_id
        WHERE s.token_hash = ?`,
     )
@@ -95,6 +98,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     walkSpeedKmh: row.walkSpeedKmh,
     role: row.role,
     active: row.active === 1,
+    theme: row.theme,
   };
 }
 

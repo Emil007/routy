@@ -5,6 +5,7 @@ import { t } from "@/lib/i18n";
 import { LOCALES, LOCALE_LABELS } from "@/lib/i18n";
 import { getCaptchaConfig } from "@/lib/captcha";
 import { CaptchaWidget } from "@/components/CaptchaWidget";
+import { RoutyLogo } from "@/components/RoutyLogo";
 import { loginAction, setupFirstProfileAction } from "./actions";
 
 export default async function LoginPage({
@@ -39,7 +40,10 @@ export default async function LoginPage({
   return (
     <div className="container-narrow">
       <div className="page-heading">
-        <h1>🐾 {t(locale, "common.appName")}</h1>
+        <h1 style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <RoutyLogo size={34} />
+          {t(locale, "common.appName")}
+        </h1>
         <p>{needsSetup ? t(locale, "login.setupSubtitle") : t(locale, "login.subtitle")}</p>
       </div>
 

@@ -8,17 +8,30 @@ share one instance, each with their own profile and stats, all drawing from
 the same path network. The first account becomes the admin, who manages who
 else gets access.
 
+> **A note on how this was built.** Routy is 100% "vibecoded" — written
+> end-to-end with [Claude Code](https://claude.ai/code), by someone who isn't
+> a professional software developer. It's a hobby project for a shared dog
+> walk, not audited production code. That said, the process has been
+> genuinely surprising: describing what's needed in plain language and
+> iterating on the result has gotten Routy further, faster, than expected.
+> Use it, fork it, judge the code however you like — just don't assume
+> enterprise-grade rigor behind it.
+
 ## What it does
 
-**Build the network.** Submit paths by drawing them directly on the map
-(click to place points, with snapping to nearby known junctions you can
-toggle off when needed) or by uploading a GPX file. Either way, Routy asks
-you to confirm whether each path's start and end point is an existing
-junction or a new one — and suggests a name for a new junction based on
-OpenStreetMap data nearby, with a compass-direction suffix if that name is
-already taken by another junction close by (best-effort; you can always
-type your own instead). Every path automatically gets its reverse direction
-created too, so it can be walked either way.
+**Build the network.** Draw paths directly on the map (click to place
+points, with snapping to nearby known junctions you can toggle off when
+needed) or upload a GPX file — both live right on the Übersicht (network
+overview) page, no separate screen needed. Either way, Routy asks you to
+confirm whether each path's start and end point is an existing junction or
+a new one. For a new junction, it offers multiple name suggestions at once —
+from OpenStreetMap data nearby *and* from name pieces already used by other
+junctions close by (so "Dellacher Weg" typed once becomes a one-click,
+reusable building block for every junction along it) — combined into up to
+two linked parts (e.g. "Dellacher Weg / Ginhartweg"). Route summaries later
+shorten themselves mechanically wherever consecutive stations share a linked
+part, never by guessing from text. Every path automatically gets its reverse
+direction created too, so it can be walked either way.
 
 **Get a route.** No need to type an exact distance — set a preferred length
 range once in Settings, and Routy suggests a route from within it, picking
@@ -33,12 +46,19 @@ search. Accept a route and it becomes your active route — visible on
 `/route` on any device you sign into — until you confirm it as walked
 (which updates your stats) or discard it.
 
-**Edit the network.** Click a path on the map to correct its shape or split
-it into two at a new junction (e.g. once a crossing path appears). Click a
-node to rename it, drag it to reposition it, or delete it. Every node and
-path shows who submitted it, and only that person (or the admin) can edit or
-delete it — everyone else can still see and use it. Editing paths mid-walk
-(yours or someone else's) is blocked with an explanation instead of silently
+**Edit the network.** Everything happens right on the Übersicht map: click a
+node or path to open a popup with its details, and — if you own it or are an
+admin — actions for it. From a node's popup: rename it (same two-part
+suggestion UI as creating one), move it, set it as home, or delete it. From a
+path's popup: give it its own name (handy when two paths connect the same
+two junctions, e.g. a straight route vs. one that loops around — the name
+disambiguates them in route summaries), edit its shape, or delete it.
+Editing a shape lets you drag points, click the path to insert a new point,
+click an interior point to remove it again, or split the path into two at a
+new junction. Switch the base map to a hiking/topo layer if street tiles
+aren't detailed enough for a particular area. Anyone without edit rights
+just sees the read-only info — no buttons. Editing paths mid-walk (yours or
+someone else's) is blocked with an explanation instead of silently
 corrupting an active route.
 
 **Track it.** A stats page shows your personal totals and recent walks
@@ -52,10 +72,10 @@ walking next.
 **Manage accounts.** The admin (the very first account) gets a "Users" page
 to create, edit, lock, or permanently delete other accounts, and can log in
 as any of them to help troubleshoot without needing their password.
-Everyone else manages their own password and language, and can deactivate
-their own account from Settings — only the admin can bring it back or
-delete it for good. Locking or deleting keeps a departed member's name on
-whatever they built, so the network's history stays intact.
+Everyone else manages their own password, language, and theme, and can
+deactivate their own account from Settings — only the admin can bring it
+back or delete it for good. Locking or deleting keeps a departed member's
+name on whatever they built, so the network's history stays intact.
 
 ## Features
 
@@ -67,8 +87,18 @@ whatever they built, so the network's history stays intact.
   deactivate their own account
 - Nodes and paths are attributed to whoever created them and only editable
   by that person or the admin, visible to everyone else
-- Freehand map drawing and GPX upload, both with junction detection/snapping
-  and an OpenStreetMap-based name suggestion for new junctions
+- One map-centric Übersicht page for everything network-related: freehand
+  drawing, GPX upload, and click-a-popup editing (rename, move, split, add or
+  remove shape points, delete), each gated to owner/admin with read-only info
+  for everyone else
+- Linked, reusable name parts for junctions — multiple suggestions offered
+  at once (OpenStreetMap data + nearby parts already in use), and route
+  summaries shorten themselves mechanically wherever consecutive stations
+  share a linked part
+- Optional per-path names to disambiguate two paths connecting the same
+  two junctions (e.g. "straight" vs. "the long way around")
+- Switchable map tiles (streets or a hiking/topo layer) everywhere a map
+  is shown
 - Route suggestions from a configurable length range, with "Longer" /
   "Shorter" / "Another route" refinement, randomized results, and an
   opt-in Explorer mode that prioritizes never-walked paths
@@ -77,13 +107,15 @@ whatever they built, so the network's history stays intact.
 - Persistent, cross-device active-route tracking with an explicit
   walked/discard step, and optional live-location display on the map
   (browser geolocation, opt-in)
-- Interactive network map: click-to-edit paths (reshape, split), click-to-edit
-  nodes (rename, move, delete), all with active-route-aware protection
 - Elevation (ascent/descent) shown per path — in the network table and on
   every route — read from GPX files that have it, or looked up automatically
   otherwise
 - Stats: personal totals, recent walks (deletable), walking streaks, tiered
   achievements, network-wide most/least-used paths
+- Sortable, compact path table and alphabetically sorted node/path pickers
+  throughout
+- Six themes (auto, light, dark, high-contrast, plus two playful bonus ones —
+  dog and cat), picked per profile in Settings
 - All the tunable numbers (merge radius, suggestion length range, tolerance,
   fairness weighting, walking speed default, …) are adjustable in Settings
 - German and English, file-based (`src/lib/i18n/*.json`) and easy to extend
@@ -162,11 +194,12 @@ Caddy is the one terminating HTTPS.
 
 Routy calls a few free, public, keyless services over the internet:
 
-- **Map tiles** from `tile.openstreetmap.org` (with attribution) — that's
-  the standard public OSM tile server, whose usage policy is explicitly
-  intended for light, small-scale use like this. A dedicated tile provider
-  (e.g. MapTiler, which has a free tier) would only be worth setting up at
-  significantly higher traffic.
+- **Map tiles** from `tile.openstreetmap.org` (streets) and
+  `opentopomap.org` (hiking/topo, switchable per map via the layer control),
+  both with attribution — standard public tile servers whose usage policy is
+  explicitly intended for light, small-scale use like this. A dedicated tile
+  provider (e.g. MapTiler, which has a free tier) would only be worth
+  setting up at significantly higher traffic.
 - **Elevation lookups** from the Open-Meteo API, for paths that don't already
   have elevation data.
 - **Junction name suggestions** from OpenStreetMap's Nominatim reverse
@@ -191,6 +224,10 @@ npm run dev
 
 The SQLite file lands under `./data/routy.db` by default (changeable via
 `DATABASE_PATH`).
+
+**Versioning:** the version shown in the nav bar (and in `package.json`)
+follows the pull request count — `0.N` for the Nth merged PR. It's a simple
+progress counter, not semver.
 
 ## Project structure
 

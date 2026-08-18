@@ -5,7 +5,8 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { destroyCurrentSession, getCurrentUser, endImpersonation } from "@/lib/session";
 import { LOCALE_COOKIE, isLocale } from "@/lib/i18n";
-import { updateUserLocale } from "@/lib/users";
+import { isTheme } from "@/lib/theme";
+import { updateUserLocale, updateUserTheme } from "@/lib/users";
 
 export async function logoutAction() {
   await destroyCurrentSession();
@@ -26,6 +27,17 @@ export async function setLocaleAction(formData: FormData) {
 
   const user = await getCurrentUser();
   if (user) updateUserLocale(user.id, locale);
+
+  revalidatePath("/", "layout");
+}
+
+export async function setThemeAction(formData: FormData) {
+  const theme = String(formData.get("theme") || "");
+  if (!isTheme(theme)) return;
+
+  const user = await getCurrentUser();
+  if (!user) return;
+  updateUserTheme(user.id, theme);
 
   revalidatePath("/", "layout");
 }

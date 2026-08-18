@@ -5,10 +5,15 @@ import { splitSegment, getSegment } from "@/lib/segments";
 import { getSettings, effectiveWalkSpeedKmh } from "@/lib/settings";
 import { segmentUsedByActiveRoute } from "@/lib/activeRoute";
 import { canEdit } from "@/lib/ownership";
+import { resolveNamePartsInput } from "@/lib/nameParts";
 
 const endpointSchema = z.union([
   z.object({ nodeId: z.number().int().positive() }),
-  z.object({ newName: z.string().trim().max(255).nullable() }),
+  z.object({
+    part1: z.string().trim().max(255).default(""),
+    part2: z.string().trim().max(255).default(""),
+    separator: z.enum(["/", " "]).default("/"),
+  }),
 ]);
 
 const bodySchema = z.object({
@@ -37,11 +42,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "segment_active" }, { status: 409 });
   }
 
+  const endpointInput = parsed.data.endpoint;
+  const resolvedEndpoint =
+    "nodeId" in endpointInput
+      ? endpointInput
+      : (() => {
+          const { name, nameParts } = resolveNamePartsInput(endpointInput.part1, endpointInput.part2, endpointInput.separator, user.id);
+          return { newName: name, nameParts };
+        })();
+
   const settings = getSettings();
   const result = splitSegment(
     parsed.data.segmentId,
     { lat: parsed.data.lat, lng: parsed.data.lng },
-    parsed.data.endpoint,
+    resolvedEndpoint,
     user.id,
     effectiveWalkSpeedKmh(user.walkSpeedKmh, settings),
   );

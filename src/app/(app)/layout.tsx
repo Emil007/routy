@@ -3,6 +3,7 @@ import { resolveLocale } from "@/lib/locale";
 import { t } from "@/lib/i18n";
 import { NavBar } from "@/components/NavBar";
 import { returnFromImpersonationAction } from "@/app/actions";
+import { APP_VERSION_DISPLAY } from "@/lib/version";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const user = await requireUser();
@@ -11,7 +12,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   const links = [
     { href: "/route", label: t(locale, "nav.route") },
-    { href: "/import", label: t(locale, "nav.import") },
     { href: "/map", label: t(locale, "nav.map") },
     { href: "/stats", label: t(locale, "nav.stats") },
     { href: "/settings", label: t(locale, "nav.settings") },
@@ -24,6 +24,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         links={links}
         greeting={t(locale, "nav.greeting", { name: user.displayName })}
         logoutLabel={t(locale, "nav.logout")}
+        version={APP_VERSION_DISPLAY}
       />
       {impersonating && (
         <div className="alert alert-error" style={{ margin: "0 0 0", borderRadius: 0 }}>

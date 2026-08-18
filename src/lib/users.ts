@@ -14,6 +14,7 @@ export interface UserRow {
   role: UserRole;
   active: boolean;
   deletedAt: string | null;
+  theme: string;
 }
 
 interface UserDbRow {
@@ -26,6 +27,7 @@ interface UserDbRow {
   role: UserRole;
   active: number;
   deleted_at: string | null;
+  theme: string;
 }
 
 function mapUser(row: UserDbRow): UserRow {
@@ -39,6 +41,7 @@ function mapUser(row: UserDbRow): UserRow {
     role: row.role,
     active: row.active === 1,
     deletedAt: row.deleted_at,
+    theme: row.theme,
   };
 }
 
@@ -84,6 +87,10 @@ export function createUser(
 
 export function updateUserLocale(userId: number, locale: string): void {
   db.prepare("UPDATE users SET locale = ? WHERE id = ?").run(locale, userId);
+}
+
+export function updateUserTheme(userId: number, theme: string): void {
+  db.prepare("UPDATE users SET theme = ? WHERE id = ?").run(theme, userId);
 }
 
 /** Pass null to go back to using the network-wide default from Settings. */

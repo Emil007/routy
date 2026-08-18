@@ -26,11 +26,15 @@ interface TrackDecision {
   skip: boolean;
   startChoice: "existing" | "new";
   startNodeId: number | null;
-  startNewName: string;
+  startPart1: string;
+  startPart2: string;
+  startSeparator: "/" | " ";
   markStartAsHome: boolean;
   endChoice: "existing" | "new";
   endNodeId: number | null;
-  endNewName: string;
+  endPart1: string;
+  endPart2: string;
+  endSeparator: "/" | " ";
 }
 
 function initialDecision(track: TrackPreview): TrackDecision {
@@ -38,11 +42,15 @@ function initialDecision(track: TrackPreview): TrackDecision {
     skip: false,
     startChoice: track.startCandidates.length > 0 ? "existing" : "new",
     startNodeId: track.startCandidates[0]?.id ?? null,
-    startNewName: track.startNameGuess ?? "",
+    startPart1: track.startNameGuess ?? "",
+    startPart2: "",
+    startSeparator: "/",
     markStartAsHome: false,
     endChoice: track.endCandidates.length > 0 ? "existing" : "new",
     endNodeId: track.endCandidates[0]?.id ?? null,
-    endNewName: track.endNameGuess ?? "",
+    endPart1: track.endNameGuess ?? "",
+    endPart2: "",
+    endSeparator: "/",
   };
 }
 
@@ -99,11 +107,11 @@ export function GpxImportWizard({ locale }: { locale: Locale }) {
         start:
           decision.startChoice === "existing" && decision.startNodeId
             ? { nodeId: decision.startNodeId }
-            : { newName: decision.startNewName || null },
+            : { part1: decision.startPart1, part2: decision.startPart2, separator: decision.startSeparator },
         end:
           decision.endChoice === "existing" && decision.endNodeId
             ? { nodeId: decision.endNodeId }
-            : { newName: decision.endNewName || null },
+            : { part1: decision.endPart1, part2: decision.endPart2, separator: decision.endSeparator },
       }));
 
     if (payloadTracks.length === 0) {
@@ -209,10 +217,14 @@ export function GpxImportWizard({ locale }: { locale: Locale }) {
                       nameConflict={track.startNameConflict}
                       decisionChoice={decision.startChoice}
                       decisionNodeId={decision.startNodeId}
-                      decisionNewName={decision.startNewName}
+                      decisionPart1={decision.startPart1}
+                      decisionPart2={decision.startPart2}
+                      decisionSeparator={decision.startSeparator}
                       onChoice={(v) => updateDecision(i, { startChoice: v })}
                       onNodeId={(v) => updateDecision(i, { startNodeId: v })}
-                      onNewName={(v) => updateDecision(i, { startNewName: v })}
+                      onPart1={(v) => updateDecision(i, { startPart1: v })}
+                      onPart2={(v) => updateDecision(i, { startPart2: v })}
+                      onSeparator={(v) => updateDecision(i, { startSeparator: v })}
                     />
                     <label className="checkbox">
                       <input
@@ -230,10 +242,14 @@ export function GpxImportWizard({ locale }: { locale: Locale }) {
                       nameConflict={track.endNameConflict}
                       decisionChoice={decision.endChoice}
                       decisionNodeId={decision.endNodeId}
-                      decisionNewName={decision.endNewName}
+                      decisionPart1={decision.endPart1}
+                      decisionPart2={decision.endPart2}
+                      decisionSeparator={decision.endSeparator}
                       onChoice={(v) => updateDecision(i, { endChoice: v })}
                       onNodeId={(v) => updateDecision(i, { endNodeId: v })}
-                      onNewName={(v) => updateDecision(i, { endNewName: v })}
+                      onPart1={(v) => updateDecision(i, { endPart1: v })}
+                      onPart2={(v) => updateDecision(i, { endPart2: v })}
+                      onSeparator={(v) => updateDecision(i, { endSeparator: v })}
                     />
                   </>
                 )}

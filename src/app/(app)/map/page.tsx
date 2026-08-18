@@ -1,14 +1,12 @@
 import { requireUser } from "@/lib/session";
 import { resolveLocale } from "@/lib/locale";
 import { t } from "@/lib/i18n";
-import Link from "next/link";
 import { listNodes } from "@/lib/nodes";
 import { listSegments, getUsageMap, isCanonicalSegment } from "@/lib/segments";
 import { listAllUsers } from "@/lib/users";
-import { canEdit } from "@/lib/ownership";
-import { ConfirmSubmitForm } from "@/components/ConfirmSubmitForm";
-import { MapPageClient } from "./MapPageClient";
-import { deleteSegmentAction } from "./actions";
+import { getSettings, effectiveWalkSpeedKmh } from "@/lib/settings";
+import { OverviewMapClient } from "./OverviewMapClient";
+import { SegmentsTable } from "./SegmentsTable";
 
 export default async function MapPage({
   searchParams,
@@ -21,17 +19,14 @@ export default async function MapPage({
   const nodes = listNodes();
   const segments = listSegments();
   const usage = getUsageMap();
-  const nodesById = new Map(nodes.map((n) => [n.id, n]));
   const canonicalSegments = segments.filter(isCanonicalSegment);
   const userNames = new Map(listAllUsers().map((u) => [u.id, u.displayName]));
-  function creatorName(id: number | null): string {
-    return id !== null ? (userNames.get(id) ?? `#${id}`) : "–";
-  }
+  const settings = getSettings();
 
-  const segmentCounts = new Map<number, number>();
+  const segmentCounts: Record<number, number> = {};
   for (const s of canonicalSegments) {
-    segmentCounts.set(s.startNodeId, (segmentCounts.get(s.startNodeId) ?? 0) + 1);
-    segmentCounts.set(s.endNodeId, (segmentCounts.get(s.endNodeId) ?? 0) + 1);
+    segmentCounts[s.startNodeId] = (segmentCounts[s.startNodeId] ?? 0) + 1;
+    segmentCounts[s.endNodeId] = (segmentCounts[s.endNodeId] ?? 0) + 1;
   }
 
   return (
@@ -45,70 +40,29 @@ export default async function MapPage({
       {deleteError === "segment_active" && <div className="alert alert-error">{t(locale, "map.deleteBlockedSegment")}</div>}
       {deleteError === "not_owner" && <div className="alert alert-error">{t(locale, "map.editBlockedNotOwner")}</div>}
 
-      <MapPageClient
+      <OverviewMapClient
         locale={locale}
         nodes={nodes}
-        lines={canonicalSegments.map((s) => ({
-          id: s.id,
-          points: s.geometry.map((p): [number, number] => [p.lat, p.lng]),
-        }))}
+        segments={canonicalSegments}
+        usage={Object.fromEntries(usage)}
         segmentCounts={segmentCounts}
         currentUser={{ id: user.id, role: user.role }}
         userNames={Object.fromEntries(userNames)}
+        mergeRadiusM={settings.merge_radius_m}
+        walkSpeedKmh={effectiveWalkSpeedKmh(user.walkSpeedKmh, settings)}
       />
 
-      <div className="card">
-        <h2 style={{ fontSize: "1.1rem" }}>{t(locale, "map.segmentsHeading")}</h2>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>{t(locale, "route.start")}</th>
-                <th>{t(locale, "route.destination")}</th>
-                <th>{t(locale, "import.length")}</th>
-                <th>{t(locale, "import.duration")}</th>
-                <th>{t(locale, "route.elevationLabel")}</th>
-                <th>{t(locale, "map.usageHeading")}</th>
-                <th>{t(locale, "map.createdBy")}</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {canonicalSegments.map((s) => (
-                <tr key={s.id}>
-                  <td>{nodesById.get(s.startNodeId)?.name || `#${s.startNodeId}`}</td>
-                  <td>{nodesById.get(s.endNodeId)?.name || `#${s.endNodeId}`}</td>
-                  <td>{(s.lengthM / 1000).toFixed(2)} {t(locale, "common.km")}</td>
-                  <td>{s.durationMin} {t(locale, "common.min")}</td>
-                  <td>
-                    {s.elevation
-                      ? `↗${s.elevation.gainM} ↘${s.elevation.lossM} m`
-                      : "–"}
-                  </td>
-                  <td>{t(locale, "map.usageCount", { count: usage.get(s.id) ?? 0 })}</td>
-                  <td>{creatorName(s.submittedBy)}</td>
-                  <td>
-                    <div className="btn-row">
-                      <Link href={`/map/edit/${s.id}`} className="btn-secondary">
-                        {t(locale, "map.edit")}
-                      </Link>
-                      {canEdit(user, s.submittedBy) && (
-                        <ConfirmSubmitForm
-                          action={deleteSegmentAction}
-                          confirmMessage={t(locale, "map.deleteConfirm")}
-                          hiddenName="segmentId"
-                          hiddenValue={s.id}
-                          buttonLabel={t(locale, "map.delete")}
-                        />
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      <details className="card">
+        <summary style={{ fontSize: "1.1rem", fontWeight: 600, cursor: "pointer" }}>{t(locale, "map.segmentsHeading")}</summary>
+        <SegmentsTable
+          locale={locale}
+          segments={canonicalSegments}
+          nodes={nodes}
+          usage={Object.fromEntries(usage)}
+          userNames={Object.fromEntries(userNames)}
+          currentUser={{ id: user.id, role: user.role }}
+        />
+      </details>
     </>
   );
 }

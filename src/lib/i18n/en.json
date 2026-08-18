@@ -17,8 +17,7 @@
   },
   "nav": {
     "route": "Route",
-    "import": "Submit a path",
-    "map": "Network",
+    "map": "Overview",
     "stats": "Stats",
     "settings": "Settings",
     "admin": "Users",
@@ -76,6 +75,7 @@
     "elevationGain": "{gain} m uphill",
     "elevationLoss": "{loss} m downhill",
     "stationList": "Waypoints",
+    "via": "via {name}",
     "activeNotice": "You have an active route. Confirm it as walked, or discard it to get a new suggestion.",
     "completeButton": "Confirm as walked",
     "discardButton": "Discard",
@@ -97,10 +97,6 @@
     "favoriteStale": "This route includes segments that have since been deleted and can no longer be taken."
   },
   "import": {
-    "title": "Submit a path",
-    "subtitle": "Upload a GPX file. Any tracks it contains are detected, and you confirm which known node each start and end point belongs to.",
-    "uploadMode": "Upload GPX",
-    "drawMode": "Draw on map",
     "chooseFile": "Choose GPX file",
     "upload": "Upload & analyze",
     "parsing": "Analyzing GPX …",
@@ -111,6 +107,11 @@
     "useExisting": "Use existing node",
     "createNew": "Create new node",
     "newNodeName": "Name for the new node",
+    "namePart1": "Name part 1 (e.g. road/path)",
+    "namePart2": "Name part 2 (optional, e.g. junction/landmark)",
+    "nameSeparator": "Separator",
+    "nameSeparatorSpace": "Space",
+    "nameComposedPreview": "Becomes",
     "nameConflictWarning": "Heads up: a node named \"{name}\" already exists, but it's {distance} m away. Use it anyway?",
     "commit": "Save selected tracks",
     "committing": "Saving …",
@@ -122,8 +123,8 @@
     "skipTrack": "Skip this track"
   },
   "map": {
-    "title": "Network",
-    "subtitle": "All known nodes and path segments.",
+    "title": "Overview",
+    "subtitle": "All known nodes and path segments — click for details.",
     "nodesHeading": "Nodes",
     "segmentsHeading": "Segments",
     "nameHeading": "Name",
@@ -135,7 +136,7 @@
     "edit": "Edit",
     "delete": "Delete",
     "deleteConfirm": "Really delete this path segment? This cannot be undone.",
-    "interactionHint": "Click a path to edit it. Click a node for more options.",
+    "interactionHint": "Click a path or node to see details and — if you own it or are an admin — actions for it.",
     "moveNode": "Move position",
     "moveNodeActive": "Drag active — drag the node on the map",
     "deleteNodeConfirm": "Really delete this node and the {count} path segment(s) connected to it? This cannot be undone.",
@@ -143,6 +144,12 @@
     "deleteBlockedSegment": "This path can't be deleted — it's currently used by an active route.",
     "createdBy": "Created by",
     "editBlockedNotOwner": "You can't edit this — only whoever created it, or an admin, can."
+  },
+  "overview": {
+    "backToView": "Back to view",
+    "drawMode": "Draw on map",
+    "gpxMode": "Upload GPX",
+    "interactionHint": "Click a path or node to see details and — if you own it or are an admin — actions for it."
   },
   "settings": {
     "title": "Settings",
@@ -174,6 +181,15 @@
     "adjust_step_percent_hint": "How much the route changes on a \"Longer\" or \"Shorter\" click.",
     "saved": "Settings saved.",
     "languageTitle": "Language",
+    "themeTitle": "Theme",
+    "theme": {
+      "auto": "Automatic (system setting)",
+      "light": "Light",
+      "dark": "Dark",
+      "contrast": "High contrast",
+      "dog": "🐶 Dog",
+      "cat": "🐱 Cat"
+    },
     "changePasswordTitle": "Change password",
     "currentPassword": "Current password",
     "newPassword": "New password",
@@ -223,30 +239,27 @@
   },
   "edit": {
     "title": "Edit path",
-    "subtitle": "Drag individual points to correct the path's shape, or click the path to split it at a new junction.",
+    "subtitle": "Drag individual points to correct the path's shape, add or remove points, or split the path at a new junction.",
     "saveGeometry": "Save changes",
     "saving": "Saving …",
     "saved": "Path shape updated.",
     "saveError": "Could not save the changes.",
-    "backToMap": "Back to the network",
+    "backToMap": "Back to the overview",
     "splitPointLabel": "New node at this point",
     "splitConfirmTitle": "Split the path here?",
     "splitButton": "Split",
     "splitting": "Splitting …",
     "splitError": "Could not split the path.",
-    "splitBlockedActive": "This path can't be split right now — it's currently used by an active route."
-  },
-  "nodeNaming": {
-    "directions": {
-      "n": "North",
-      "ne": "Northeast",
-      "e": "East",
-      "se": "Southeast",
-      "s": "South",
-      "sw": "Southwest",
-      "w": "West",
-      "nw": "Northwest"
-    }
+    "splitBlockedActive": "This path can't be split right now — it's currently used by an active route.",
+    "addPointMode": "Add point",
+    "splitMode": "Split path",
+    "addPointHint": "Click the path to insert a new point there. Click an interior point's marker to remove it again.",
+    "splitModeHint": "Click the path to split it into two segments at that spot.",
+    "removePoint": "Remove point",
+    "renameSegment": "Name this path",
+    "renameSegmentPlaceholder": "e.g. \"Sebastian-Isepp-Weg\" (optional)",
+    "renameSegmentHint": "Useful when two paths connect the same nodes (e.g. straight vs. around) — the name helps tell them apart.",
+    "editShapeButton": "Edit shape"
   },
   "achievements": {
     "title": "Achievements",

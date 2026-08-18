@@ -1,7 +1,7 @@
 import { db } from "./db";
 import { type LatLng, reversePoints, pathLengthMeters, estimateMinutes, elevationStats, closestPointOnPath } from "./geo";
 import type { ElevationStats } from "./geo";
-import { createNode, getNode, updateNodePosition, type NodeRow } from "./nodes";
+import { createNode, getNode, updateNodePosition, type NodeRow, type NodeNameParts } from "./nodes";
 
 export interface SegmentRow {
   id: number;
@@ -14,6 +14,7 @@ export interface SegmentRow {
   source: "gpx" | "drawn";
   reverseOf: number | null;
   submittedBy: number | null;
+  name: string | null;
   createdAt: string;
 }
 
@@ -31,6 +32,7 @@ interface SegmentDbRow {
   source: string;
   reverse_of: number | null;
   submitted_by: number | null;
+  name: string | null;
   created_at: string;
 }
 
@@ -49,6 +51,7 @@ function mapSegment(row: SegmentDbRow): SegmentRow {
     source: row.source === "drawn" ? "drawn" : "gpx",
     reverseOf: row.reverse_of,
     submittedBy: row.submitted_by,
+    name: row.name,
     createdAt: row.created_at,
   };
 }
@@ -72,6 +75,30 @@ export function getSegment(id: number): SegmentRow | null {
  */
 export function isCanonicalSegment(s: Pick<SegmentRow, "id" | "reverseOf">): boolean {
   return s.reverseOf === null || s.id < s.reverseOf;
+}
+
+/** A segment's name applies to the physical path regardless of direction, so both rows of the pair get it. */
+export function renameSegment(segmentId: number, name: string | null): void {
+  const segment = getSegment(segmentId);
+  if (!segment) return;
+  db.prepare("UPDATE segments SET name = ? WHERE id = ?").run(name, segment.id);
+  if (segment.reverseOf !== null) {
+    db.prepare("UPDATE segments SET name = ? WHERE id = ?").run(name, segment.reverseOf);
+  }
+}
+
+/** Other canonical segments connecting the exact same two nodes (either direction) — the "which one did I mean" case. */
+export function findParallelSegments(segmentId: number): SegmentRow[] {
+  const segment = getSegment(segmentId);
+  if (!segment) return [];
+  return listSegments()
+    .filter(isCanonicalSegment)
+    .filter((s) => s.id !== segment.id && s.reverseOf !== segment.id)
+    .filter(
+      (s) =>
+        (s.startNodeId === segment.startNodeId && s.endNodeId === segment.endNodeId) ||
+        (s.startNodeId === segment.endNodeId && s.endNodeId === segment.startNodeId),
+    );
 }
 
 export interface NewSegmentInput {
@@ -263,24 +290,24 @@ function writeSegmentGeometry(canonical: SegmentRow, reverse: SegmentRow, points
 }
 
 /**
- * Repositions the interior points of a segment (its two endpoints stay pinned to
- * their nodes) — for correcting the shape of an already-submitted path without
- * changing what it connects.
+ * Rewrites a segment's shape (its two endpoints stay pinned to their nodes) — for
+ * correcting the path, or adding/removing interior points, without changing what it
+ * connects. The point count is free to differ from the current geometry.
  */
 export function updateSegmentGeometry(
   segmentId: number,
   points: LatLng[],
   walkSpeedKmh: number,
-): { ok: true } | { error: "not_found" | "point_count_mismatch" } {
+): { ok: true } | { error: "not_found" | "too_few_points" } {
   const canonical = resolveCanonical(segmentId);
   if (!canonical || canonical.reverseOf === null) return { error: "not_found" };
   const reverse = getSegment(canonical.reverseOf);
   if (!reverse) return { error: "not_found" };
-  if (points.length !== canonical.geometry.length) return { error: "point_count_mismatch" };
+  if (points.length < 2) return { error: "too_few_points" };
 
-  const fixedPoints = points.map((p, i) =>
-    i === 0 || i === points.length - 1 ? canonical.geometry[i] : p,
-  );
+  const fixedPoints = [...points];
+  fixedPoints[0] = canonical.geometry[0];
+  fixedPoints[fixedPoints.length - 1] = canonical.geometry[canonical.geometry.length - 1];
   const tx = db.transaction(() => writeSegmentGeometry(canonical, reverse, fixedPoints, walkSpeedKmh));
   tx();
   return { ok: true };
@@ -321,7 +348,7 @@ export function moveNode(nodeId: number, point: LatLng, walkSpeedKmh: number): {
 export function splitSegment(
   segmentId: number,
   near: LatLng,
-  endpoint: { nodeId: number } | { newName: string | null },
+  endpoint: { nodeId: number } | { newName: string | null; nameParts?: NodeNameParts },
   submittedBy: number,
   walkSpeedKmh: number,
 ): { newNodeId: number } | { error: "not_found" | "too_far" | "too_close_to_endpoint" | "unknown_node" } {
@@ -344,7 +371,7 @@ export function splitSegment(
     if (!node) return { error: "unknown_node" };
     midNode = node;
   } else {
-    midNode = createNode(endpoint.newName, closest.point, false, submittedBy);
+    midNode = createNode(endpoint.newName, closest.point, false, submittedBy, endpoint.nameParts);
   }
 
   const tx = db.transaction(() => {

@@ -3,23 +3,10 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
-import { renameNode, setHomeNode, deleteNode, getNode } from "@/lib/nodes";
+import { setHomeNode, deleteNode, getNode } from "@/lib/nodes";
 import { deleteSegment, getSegment } from "@/lib/segments";
 import { nodeUsedByActiveRoute, segmentUsedByActiveRoute } from "@/lib/activeRoute";
 import { canEdit } from "@/lib/ownership";
-
-export async function renameNodeAction(formData: FormData) {
-  const user = await requireUser();
-  const id = Number(formData.get("nodeId"));
-  const name = String(formData.get("name") || "").trim();
-  if (!id || !name) return;
-  const node = getNode(id);
-  if (!node || !canEdit(user, node.createdBy)) {
-    redirect("/map?deleteError=not_owner");
-  }
-  renameNode(id, name);
-  revalidatePath("/map");
-}
 
 export async function setHomeNodeAction(formData: FormData) {
   await requireUser();

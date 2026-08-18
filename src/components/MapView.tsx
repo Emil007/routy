@@ -1,9 +1,26 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
-import { MapContainer, TileLayer, Marker, Polyline, Circle, Tooltip, useMap, useMapEvents } from "react-leaflet";
+import { type ReactNode, useEffect, useMemo } from "react";
+import { MapContainer, TileLayer, LayersControl, Marker, Polyline, Circle, Popup, Tooltip, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+
+/** Extensible base-layer list — add an entry here to offer another tile view everywhere maps are shown. */
+const TILE_LAYERS = [
+  {
+    id: "streets",
+    name: "Straßenkarte",
+    url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
+    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+  },
+  {
+    id: "hiking",
+    name: "Wanderkarte",
+    url: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
+    attribution:
+      'Kartendaten: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, SRTM | Darstellung: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)',
+  },
+];
 
 export interface MapMarker {
   id: number | string;
@@ -12,6 +29,8 @@ export interface MapMarker {
   label?: string;
   color?: string;
   draggable?: boolean;
+  /** Rendered inside a real Leaflet Popup anchored to this marker — info and/or owner-gated actions. */
+  popup?: ReactNode;
 }
 
 export interface MapLine {
@@ -19,6 +38,8 @@ export interface MapLine {
   points: [number, number][];
   color?: string;
   weight?: number;
+  /** Rendered inside a real Leaflet Popup opened at the click position along this line. */
+  popup?: ReactNode;
 }
 
 export interface MapCircle {
@@ -38,7 +59,15 @@ function dotIcon(color: string) {
   });
 }
 
-function FitBounds({ markers, lines }: { markers: MapMarker[]; lines: MapLine[] }) {
+/**
+ * Fits the view to the given markers/lines once per `fitKey` value (default: once on
+ * mount, since an unset key never changes). Deliberately NOT keyed to the marker/line
+ * content itself — refitting on every content change means a single node move (which
+ * legitimately changes that node's lat/lng) zooms the whole map back out, discarding
+ * whatever the user was looking at. Callers that show a genuinely new dataset (e.g. a
+ * freshly generated route) should bump `fitKey` to opt back into a refit.
+ */
+function FitBounds({ markers, lines, fitKey }: { markers: MapMarker[]; lines: MapLine[]; fitKey?: string | number }) {
   const map = useMap();
   useEffect(() => {
     const points: [number, number][] = [
@@ -52,7 +81,7 @@ function FitBounds({ markers, lines }: { markers: MapMarker[]; lines: MapLine[] 
     }
     map.fitBounds(L.latLngBounds(points), { padding: [24, 24] });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [JSON.stringify(markers.map((m) => [m.lat, m.lng])), JSON.stringify(lines.map((l) => l.points))]);
+  }, [fitKey]);
   return null;
 }
 
@@ -73,6 +102,7 @@ export function MapView({
   onMapClick,
   onLineClick,
   autoFit = true,
+  fitKey,
   className,
 }: {
   markers?: MapMarker[];
@@ -85,9 +115,12 @@ export function MapView({
   onMapClick?: (lat: number, lng: number) => void;
   /** Fired when a line is clicked, with the lat/lng of the click along it. */
   onLineClick?: (id: number | string, lat: number, lng: number) => void;
-  /** Re-fit the view whenever markers/lines change. Disable for interactive drawing,
-   * where re-centering on every click would fight the user's own panning/zoom. */
+  /** Re-fit the view once per distinct `fitKey` (default: once on mount). Disable entirely
+   * for interactive drawing, where re-centering on every click would fight the user's own
+   * panning/zoom. */
   autoFit?: boolean;
+  /** Bump this (e.g. to a route token) when a genuinely new dataset should trigger a refit. */
+  fitKey?: string | number;
   className?: string;
 }) {
   const defaultCenter = useMemo<[number, number]>(() => {
@@ -100,10 +133,13 @@ export function MapView({
   return (
     <div className={`map-box ${className ?? ""}`} style={{ height }}>
       <MapContainer center={defaultCenter} zoom={14} style={{ width: "100%", height: "100%" }} scrollWheelZoom>
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
+        <LayersControl position="topright">
+          {TILE_LAYERS.map((layer, idx) => (
+            <LayersControl.BaseLayer key={layer.id} name={layer.name} checked={idx === 0}>
+              <TileLayer attribution={layer.attribution} url={layer.url} />
+            </LayersControl.BaseLayer>
+          ))}
+        </LayersControl>
         {lines.map((line) => (
           <Polyline
             key={line.id}
@@ -111,7 +147,9 @@ export function MapView({
             color={line.color ?? "#2e6b49"}
             weight={line.weight ?? 4}
             eventHandlers={onLineClick ? { click: (e) => onLineClick(line.id, e.latlng.lat, e.latlng.lng) } : undefined}
-          />
+          >
+            {line.popup && <Popup>{line.popup}</Popup>}
+          </Polyline>
         ))}
         {circles.map((c) => (
           <Circle
@@ -139,10 +177,11 @@ export function MapView({
                 : {}),
             }}
           >
-            {marker.label && <Tooltip direction="top">{marker.label}</Tooltip>}
+            {marker.label && !marker.popup && <Tooltip direction="top">{marker.label}</Tooltip>}
+            {marker.popup && <Popup>{marker.popup}</Popup>}
           </Marker>
         ))}
-        {autoFit && <FitBounds markers={markers} lines={lines} />}
+        {autoFit && <FitBounds markers={markers} lines={lines} fitKey={fitKey} />}
         {onMapClick && <ClickHandler onMapClick={onMapClick} />}
       </MapContainer>
     </div>
