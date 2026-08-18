@@ -134,98 +134,76 @@ CREATE TABLE IF NOT EXISTS activity_log (
 CREATE INDEX IF NOT EXISTS idx_activity_log_created_at ON activity_log(created_at);
 `;
 
+/**
+ * Next.js's build spawns several worker processes that each open this same
+ * SQLite file and run migrations concurrently — two can both see a column
+ * missing via PRAGMA before either has added it, then race the ALTER. Rather
+ * than serialize startup across processes, just treat "someone else already
+ * added it" as success.
+ */
+function addColumnIfMissing(db: Database.Database, table: string, column: string, alterSql: string): void {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+  if (columns.some((c) => c.name === column)) return;
+  try {
+    db.exec(alterSql);
+  } catch (err) {
+    const isConcurrentDuplicate =
+      err instanceof Database.SqliteError && err.code === "SQLITE_ERROR" && /duplicate column name/i.test(err.message);
+    if (!isConcurrentDuplicate) throw err;
+  }
+}
+
 /** Column additions to already-deployed tables — CREATE TABLE IF NOT EXISTS above only covers fresh installs. */
 function runMigrations(db: Database.Database): void {
-  const userColumns = db.prepare("PRAGMA table_info(users)").all() as { name: string }[];
-  if (!userColumns.some((c) => c.name === "walk_speed_kmh")) {
-    db.exec("ALTER TABLE users ADD COLUMN walk_speed_kmh REAL");
-  }
-  if (!userColumns.some((c) => c.name === "role")) {
-    db.exec("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'");
-  }
-  if (!userColumns.some((c) => c.name === "active")) {
-    db.exec("ALTER TABLE users ADD COLUMN active INTEGER NOT NULL DEFAULT 1");
-  }
-  if (!userColumns.some((c) => c.name === "deleted_at")) {
-    db.exec("ALTER TABLE users ADD COLUMN deleted_at TEXT");
-  }
-  if (!userColumns.some((c) => c.name === "theme")) {
-    db.exec("ALTER TABLE users ADD COLUMN theme TEXT NOT NULL DEFAULT 'auto'");
-  }
-  if (!userColumns.some((c) => c.name === "totp_secret")) {
-    db.exec("ALTER TABLE users ADD COLUMN totp_secret TEXT");
-  }
-  if (!userColumns.some((c) => c.name === "totp_enabled")) {
-    db.exec("ALTER TABLE users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0");
-  }
+  addColumnIfMissing(db, "users", "walk_speed_kmh", "ALTER TABLE users ADD COLUMN walk_speed_kmh REAL");
+  addColumnIfMissing(db, "users", "role", "ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'");
+  addColumnIfMissing(db, "users", "active", "ALTER TABLE users ADD COLUMN active INTEGER NOT NULL DEFAULT 1");
+  addColumnIfMissing(db, "users", "deleted_at", "ALTER TABLE users ADD COLUMN deleted_at TEXT");
+  addColumnIfMissing(db, "users", "theme", "ALTER TABLE users ADD COLUMN theme TEXT NOT NULL DEFAULT 'auto'");
+  addColumnIfMissing(db, "users", "totp_secret", "ALTER TABLE users ADD COLUMN totp_secret TEXT");
+  addColumnIfMissing(db, "users", "totp_enabled", "ALTER TABLE users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0");
 
-  const nodeColumns = db.prepare("PRAGMA table_info(nodes)").all() as { name: string }[];
-  if (!nodeColumns.some((c) => c.name === "created_by")) {
-    db.exec("ALTER TABLE nodes ADD COLUMN created_by INTEGER REFERENCES users(id)");
-  }
-  if (!nodeColumns.some((c) => c.name === "name_part_1_id")) {
-    db.exec("ALTER TABLE nodes ADD COLUMN name_part_1_id INTEGER REFERENCES name_parts(id)");
-  }
-  if (!nodeColumns.some((c) => c.name === "name_part_2_id")) {
-    db.exec("ALTER TABLE nodes ADD COLUMN name_part_2_id INTEGER REFERENCES name_parts(id)");
-  }
-  if (!nodeColumns.some((c) => c.name === "name_separator")) {
-    db.exec("ALTER TABLE nodes ADD COLUMN name_separator TEXT NOT NULL DEFAULT '/'");
-  }
-  if (!nodeColumns.some((c) => c.name === "active")) {
-    db.exec("ALTER TABLE nodes ADD COLUMN active INTEGER NOT NULL DEFAULT 1");
-  }
-  if (!nodeColumns.some((c) => c.name === "deleted_at")) {
-    db.exec("ALTER TABLE nodes ADD COLUMN deleted_at TEXT");
-  }
+  addColumnIfMissing(db, "nodes", "created_by", "ALTER TABLE nodes ADD COLUMN created_by INTEGER REFERENCES users(id)");
+  addColumnIfMissing(
+    db,
+    "nodes",
+    "name_part_1_id",
+    "ALTER TABLE nodes ADD COLUMN name_part_1_id INTEGER REFERENCES name_parts(id)",
+  );
+  addColumnIfMissing(
+    db,
+    "nodes",
+    "name_part_2_id",
+    "ALTER TABLE nodes ADD COLUMN name_part_2_id INTEGER REFERENCES name_parts(id)",
+  );
+  addColumnIfMissing(db, "nodes", "name_separator", "ALTER TABLE nodes ADD COLUMN name_separator TEXT NOT NULL DEFAULT '/'");
+  addColumnIfMissing(db, "nodes", "active", "ALTER TABLE nodes ADD COLUMN active INTEGER NOT NULL DEFAULT 1");
+  addColumnIfMissing(db, "nodes", "deleted_at", "ALTER TABLE nodes ADD COLUMN deleted_at TEXT");
 
-  const segmentColumns = db.prepare("PRAGMA table_info(segments)").all() as { name: string }[];
-  if (!segmentColumns.some((c) => c.name === "name")) {
-    db.exec("ALTER TABLE segments ADD COLUMN name TEXT");
-  }
-  if (!segmentColumns.some((c) => c.name === "active")) {
-    db.exec("ALTER TABLE segments ADD COLUMN active INTEGER NOT NULL DEFAULT 1");
-  }
-  if (!segmentColumns.some((c) => c.name === "deleted_at")) {
-    db.exec("ALTER TABLE segments ADD COLUMN deleted_at TEXT");
-  }
-  if (!segmentColumns.some((c) => c.name === "locked_until")) {
-    db.exec("ALTER TABLE segments ADD COLUMN locked_until TEXT");
-  }
-  if (!segmentColumns.some((c) => c.name === "locked_reason")) {
-    db.exec("ALTER TABLE segments ADD COLUMN locked_reason TEXT");
-  }
+  addColumnIfMissing(db, "segments", "name", "ALTER TABLE segments ADD COLUMN name TEXT");
+  addColumnIfMissing(db, "segments", "active", "ALTER TABLE segments ADD COLUMN active INTEGER NOT NULL DEFAULT 1");
+  addColumnIfMissing(db, "segments", "deleted_at", "ALTER TABLE segments ADD COLUMN deleted_at TEXT");
+  addColumnIfMissing(db, "segments", "locked_until", "ALTER TABLE segments ADD COLUMN locked_until TEXT");
+  addColumnIfMissing(db, "segments", "locked_reason", "ALTER TABLE segments ADD COLUMN locked_reason TEXT");
 
-  const activeRouteColumns = db.prepare("PRAGMA table_info(active_route)").all() as { name: string }[];
-  if (!activeRouteColumns.some((c) => c.name === "nickname")) {
-    db.exec("ALTER TABLE active_route ADD COLUMN nickname TEXT");
-  }
+  addColumnIfMissing(db, "active_route", "nickname", "ALTER TABLE active_route ADD COLUMN nickname TEXT");
 
-  const walkLogColumns = db.prepare("PRAGMA table_info(walk_log)").all() as { name: string }[];
-  if (!walkLogColumns.some((c) => c.name === "nickname")) {
-    db.exec("ALTER TABLE walk_log ADD COLUMN nickname TEXT");
-  }
+  addColumnIfMissing(db, "walk_log", "nickname", "ALTER TABLE walk_log ADD COLUMN nickname TEXT");
 
-  const favoriteRouteColumns = db.prepare("PRAGMA table_info(favorite_route)").all() as { name: string }[];
-  if (!favoriteRouteColumns.some((c) => c.name === "share_token")) {
-    db.exec("ALTER TABLE favorite_route ADD COLUMN share_token TEXT");
-  }
+  addColumnIfMissing(db, "favorite_route", "share_token", "ALTER TABLE favorite_route ADD COLUMN share_token TEXT");
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_favorite_route_share_token ON favorite_route(share_token)");
 
   // session_id is a non-secret handle for the sessions list / revoke UI —
   // separate from token_hash, which stays internal since it's derived from
   // the actual bearer/cookie secret.
-  const sessionColumns = db.prepare("PRAGMA table_info(sessions)").all() as { name: string }[];
-  if (!sessionColumns.some((c) => c.name === "session_id")) {
-    db.exec("ALTER TABLE sessions ADD COLUMN session_id TEXT");
+  const sessionColumnsBefore = db.prepare("PRAGMA table_info(sessions)").all() as { name: string }[];
+  const hadSessionId = sessionColumnsBefore.some((c) => c.name === "session_id");
+  addColumnIfMissing(db, "sessions", "session_id", "ALTER TABLE sessions ADD COLUMN session_id TEXT");
+  if (!hadSessionId) {
     db.exec("UPDATE sessions SET session_id = lower(hex(randomblob(8))) WHERE session_id IS NULL");
   }
-  if (!sessionColumns.some((c) => c.name === "device_name")) {
-    db.exec("ALTER TABLE sessions ADD COLUMN device_name TEXT");
-  }
-  if (!sessionColumns.some((c) => c.name === "client")) {
-    db.exec("ALTER TABLE sessions ADD COLUMN client TEXT NOT NULL DEFAULT 'web'");
-  }
+  addColumnIfMissing(db, "sessions", "device_name", "ALTER TABLE sessions ADD COLUMN device_name TEXT");
+  addColumnIfMissing(db, "sessions", "client", "ALTER TABLE sessions ADD COLUMN client TEXT NOT NULL DEFAULT 'web'");
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_session_id ON sessions(session_id)");
 
   // One-time promotion: on an already-deployed instance with no admin yet, the
