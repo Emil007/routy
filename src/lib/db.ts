@@ -83,6 +83,19 @@ CREATE TABLE IF NOT EXISTS active_route (
   duration_min INTEGER NOT NULL,
   accepted_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS favorite_route (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  name TEXT NOT NULL,
+  node_chain TEXT NOT NULL,
+  segment_ids TEXT NOT NULL,
+  length_m INTEGER NOT NULL,
+  duration_min INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_favorite_route_user ON favorite_route(user_id);
 `;
 
 /** Column additions to already-deployed tables — CREATE TABLE IF NOT EXISTS above only covers fresh installs. */

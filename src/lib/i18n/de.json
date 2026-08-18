@@ -76,7 +76,16 @@
     "hideLocation": "Standort ausblenden",
     "you": "Du",
     "sessionExpired": "Sitzung abgelaufen — bitte neu vorschlagen lassen.",
-    "generating": "Suche passende Route …"
+    "generating": "Suche passende Route …",
+    "explorerMode": "Explorer-Modus",
+    "explorerModeHint": "Bevorzugt Wegabschnitte, die noch nie gegangen wurden.",
+    "saveFavorite": "Als Favorit speichern",
+    "favoriteNamePlaceholder": "Name der Route",
+    "favoriteSaved": "Favorit gespeichert.",
+    "favoritesTitle": "Lieblingsrouten",
+    "favoriteTake": "Diese Route nehmen",
+    "favoriteDeleteConfirm": "Diese Lieblingsroute wirklich löschen?",
+    "favoriteStale": "Diese Route enthält inzwischen gelöschte Wegabschnitte und kann nicht mehr übernommen werden."
   },
   "import": {
     "title": "Weg einreichen",
@@ -167,7 +176,9 @@
     "mostUsed": "Meistgenutzte Wege",
     "leastUsed": "Am wenigsten genutzte Wege",
     "noSegments": "Noch keine Wegabschnitte im Netzwerk.",
-    "deleteWalkConfirm": "Diesen Spaziergang wirklich aus dem Verlauf löschen? Die Statistik wird entsprechend angepasst."
+    "deleteWalkConfirm": "Diesen Spaziergang wirklich aus dem Verlauf löschen? Die Statistik wird entsprechend angepasst.",
+    "currentStreak": "Aktuelle Serie",
+    "longestStreak": "Längste Serie"
   },
   "draw": {
     "title": "Auf der Karte zeichnen",
@@ -212,6 +223,45 @@
       "sw": "Südwest",
       "w": "West",
       "nw": "Nordwest"
+    }
+  },
+  "achievements": {
+    "title": "Erfolge",
+    "categories": {
+      "walks": "Spaziergänge",
+      "distance": "Strecke",
+      "streak": "Serie",
+      "exploration": "Erkundung"
+    },
+    "units": {
+      "walks": "Spaziergänge",
+      "distance": "km",
+      "streak": "Tage"
+    },
+    "tiers": {
+      "stein": "Stein",
+      "blech": "Blech",
+      "bronze": "Bronze",
+      "silber": "Silber",
+      "gold": "Gold",
+      "platin": "Platin",
+      "diamant": "Diamant"
+    },
+    "noTierYet": "Noch keine Stufe",
+    "progressToNext": "{current} / {next} {unit} bis {tier}",
+    "maxTierReached": "Höchste Stufe erreicht: {tier}",
+    "explorationPercentProgress": "{current}% erkundet — {next}% für {tier}",
+    "explorationVisitsProgress": "Jeder Weg ≥{current}× gegangen — {next}× für {tier}",
+    "locked": "Noch nicht freigeschaltet",
+    "special": {
+      "trailblazer": "Wegbereiter",
+      "trailblazerDesc": "Einen eigenen Wegabschnitt eingereicht",
+      "collector": "Sammler",
+      "collectorDesc": "Eine Lieblingsroute gespeichert",
+      "earlyBird": "Frühaufsteher",
+      "earlyBirdDesc": "Einen Spaziergang vor 7 Uhr bestätigt",
+      "nightOwl": "Nachteule",
+      "nightOwlDesc": "Einen Spaziergang nach 22 Uhr bestätigt"
     }
   }
 }

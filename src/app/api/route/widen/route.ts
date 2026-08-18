@@ -66,7 +66,7 @@ export async function POST(request: Request) {
     session.targetValue,
     session.mode,
   );
-  const best = pickBest(scored, session.seenKeys);
+  const best = pickBest(scored, session.seenKeys, session.explorerMode);
 
   if (!best) {
     return NextResponse.json({ error: "no_alternative", tolerancePercent: effectiveTolerance }, { status: 404 });

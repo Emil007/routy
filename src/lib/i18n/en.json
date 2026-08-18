@@ -76,7 +76,16 @@
     "hideLocation": "Hide location",
     "you": "You",
     "sessionExpired": "Session expired — please suggest again.",
-    "generating": "Searching for a matching route …"
+    "generating": "Searching for a matching route …",
+    "explorerMode": "Explorer mode",
+    "explorerModeHint": "Prefers path segments that have never been walked.",
+    "saveFavorite": "Save as favorite",
+    "favoriteNamePlaceholder": "Route name",
+    "favoriteSaved": "Favorite saved.",
+    "favoritesTitle": "Favorite routes",
+    "favoriteTake": "Take this route",
+    "favoriteDeleteConfirm": "Really delete this favorite route?",
+    "favoriteStale": "This route includes segments that have since been deleted and can no longer be taken."
   },
   "import": {
     "title": "Submit a path",
@@ -167,7 +176,9 @@
     "mostUsed": "Most-used paths",
     "leastUsed": "Least-used paths",
     "noSegments": "No path segments in the network yet.",
-    "deleteWalkConfirm": "Really delete this walk from your history? Your stats will be adjusted accordingly."
+    "deleteWalkConfirm": "Really delete this walk from your history? Your stats will be adjusted accordingly.",
+    "currentStreak": "Current streak",
+    "longestStreak": "Longest streak"
   },
   "draw": {
     "title": "Draw on the map",
@@ -212,6 +223,45 @@
       "sw": "Southwest",
       "w": "West",
       "nw": "Northwest"
+    }
+  },
+  "achievements": {
+    "title": "Achievements",
+    "categories": {
+      "walks": "Walks",
+      "distance": "Distance",
+      "streak": "Streak",
+      "exploration": "Exploration"
+    },
+    "units": {
+      "walks": "walks",
+      "distance": "km",
+      "streak": "days"
+    },
+    "tiers": {
+      "stein": "Stone",
+      "blech": "Tin",
+      "bronze": "Bronze",
+      "silber": "Silver",
+      "gold": "Gold",
+      "platin": "Platinum",
+      "diamant": "Diamond"
+    },
+    "noTierYet": "No tier yet",
+    "progressToNext": "{current} / {next} {unit} to {tier}",
+    "maxTierReached": "Highest tier reached: {tier}",
+    "explorationPercentProgress": "{current}% explored — {next}% for {tier}",
+    "explorationVisitsProgress": "Every path walked ≥{current}× — {next}× for {tier}",
+    "locked": "Not unlocked yet",
+    "special": {
+      "trailblazer": "Trailblazer",
+      "trailblazerDesc": "Submitted a path segment of your own",
+      "collector": "Collector",
+      "collectorDesc": "Saved a favorite route",
+      "earlyBird": "Early bird",
+      "earlyBirdDesc": "Confirmed a walk before 7am",
+      "nightOwl": "Night owl",
+      "nightOwlDesc": "Confirmed a walk after 10pm"
     }
   }
 }

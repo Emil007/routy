@@ -56,7 +56,7 @@ export async function POST(request: Request) {
       (minValue + maxValue) / 2,
       state.mode,
     );
-    return pickBest(scored, state.seenKeys);
+    return pickBest(scored, state.seenKeys, state.explorerMode);
   }
 
   const initial = band(settings.adjust_step_percent);

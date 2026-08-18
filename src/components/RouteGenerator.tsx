@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { t, type Locale } from "@/lib/i18n";
 import { MapViewLazy } from "./MapViewLazy";
 import type { NodeRow } from "@/lib/nodes";
@@ -27,21 +28,31 @@ interface GenerateResponse {
   route: RouteDisplayPayload;
 }
 
+interface FavoriteEntry {
+  id: number;
+  name: string;
+  display: RouteDisplayPayload;
+}
+
 export function RouteGenerator({
   locale,
   nodes,
   homeNodeId,
   initialActiveRoute,
+  favorites,
 }: {
   locale: Locale;
   nodes: NodeRow[];
   homeNodeId: number | null;
   initialActiveRoute: RouteDisplayPayload | null;
+  favorites: FavoriteEntry[];
 }) {
+  const router = useRouter();
   const [startNodeId, setStartNodeId] = useState<number | "">(homeNodeId ?? "");
   const [isLoop, setIsLoop] = useState(true);
   const [destinationNodeId, setDestinationNodeId] = useState<number | "">(homeNodeId ?? "");
   const [waypointNodeId, setWaypointNodeId] = useState<number | "">("");
+  const [explorerMode, setExplorerMode] = useState(false);
 
   const [mode, setMode] = useState<"suggesting" | "active">(initialActiveRoute ? "active" : "suggesting");
   const [result, setResult] = useState<GenerateResponse | null>(
@@ -49,6 +60,8 @@ export function RouteGenerator({
   );
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [message, setMessage] = useState<string | null>(null);
+  const [favoriteName, setFavoriteName] = useState("");
+  const [savingFavorite, setSavingFavorite] = useState(false);
 
   const [myLocation, setMyLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [watchId, setWatchId] = useState<number | null>(null);
@@ -96,6 +109,7 @@ export function RouteGenerator({
       startNodeId,
       destinationNodeId: isLoop ? startNodeId : destinationNodeId || startNodeId,
       waypointNodeId: waypointNodeId || null,
+      explorerMode,
     });
     if (res.ok) {
       const data = (await res.json()) as GenerateResponse;
@@ -178,6 +192,45 @@ export function RouteGenerator({
     }
   }
 
+  async function handleSaveFavorite() {
+    if (!result || !favoriteName.trim()) return;
+    setSavingFavorite(true);
+    const res = await callApi("/api/favorites", {
+      name: favoriteName.trim(),
+      nodeChain: result.route.nodeChain,
+      segmentIds: result.route.segmentIds,
+      lengthM: result.route.lengthM,
+      durationMin: result.route.durationMin,
+    });
+    setSavingFavorite(false);
+    if (res.ok) {
+      setFavoriteName("");
+      setMessage(t(locale, "route.favoriteSaved"));
+      router.refresh();
+    }
+  }
+
+  async function handleTakeFavorite(favorite: FavoriteEntry) {
+    setStatus("loading");
+    const res = await callApi(`/api/favorites/${favorite.id}/accept`);
+    if (res.ok) {
+      setResult({ token: "", route: favorite.display });
+      setMode("active");
+      setStatus("idle");
+      setMessage(null);
+    } else {
+      const body = (await res.json().catch(() => null)) as { error?: string } | null;
+      setStatus("idle");
+      setMessage(body?.error === "favorite_stale" ? t(locale, "route.favoriteStale") : t(locale, "common.error"));
+    }
+  }
+
+  async function handleDeleteFavorite(id: number) {
+    if (!window.confirm(t(locale, "route.favoriteDeleteConfirm"))) return;
+    await callApi(`/api/favorites/${id}/delete`);
+    router.refresh();
+  }
+
   async function handleDiscardActive() {
     if (!window.confirm(t(locale, "route.discardConfirm"))) return;
     setStatus("loading");
@@ -195,6 +248,27 @@ export function RouteGenerator({
 
   return (
     <div className="stack">
+      {mode === "suggesting" && favorites.length > 0 && (
+        <div className="card">
+          <h3 style={{ fontSize: "1rem", marginBottom: "0.6rem" }}>{t(locale, "route.favoritesTitle")}</h3>
+          <div className="stack">
+            {favorites.map((fav) => (
+              <div key={fav.id} className="btn-row" style={{ alignItems: "center" }}>
+                <span className="chip">
+                  {fav.name} — {(fav.display.lengthM / 1000).toFixed(2)} {t(locale, "common.km")}
+                </span>
+                <button type="button" className="btn-secondary" onClick={() => handleTakeFavorite(fav)} disabled={status === "loading"}>
+                  {t(locale, "route.favoriteTake")}
+                </button>
+                <button type="button" className="btn-danger" onClick={() => handleDeleteFavorite(fav.id)}>
+                  {t(locale, "map.delete")}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {mode === "suggesting" && (
         <div className="card">
           <form onSubmit={handleSuggest} className="stack">
@@ -251,6 +325,14 @@ export function RouteGenerator({
                 ))}
               </select>
             </div>
+
+            <label className="checkbox">
+              <input type="checkbox" checked={explorerMode} onChange={(e) => setExplorerMode(e.target.checked)} />
+              {t(locale, "route.explorerMode")}
+            </label>
+            <p style={{ margin: "-0.4rem 0 0", fontSize: "0.8rem", color: "var(--ink-soft)" }}>
+              {t(locale, "route.explorerModeHint")}
+            </p>
 
             <button type="submit" className="btn-primary" disabled={status === "loading" || !startNodeId}>
               {status === "loading" ? t(locale, "route.generating") : t(locale, "route.suggest")}
@@ -323,6 +405,21 @@ export function RouteGenerator({
                 </button>
                 <button type="button" className="btn-danger" onClick={handleCancel} disabled={status === "loading"}>
                   {t(locale, "route.cancel")}
+                </button>
+                <input
+                  type="text"
+                  value={favoriteName}
+                  onChange={(e) => setFavoriteName(e.target.value)}
+                  placeholder={t(locale, "route.favoriteNamePlaceholder")}
+                  style={{ maxWidth: "12rem" }}
+                />
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={handleSaveFavorite}
+                  disabled={savingFavorite || !favoriteName.trim()}
+                >
+                  {t(locale, "route.saveFavorite")}
                 </button>
               </>
             ) : (

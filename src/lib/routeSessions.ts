@@ -8,6 +8,7 @@ export interface RouteSessionState {
   startNodeId: number;
   destinationNodeId: number;
   waypointNodeId: number | null;
+  explorerMode: boolean;
   current: {
     nodeChain: number[];
     segmentIds: number[];

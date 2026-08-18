@@ -239,6 +239,8 @@ export interface ScoredRoute {
   weightedUsage: number;
   overlap: number;
   delta: number;
+  /** Count of segments in the route that have never been walked by anyone (usage count 0). */
+  unexplored: number;
 }
 
 export function scoreRoutes(
@@ -263,6 +265,7 @@ export function scoreRoutes(
       overlap = unionSize > 0 ? inter / unionSize : 0;
     }
     const actual = mode === "km" ? route.lengthM : route.durationMin;
+    const unexplored = route.segmentIds.filter((id) => (usageMap.get(id) ?? 0) === 0).length;
     return {
       route,
       key: segmentSetKey(route.segmentIds),
@@ -270,16 +273,31 @@ export function scoreRoutes(
       weightedUsage: usageSum + dailySum,
       overlap,
       delta: Math.abs(actual - targetValue),
+      unexplored,
     };
   });
 }
 
-export function pickBest(scored: ScoredRoute[], excludeKeys: Set<string>): ScoredRoute | null {
+/**
+ * Picks the best-scoring route. In explorer mode, routes covering more
+ * never-walked segments win first — the usual backtrack/usage/overlap/delta
+ * chain still decides ties, so an explorer-mode pick is still as nice a loop
+ * as possible among the most-unexplored candidates. With explorer mode off
+ * this is unchanged from before.
+ */
+export function pickBest(scored: ScoredRoute[], excludeKeys: Set<string>, explorerMode = false): ScoredRoute | null {
   let best: ScoredRoute | null = null;
   for (const s of scored) {
     if (excludeKeys.has(s.key)) continue;
+    if (!best) {
+      best = s;
+      continue;
+    }
+    if (explorerMode && s.unexplored !== best.unexplored) {
+      if (s.unexplored > best.unexplored) best = s;
+      continue;
+    }
     if (
-      !best ||
       s.backtrack < best.backtrack ||
       (s.backtrack === best.backtrack &&
         (s.weightedUsage < best.weightedUsage ||

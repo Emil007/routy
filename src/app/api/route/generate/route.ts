@@ -13,6 +13,7 @@ const bodySchema = z.object({
   startNodeId: z.number().int().positive().optional(),
   destinationNodeId: z.number().int().positive().optional(),
   waypointNodeId: z.number().int().positive().nullable().optional(),
+  explorerMode: z.boolean().default(false),
 });
 
 export async function POST(request: Request) {
@@ -24,7 +25,7 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: "invalid_body", issues: parsed.error.issues }, { status: 400 });
   }
-  const { waypointNodeId } = parsed.data;
+  const { waypointNodeId, explorerMode } = parsed.data;
 
   const home = getHomeNode();
   const startNodeId = parsed.data.startNodeId ?? home?.id;
@@ -63,7 +64,7 @@ export async function POST(request: Request) {
     (minValue + maxValue) / 2,
     mode,
   );
-  const best = pickBest(scored, new Set());
+  const best = pickBest(scored, new Set(), explorerMode);
   if (!best) {
     return NextResponse.json({ error: "no_route" }, { status: 404 });
   }
@@ -75,6 +76,7 @@ export async function POST(request: Request) {
     startNodeId,
     destinationNodeId,
     waypointNodeId: waypointNodeId ?? null,
+    explorerMode,
     current: {
       nodeChain: best.route.nodeChain,
       segmentIds: best.route.segmentIds,
