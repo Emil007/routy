@@ -1,6 +1,8 @@
 // Route-finding: ported from the legacy Python bot's DFS approach, extended with
 // a dead-end exception and start/destination/waypoint support.
 
+import { type LatLng, countSelfIntersections } from "./geo";
+
 export interface SegmentEdge {
   id: number;
   from: number;
@@ -232,10 +234,29 @@ export function backtrackScore(segmentIds: number[], pairOf: Map<number, number>
   return extra;
 }
 
+/**
+ * Counts how many times the route's walked path crosses itself — two legs that
+ * aren't adjacent in the chain but geometrically intersect. Straight there-and-back
+ * stretches already score via `backtrackScore` (same edge walked twice); this catches
+ * the geometrically-similar case of a route that loops back over ground it already
+ * covered via a *different* edge, e.g. two roughly-parallel streets crossed by a third.
+ * Zero means a clean loop that never crosses its own path.
+ */
+export function crossingScore(segmentIds: number[], geometryOf: Map<number, LatLng[]>): number {
+  const points: LatLng[] = [];
+  for (const id of segmentIds) {
+    const geom = geometryOf.get(id);
+    if (!geom || geom.length === 0) continue;
+    points.push(...(points.length > 0 ? geom.slice(1) : geom));
+  }
+  return countSelfIntersections(points);
+}
+
 export interface ScoredRoute {
   route: RouteResult;
   key: string;
   backtrack: number;
+  crossing: number;
   weightedUsage: number;
   overlap: number;
   delta: number;
@@ -252,6 +273,7 @@ export function scoreRoutes(
   seenUnion: Set<number>,
   targetValue: number,
   mode: RouteMode,
+  geometryOf: Map<number, LatLng[]> = new Map(),
 ): ScoredRoute[] {
   return routes.map((route) => {
     const usageSum = route.segmentIds.reduce((s, id) => s + (usageMap.get(id) ?? 0), 0);
@@ -270,6 +292,7 @@ export function scoreRoutes(
       route,
       key: segmentSetKey(route.segmentIds),
       backtrack: backtrackScore(route.segmentIds, pairOf),
+      crossing: crossingScore(route.segmentIds, geometryOf),
       weightedUsage: usageSum + dailySum,
       overlap,
       delta: Math.abs(actual - targetValue),
@@ -280,10 +303,14 @@ export function scoreRoutes(
 
 /**
  * Picks the best-scoring route. In explorer mode, routes covering more
- * never-walked segments win first — the usual backtrack/usage/overlap/delta
+ * never-walked segments win first — the usual shape/usage/overlap/delta
  * chain still decides ties, so an explorer-mode pick is still as nice a loop
  * as possible among the most-unexplored candidates. With explorer mode off
  * this is unchanged from before.
+ *
+ * "Shape" (backtrack + crossing) is the top-priority tiebreaker: routes that
+ * repeat a physical path (out-and-back) or cross their own path score worse
+ * here, which steers selection toward genuine loops.
  */
 export function pickBest(scored: ScoredRoute[], excludeKeys: Set<string>, explorerMode = false): ScoredRoute | null {
   let best: ScoredRoute | null = null;
@@ -297,9 +324,11 @@ export function pickBest(scored: ScoredRoute[], excludeKeys: Set<string>, explor
       if (s.unexplored > best.unexplored) best = s;
       continue;
     }
+    const sShape = s.backtrack + s.crossing;
+    const bestShape = best.backtrack + best.crossing;
     if (
-      s.backtrack < best.backtrack ||
-      (s.backtrack === best.backtrack &&
+      sShape < bestShape ||
+      (sShape === bestShape &&
         (s.weightedUsage < best.weightedUsage ||
           (s.weightedUsage === best.weightedUsage &&
             (s.overlap < best.overlap || (s.overlap === best.overlap && s.delta < best.delta)))))

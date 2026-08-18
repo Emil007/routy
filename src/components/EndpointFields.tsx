@@ -15,12 +15,10 @@ export function EndpointFields({
   decisionNodeId,
   decisionPart1,
   decisionPart2,
-  decisionSeparator,
   onChoice,
   onNodeId,
   onPart1,
   onPart2,
-  onSeparator,
 }: {
   locale: Locale;
   role: "start" | "end" | "split";
@@ -31,12 +29,10 @@ export function EndpointFields({
   decisionNodeId: number | null;
   decisionPart1: string;
   decisionPart2: string;
-  decisionSeparator: "/" | " ";
   onChoice: (v: "existing" | "new") => void;
   onNodeId: (v: number) => void;
   onPart1: (v: string) => void;
   onPart2: (v: string) => void;
-  onSeparator: (v: "/" | " ") => void;
 }) {
   return (
     <div className="field">
@@ -67,16 +63,7 @@ export function EndpointFields({
             ))}
         </select>
       ) : (
-        <NamePartsInput
-          locale={locale}
-          point={point}
-          part1={decisionPart1}
-          part2={decisionPart2}
-          separator={decisionSeparator}
-          onPart1={onPart1}
-          onPart2={onPart2}
-          onSeparator={onSeparator}
-        />
+        <NamePartsInput locale={locale} point={point} part1={decisionPart1} part2={decisionPart2} onPart1={onPart1} onPart2={onPart2} />
       )}
       {nameConflict && (
         <p className="alert alert-error" style={{ marginTop: "0.4rem" }}>

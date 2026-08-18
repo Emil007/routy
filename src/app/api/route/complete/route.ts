@@ -10,7 +10,7 @@ export async function POST() {
   const active = getActiveRoute(user.id);
   if (!active) return NextResponse.json({ error: "no_active_route" }, { status: 404 });
 
-  recordWalk(user.id, active.nodeChain, active.segmentIds, active.lengthM, active.durationMin);
+  recordWalk(user.id, active.nodeChain, active.segmentIds, active.lengthM, active.durationMin, active.nickname);
   clearActiveRoute(user.id);
 
   return NextResponse.json({ success: true });

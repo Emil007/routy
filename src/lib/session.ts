@@ -40,6 +40,17 @@ export async function destroyCurrentSession(): Promise<void> {
   store.delete(SESSION_COOKIE);
 }
 
+/** Signs out every other device/browser signed into this account, keeping the current session alive. */
+export async function destroyOtherSessions(userId: number): Promise<number> {
+  const store = await cookies();
+  const token = store.get(SESSION_COOKIE)?.value;
+  const currentHash = token ? hashToken(token) : null;
+  const result = db
+    .prepare("DELETE FROM sessions WHERE user_id = ? AND token_hash != ?")
+    .run(userId, currentHash ?? "");
+  return result.changes;
+}
+
 export interface SessionUser {
   id: number;
   username: string;

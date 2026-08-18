@@ -33,7 +33,11 @@ export function getOrCreateNamePart(text: string, createdBy: number | null): Nam
   return { id: Number(info.lastInsertRowid), text: trimmed };
 }
 
-const NEARBY_PART_RADIUS_M = 3000;
+// Tight on purpose — this is meant to surface the handful of parts already used by
+// genuinely adjacent junctions (the next one or two along the path), not every part
+// anywhere in the general area. A wider radius buried the useful suggestions in noise.
+const NEARBY_PART_RADIUS_M = 250;
+const NEARBY_PART_LIMIT = 8;
 
 /** Name parts already used by nodes near `point` — the "link to an existing part" suggestions. */
 export function listNamePartsNear(point: LatLng): NamePart[] {
@@ -55,7 +59,10 @@ export function listNamePartsNear(point: LatLng): NamePart[] {
       seen.set(row.id, { part: mapNamePart(row), distanceM });
     }
   }
-  return [...seen.values()].sort((a, b) => a.distanceM - b.distanceM).map((x) => x.part);
+  return [...seen.values()]
+    .sort((a, b) => a.distanceM - b.distanceM)
+    .slice(0, NEARBY_PART_LIMIT)
+    .map((x) => x.part);
 }
 
 /**

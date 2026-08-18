@@ -8,7 +8,7 @@ import { findNodeCandidates } from "@/lib/nodeMatching";
 import { MapViewLazy } from "./MapViewLazy";
 import { EndpointFields } from "./EndpointFields";
 import type { NodeRow } from "@/lib/nodes";
-import type { MapMarker, MapLine } from "./MapView";
+import type { MapMarker, MapLine, MapViewState } from "./MapView";
 
 interface SplitTarget {
   point: LatLng;
@@ -19,7 +19,6 @@ interface SplitDecision {
   nodeId: number | null;
   part1: string;
   part2: string;
-  separator: "/" | " ";
 }
 
 /**
@@ -40,6 +39,8 @@ export function SegmentGeometryEditor({
   mergeRadiusM,
   canEditSegment,
   onDone,
+  initialView,
+  onViewChange,
 }: {
   locale: Locale;
   segmentId: number;
@@ -51,6 +52,8 @@ export function SegmentGeometryEditor({
   mergeRadiusM: number;
   canEditSegment: boolean;
   onDone: () => void;
+  initialView?: MapViewState;
+  onViewChange?: (view: MapViewState) => void;
 }) {
   const router = useRouter();
   const [points, setPoints] = useState<LatLng[]>(initialPoints);
@@ -134,8 +137,8 @@ export function SegmentGeometryEditor({
     setSplitTarget({ point: closest.point });
     setSplitDecision(
       candidates.length > 0
-        ? { choice: "existing", nodeId: candidates[0].id, part1: "", part2: "", separator: "/" }
-        : { choice: "new", nodeId: null, part1: "", part2: "", separator: "/" },
+        ? { choice: "existing", nodeId: candidates[0].id, part1: "", part2: "" }
+        : { choice: "new", nodeId: null, part1: "", part2: "" },
     );
     setSplitStatus("idle");
     setSplitMessage(null);
@@ -178,7 +181,7 @@ export function SegmentGeometryEditor({
         endpoint:
           splitDecision.choice === "existing" && splitDecision.nodeId
             ? { nodeId: splitDecision.nodeId }
-            : { part1: splitDecision.part1, part2: splitDecision.part2, separator: splitDecision.separator },
+            : { part1: splitDecision.part1, part2: splitDecision.part2 },
       }),
     });
     if (res.ok) {
@@ -201,6 +204,8 @@ export function SegmentGeometryEditor({
           markers={[...vertexMarkers, ...splitMarkers]}
           onLineClick={handleLineClick}
           onMarkerDragEnd={handleVertexDragEnd}
+          initialView={initialView}
+          onViewChange={onViewChange}
         />
 
         <div className="btn-row">
@@ -263,12 +268,10 @@ export function SegmentGeometryEditor({
             decisionNodeId={splitDecision.nodeId}
             decisionPart1={splitDecision.part1}
             decisionPart2={splitDecision.part2}
-            decisionSeparator={splitDecision.separator}
             onChoice={(v) => setSplitDecision((d) => (d ? { ...d, choice: v } : d))}
             onNodeId={(v) => setSplitDecision((d) => (d ? { ...d, nodeId: v } : d))}
             onPart1={(v) => setSplitDecision((d) => (d ? { ...d, part1: v } : d))}
             onPart2={(v) => setSplitDecision((d) => (d ? { ...d, part2: v } : d))}
-            onSeparator={(v) => setSplitDecision((d) => (d ? { ...d, separator: v } : d))}
           />
 
           <div className="btn-row">

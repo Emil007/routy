@@ -2,7 +2,7 @@ import { requireUser } from "@/lib/session";
 import { resolveLocale } from "@/lib/locale";
 import { t } from "@/lib/i18n";
 import { listNodes } from "@/lib/nodes";
-import { getUserStats, getRecentWalks, getSegmentUsageStats, getStreakStats } from "@/lib/stats";
+import { getUserStats, getRecentWalks, getSegmentUsageStats, getStreakStats, getWeeklyLeaderboard } from "@/lib/stats";
 import { computeAchievements, TIERS } from "@/lib/achievements";
 import { ConfirmSubmitForm } from "@/components/ConfirmSubmitForm";
 import { deleteWalkAction } from "./actions";
@@ -37,6 +37,7 @@ export default async function StatsPage() {
   const achievements = computeAchievements(user.id, locale);
   const recentWalks = getRecentWalks(user.id, 8);
   const usageStats = getSegmentUsageStats();
+  const leaderboard = getWeeklyLeaderboard();
   const nodes = listNodes();
   const nodesById = new Map(nodes.map((n) => [n.id, n]));
 
@@ -76,6 +77,22 @@ export default async function StatsPage() {
             {t(locale, "stats.longestStreak")}: {streakStats.longestStreak}
           </span>
         </div>
+      </div>
+
+      <div className="card">
+        <h2 style={{ fontSize: "1.1rem", marginBottom: "0.8rem" }}>{t(locale, "stats.leaderboardHeading")}</h2>
+        {leaderboard.length === 0 ? (
+          <p style={{ color: "var(--ink-soft)" }}>{t(locale, "stats.leaderboardEmpty")}</p>
+        ) : (
+          <ol style={{ margin: 0, paddingLeft: "1.3rem" }}>
+            {leaderboard.map((entry) => (
+              <li key={entry.userId} style={{ fontSize: "0.95rem", marginBottom: "0.3rem", fontWeight: entry.userId === user.id ? 700 : 400 }}>
+                {entry.displayName} — {(entry.totalLengthM / 1000).toFixed(1)} {t(locale, "common.km")}{" "}
+                <span className="chip">{t(locale, "stats.totalWalks")}: {entry.walkCount}</span>
+              </li>
+            ))}
+          </ol>
+        )}
       </div>
 
       <div className="card">
@@ -136,7 +153,18 @@ export default async function StatsPage() {
                   <tr key={w.id}>
                     <td>{formatDate(w.acceptedAt, locale)}</td>
                     <td>
-                      {nodeName(w.nodeChain[0])} → {nodeName(w.nodeChain[w.nodeChain.length - 1])}
+                      {w.nickname ? (
+                        <>
+                          <strong>{w.nickname}</strong>{" "}
+                          <span style={{ color: "var(--ink-faint)" }}>
+                            ({nodeName(w.nodeChain[0])} → {nodeName(w.nodeChain[w.nodeChain.length - 1])})
+                          </span>
+                        </>
+                      ) : (
+                        <>
+                          {nodeName(w.nodeChain[0])} → {nodeName(w.nodeChain[w.nodeChain.length - 1])}
+                        </>
+                      )}
                     </td>
                     <td>
                       {(w.lengthM / 1000).toFixed(2)} {t(locale, "common.km")}

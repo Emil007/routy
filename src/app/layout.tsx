@@ -1,11 +1,21 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import "./globals.css";
 import { resolveLocale } from "@/lib/locale";
 import { getCurrentUser } from "@/lib/session";
+import { ServiceWorkerRegistration } from "@/components/ServiceWorkerRegistration";
 
 export const metadata: Metadata = {
   title: "Routy",
   description: "Hundespaziergang-Routenplaner",
+  manifest: "/manifest.json",
+  icons: {
+    icon: "/icons/icon-192.png",
+    apple: "/icons/icon-192.png",
+  },
+};
+
+export const viewport: Viewport = {
+  themeColor: "#2e6b49",
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
@@ -15,7 +25,10 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
 
   return (
     <html lang={locale} data-theme={theme}>
-      <body>{children}</body>
+      <body>
+        <ServiceWorkerRegistration />
+        {children}
+      </body>
     </html>
   );
 }

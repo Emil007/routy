@@ -17,7 +17,7 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: "invalid_body" }, { status: 400 });
 
   const segment = getSegment(parsed.data.segmentId);
-  if (!segment) return NextResponse.json({ error: "not_found" }, { status: 404 });
+  if (!segment || segment.deletedAt) return NextResponse.json({ error: "not_found" }, { status: 404 });
   if (!canEdit(user, segment.submittedBy)) return NextResponse.json({ error: "not_owner" }, { status: 403 });
 
   const settings = getSettings();

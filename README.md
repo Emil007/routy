@@ -30,15 +30,20 @@ Assumes a reverse proxy terminating HTTPS in front. `COOKIE_SECURE=true` is the 
 - Login and the setup token are rate-limited automatically, no config needed.
 - Optional CAPTCHA (Turnstile / hCaptcha / reCAPTCHA): set `CAPTCHA_PROVIDER`, `CAPTCHA_SITE_KEY`, `CAPTCHA_SECRET_KEY` in `docker-compose.yml`.
 
+### Backups
+
+- On-demand: an admin can download a full database snapshot any time from the admin page. Taking it doesn't interrupt normal use.
+- Automatic: a dated copy is also written daily to `./data/backups/` on the host, with copies older than 14 days pruned automatically. On by default, no config needed — it's local disk, not off-site, so it's cheap to leave running. Copy that folder elsewhere yourself for real off-site protection.
+
 ### Optional: automatic HTTPS
 
-Built-in Caddy profile, Let's Encrypt:
+Built-in Caddy service, Let's Encrypt, disabled by default:
 
 1. Point your domain's A/AAAA record at the server.
-2. Set the real domain in `Caddyfile`.
-3. `docker compose --profile ssl up -d`
+2. In `docker-compose.yml`, uncomment the `caddy:` service and the `volumes:` section at the bottom, and set `DOMAIN` to your real domain.
+3. `docker compose up -d`
 
-Needs ports 80/443 reachable from the internet.
+Needs ports 80/443 reachable from the internet. No separate file to edit — `Caddyfile` just reads `DOMAIN` from the environment.
 
 ### External services
 

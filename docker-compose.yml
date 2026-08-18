@@ -15,6 +15,14 @@ services:
       # Change the left side to wherever you keep appdata/config for your
       # other containers (e.g. /volume1/docker/routy on Synology).
       - ./data:/app/data
+    healthcheck:
+      # Uses Node's built-in fetch instead of curl/wget — neither is installed
+      # in the slim runtime image, and pulling one in just for this isn't worth it.
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     environment:
       # Your reverse proxy already terminates HTTPS in front of this container,
       # so cookies can safely be marked Secure. Set this to "false" if you
@@ -32,28 +40,29 @@ services:
       # - CAPTCHA_SITE_KEY=your-site-key
       # - CAPTCHA_SECRET_KEY=your-secret-key
 
-  # Optional: automatic HTTPS for a public domain, via Caddy. Disabled unless
-  # you start Compose with the "ssl" profile:
-  #   docker compose --profile ssl up -d
-  # Before that, edit ./Caddyfile and replace the placeholder with your real
-  # domain — it must already have an A/AAAA record pointing at this server's
-  # public IP, and ports 80+443 must be reachable from the internet (Let's
-  # Encrypt verifies ownership over port 80). Nothing else to configure.
-  caddy:
-    image: caddy:2-alpine
-    container_name: routy-caddy
-    profiles: ["ssl"]
-    restart: unless-stopped
-    depends_on:
-      - routy
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
+  # Optional: automatic HTTPS for a public domain, via Caddy. Disabled by
+  # default — uncomment this whole "caddy:" block (and the "volumes:" section
+  # at the bottom of this file) and fill in DOMAIN below, then
+  # `docker compose up -d` as usual. Your domain needs an A/AAAA record
+  # pointing at this server's public IP, and ports 80+443 must be reachable
+  # from the internet (Let's Encrypt verifies ownership over port 80).
+  # Nothing else to configure — no separate file to edit.
+  # caddy:
+  #   image: caddy:2-alpine
+  #   container_name: routy-caddy
+  #   restart: unless-stopped
+  #   depends_on:
+  #     - routy
+  #   environment:
+  #     - DOMAIN=your-domain.example.com
+  #   ports:
+  #     - "80:80"
+  #     - "443:443"
+  #   volumes:
+  #     - ./Caddyfile:/etc/caddy/Caddyfile:ro
+  #     - caddy_data:/data
+  #     - caddy_config:/config
 
-volumes:
-  caddy_data:
-  caddy_config:
+# volumes:
+#   caddy_data:
+#   caddy_config:

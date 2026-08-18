@@ -15,7 +15,6 @@ const endpointSchema = z.union([
   z.object({
     part1: z.string().trim().max(255).default(""),
     part2: z.string().trim().max(255).default(""),
-    separator: z.enum(["/", " "]).default("/"),
   }),
 ]);
 
@@ -59,17 +58,14 @@ export async function POST(request: Request) {
   // name they typed.
   const createdThisBatch: NodeRow[] = [];
 
-  function resolveEndpoint(
-    endpoint: { nodeId: number } | { part1: string; part2: string; separator: "/" | " " },
-    point: LatLng,
-  ): number | null {
+  function resolveEndpoint(endpoint: { nodeId: number } | { part1: string; part2: string }, point: LatLng): number | null {
     if ("nodeId" in endpoint) {
       const node = getNode(endpoint.nodeId);
-      return node ? node.id : null;
+      return node && !node.deletedAt ? node.id : null;
     }
     const nearby = findNodeCandidates(createdThisBatch, point, settings.merge_radius_m)[0];
     if (nearby) return nearby.id;
-    const { name, nameParts } = resolveNamePartsInput(endpoint.part1, endpoint.part2, endpoint.separator, userId);
+    const { name, nameParts } = resolveNamePartsInput(endpoint.part1, endpoint.part2, "/", userId);
     const created = createNode(name, point, false, userId, nameParts);
     createdThisBatch.push(created);
     return created.id;

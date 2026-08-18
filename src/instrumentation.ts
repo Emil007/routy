@@ -7,6 +7,15 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
 
+  const { runStartupChecks } = await import("./lib/startupChecks");
+  runStartupChecks();
+
+  const { startScheduledBackups } = await import("./lib/backupSchedule");
+  startScheduledBackups();
+
+  const { startPurgeSchedule } = await import("./lib/purgeSchedule");
+  startPurgeSchedule();
+
   const { userCount } = await import("./lib/session");
   const { getOrCreateSetupToken } = await import("./lib/setupToken");
 
