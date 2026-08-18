@@ -17,8 +17,7 @@
   },
   "nav": {
     "route": "Route",
-    "import": "Weg einreichen",
-    "map": "Netzwerk",
+    "map": "Übersicht",
     "stats": "Statistik",
     "settings": "Einstellungen",
     "admin": "Benutzer",
@@ -36,8 +35,13 @@
     "submit": "Anmelden",
     "error": "Benutzername oder Passwort ist falsch.",
     "inactiveError": "Dieses Konto ist deaktiviert. Wende dich an den Admin.",
+    "lockedError": "Zu viele Fehlversuche. Bitte in {seconds} Sekunden erneut versuchen.",
+    "captchaError": "Captcha-Prüfung fehlgeschlagen. Bitte erneut versuchen.",
     "setupTitle": "Erstes Profil einrichten",
-    "setupSubtitle": "Noch kein Profil vorhanden — lege das erste Konto an."
+    "setupSubtitle": "Noch kein Profil vorhanden — lege das erste Konto an.",
+    "setupTokenLabel": "Setup-Token",
+    "setupTokenHint": "Wird beim Start des Containers in der Konsole angezeigt — mit „docker compose logs -f“ nachlesbar.",
+    "setupTokenError": "Setup-Token ist falsch oder fehlt."
   },
   "profile": {
     "title": "Neues Profil anlegen",
@@ -71,6 +75,7 @@
     "elevationGain": "{gain} m bergauf",
     "elevationLoss": "{loss} m bergab",
     "stationList": "Stationen",
+    "via": "via {name}",
     "activeNotice": "Du hast eine aktive Route. Bestätige sie als gegangen, oder verwirf sie, um eine neue vorzuschlagen.",
     "completeButton": "Als gegangen bestätigen",
     "discardButton": "Verwerfen",
@@ -92,10 +97,6 @@
     "favoriteStale": "Diese Route enthält inzwischen gelöschte Wegabschnitte und kann nicht mehr übernommen werden."
   },
   "import": {
-    "title": "Weg einreichen",
-    "subtitle": "Lade eine GPX-Datei hoch. Enthaltene Tracks werden erkannt und du bestätigst pro Track, welchem Knotenpunkt Start und Ende entsprechen.",
-    "uploadMode": "GPX hochladen",
-    "drawMode": "Auf Karte zeichnen",
     "chooseFile": "GPX-Datei auswählen",
     "upload": "Hochladen & analysieren",
     "parsing": "Analysiere GPX …",
@@ -106,6 +107,11 @@
     "useExisting": "Vorhandenen Knoten verwenden",
     "createNew": "Neuen Knoten anlegen",
     "newNodeName": "Name für neuen Knoten",
+    "namePart1": "Namensteil 1 (z.B. Straße/Weg)",
+    "namePart2": "Namensteil 2 (optional, z.B. Kreuzung/Landmarke)",
+    "nameSeparator": "Trennzeichen",
+    "nameSeparatorSpace": "Leerzeichen",
+    "nameComposedPreview": "Ergibt",
     "nameConflictWarning": "Achtung: Ein Knoten mit dem Namen „{name}“ existiert bereits, liegt aber {distance} m entfernt. Trotzdem verwenden?",
     "commit": "Ausgewählte Tracks übernehmen",
     "committing": "Speichere …",
@@ -117,8 +123,8 @@
     "skipTrack": "Diesen Track überspringen"
   },
   "map": {
-    "title": "Netzwerk",
-    "subtitle": "Alle bekannten Knotenpunkte und Wegabschnitte.",
+    "title": "Übersicht",
+    "subtitle": "Alle bekannten Knotenpunkte und Wegabschnitte — anklicken für Details.",
     "nodesHeading": "Knotenpunkte",
     "segmentsHeading": "Wegabschnitte",
     "nameHeading": "Name",
@@ -130,7 +136,7 @@
     "edit": "Bearbeiten",
     "delete": "Löschen",
     "deleteConfirm": "Diesen Wegabschnitt wirklich löschen? Das kann nicht rückgängig gemacht werden.",
-    "interactionHint": "Klicke auf einen Weg, um ihn zu bearbeiten. Klicke auf einen Knoten für weitere Optionen.",
+    "interactionHint": "Klicke auf einen Weg oder Knoten, um Details und — falls du der Besitzer oder Admin bist — Aktionen dazu zu sehen.",
     "moveNode": "Position verschieben",
     "moveNodeActive": "Ziehen aktiv — Knoten auf der Karte ziehen",
     "deleteNodeConfirm": "Diesen Knoten und die {count} damit verbundenen Wegabschnitte wirklich löschen? Das kann nicht rückgängig gemacht werden.",
@@ -138,6 +144,12 @@
     "deleteBlockedSegment": "Dieser Wegabschnitt kann nicht gelöscht werden — er wird gerade von einer aktiven Route genutzt.",
     "createdBy": "Angelegt von",
     "editBlockedNotOwner": "Das kannst du nicht bearbeiten — nur wer es angelegt hat oder der Admin dürfen das."
+  },
+  "overview": {
+    "backToView": "Zurück zur Ansicht",
+    "drawMode": "Auf Karte zeichnen",
+    "gpxMode": "GPX hochladen",
+    "interactionHint": "Klicke auf einen Weg oder Knoten, um Details und — falls du der Besitzer oder Admin bist — Aktionen dazu zu sehen."
   },
   "settings": {
     "title": "Einstellungen",
@@ -169,6 +181,15 @@
     "adjust_step_percent_hint": "Wie stark sich die Route bei einem Klick auf „Länger“ oder „Kürzer“ verändert.",
     "saved": "Einstellungen gespeichert.",
     "languageTitle": "Sprache",
+    "themeTitle": "Design",
+    "theme": {
+      "auto": "Automatisch (Systemeinstellung)",
+      "light": "Hell",
+      "dark": "Dunkel",
+      "contrast": "Hoher Kontrast",
+      "dog": "🐶 Hund",
+      "cat": "🐱 Katze"
+    },
     "changePasswordTitle": "Passwort ändern",
     "currentPassword": "Aktuelles Passwort",
     "newPassword": "Neues Passwort",
@@ -218,30 +239,27 @@
   },
   "edit": {
     "title": "Weg bearbeiten",
-    "subtitle": "Ziehe einzelne Punkte, um den Wegverlauf zu korrigieren, oder klicke auf den Weg, um ihn an einer neuen Kreuzung zu teilen.",
+    "subtitle": "Ziehe einzelne Punkte, um den Wegverlauf zu korrigieren, füge neue hinzu oder entferne sie, oder teile den Weg an einer neuen Kreuzung.",
     "saveGeometry": "Änderungen speichern",
     "saving": "Speichere …",
     "saved": "Wegverlauf aktualisiert.",
     "saveError": "Änderungen konnten nicht gespeichert werden.",
-    "backToMap": "Zurück zum Netzwerk",
+    "backToMap": "Zurück zur Übersicht",
     "splitPointLabel": "Neuer Knoten an dieser Stelle",
     "splitConfirmTitle": "Weg an dieser Stelle teilen?",
     "splitButton": "Teilen",
     "splitting": "Teile …",
     "splitError": "Der Weg konnte nicht geteilt werden.",
-    "splitBlockedActive": "Dieser Weg kann gerade nicht geteilt werden — er wird von einer aktiven Route genutzt."
-  },
-  "nodeNaming": {
-    "directions": {
-      "n": "Nord",
-      "ne": "Nordost",
-      "e": "Ost",
-      "se": "Südost",
-      "s": "Süd",
-      "sw": "Südwest",
-      "w": "West",
-      "nw": "Nordwest"
-    }
+    "splitBlockedActive": "Dieser Weg kann gerade nicht geteilt werden — er wird von einer aktiven Route genutzt.",
+    "addPointMode": "Punkt hinzufügen",
+    "splitMode": "Weg teilen",
+    "addPointHint": "Klicke auf den Weg, um dort einen neuen Punkt einzufügen. Innere Punkte lassen sich per Klick auf ihr Symbol wieder entfernen.",
+    "splitModeHint": "Klicke auf den Weg, um ihn an dieser Stelle in zwei Wegabschnitte zu teilen.",
+    "removePoint": "Punkt entfernen",
+    "renameSegment": "Wegabschnitt benennen",
+    "renameSegmentPlaceholder": "z.B. „Sebastian-Isepp-Weg“ (optional)",
+    "renameSegmentHint": "Nützlich, wenn zwei Wege dieselben Knoten verbinden (z.B. geradeaus vs. hintenrum) — der Name hilft dann bei der Unterscheidung.",
+    "editShapeButton": "Form bearbeiten"
   },
   "achievements": {
     "title": "Erfolge",

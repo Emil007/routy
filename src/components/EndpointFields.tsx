@@ -3,6 +3,7 @@
 import { t, type Locale } from "@/lib/i18n";
 import type { NodeCandidate } from "@/lib/nodeMatching";
 import type { LatLng } from "@/lib/geo";
+import { NamePartsInput } from "./NamePartsInput";
 
 export function EndpointFields({
   locale,
@@ -12,10 +13,14 @@ export function EndpointFields({
   nameConflict,
   decisionChoice,
   decisionNodeId,
-  decisionNewName,
+  decisionPart1,
+  decisionPart2,
+  decisionSeparator,
   onChoice,
   onNodeId,
-  onNewName,
+  onPart1,
+  onPart2,
+  onSeparator,
 }: {
   locale: Locale;
   role: "start" | "end" | "split";
@@ -24,27 +29,15 @@ export function EndpointFields({
   nameConflict: NodeCandidate | null;
   decisionChoice: "existing" | "new";
   decisionNodeId: number | null;
-  decisionNewName: string;
+  decisionPart1: string;
+  decisionPart2: string;
+  decisionSeparator: "/" | " ";
   onChoice: (v: "existing" | "new") => void;
   onNodeId: (v: number) => void;
-  onNewName: (v: string) => void;
+  onPart1: (v: string) => void;
+  onPart2: (v: string) => void;
+  onSeparator: (v: "/" | " ") => void;
 }) {
-  function handleChoice(v: "existing" | "new") {
-    onChoice(v);
-    if (v === "new" && !decisionNewName) {
-      fetch("/api/nodes/suggest-name", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ lat: point.lat, lng: point.lng }),
-      })
-        .then((res) => (res.ok ? res.json() : null))
-        .then((data: { suggestion?: string | null } | null) => {
-          if (data?.suggestion) onNewName(data.suggestion);
-        })
-        .catch(() => {});
-    }
-  }
-
   return (
     <div className="field">
       <label>
@@ -55,28 +48,34 @@ export function EndpointFields({
           type="button"
           className={decisionChoice === "existing" ? "btn-primary" : "btn-secondary"}
           disabled={candidates.length === 0}
-          onClick={() => handleChoice("existing")}
+          onClick={() => onChoice("existing")}
         >
           {t(locale, "import.useExisting")}
         </button>
-        <button type="button" className={decisionChoice === "new" ? "btn-primary" : "btn-secondary"} onClick={() => handleChoice("new")}>
+        <button type="button" className={decisionChoice === "new" ? "btn-primary" : "btn-secondary"} onClick={() => onChoice("new")}>
           {t(locale, "import.createNew")}
         </button>
       </div>
       {decisionChoice === "existing" ? (
         <select value={decisionNodeId ?? ""} onChange={(e) => onNodeId(Number(e.target.value))}>
-          {candidates.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name || `#${c.id}`} ({Math.round(c.distanceM)} m)
-            </option>
-          ))}
+          {[...candidates]
+            .sort((a, b) => (a.name || `#${a.id}`).localeCompare(b.name || `#${b.id}`, locale))
+            .map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name || `#${c.id}`} ({Math.round(c.distanceM)} m)
+              </option>
+            ))}
         </select>
       ) : (
-        <input
-          type="text"
-          value={decisionNewName}
-          onChange={(e) => onNewName(e.target.value)}
-          placeholder={t(locale, "import.newNodeName")}
+        <NamePartsInput
+          locale={locale}
+          point={point}
+          part1={decisionPart1}
+          part2={decisionPart2}
+          separator={decisionSeparator}
+          onPart1={onPart1}
+          onPart2={onPart2}
+          onSeparator={onSeparator}
         />
       )}
       {nameConflict && (

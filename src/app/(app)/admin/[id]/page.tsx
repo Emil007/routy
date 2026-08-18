@@ -39,7 +39,7 @@ export default async function EditUserPage({
           </div>
           <div className="field">
             <label htmlFor="username">{t(locale, "profile.username")}</label>
-            <input type="text" id="username" name="username" defaultValue={target.username} required />
+            <input type="text" id="username" name="username" defaultValue={target.username} autoComplete="off" required />
           </div>
           <div className="field">
             <label htmlFor="locale">{t(locale, "profile.locale")}</label>
@@ -53,7 +53,7 @@ export default async function EditUserPage({
           </div>
           <div className="field">
             <label htmlFor="newPassword">{t(locale, "admin.newPasswordLabel")}</label>
-            <input type="password" id="newPassword" name="newPassword" minLength={6} placeholder={t(locale, "admin.newPasswordPlaceholder")} />
+            <input type="password" id="newPassword" name="newPassword" autoComplete="new-password" minLength={6} placeholder={t(locale, "admin.newPasswordPlaceholder")} />
             <span className="hint">{t(locale, "admin.newPasswordHint")}</span>
           </div>
           <div className="btn-row">

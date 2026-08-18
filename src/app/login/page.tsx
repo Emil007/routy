@@ -3,24 +3,47 @@ import { getCurrentUser, userCount } from "@/lib/session";
 import { resolveLocale } from "@/lib/locale";
 import { t } from "@/lib/i18n";
 import { LOCALES, LOCALE_LABELS } from "@/lib/i18n";
+import { getCaptchaConfig } from "@/lib/captcha";
+import { CaptchaWidget } from "@/components/CaptchaWidget";
+import { RoutyLogo } from "@/components/RoutyLogo";
 import { loginAction, setupFirstProfileAction } from "./actions";
 
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; setupError?: string }>;
+  searchParams: Promise<{ error?: string; setupError?: string; retry?: string }>;
 }) {
   const user = await getCurrentUser();
   if (user) redirect("/route");
 
   const locale = await resolveLocale(null);
-  const { error, setupError } = await searchParams;
+  const { error, setupError, retry } = await searchParams;
   const needsSetup = userCount() === 0;
+  const captcha = getCaptchaConfig();
+
+  function setupErrorMessage(): string | null {
+    if (!setupError) return null;
+    if (setupError === "token") return t(locale, "login.setupTokenError");
+    if (setupError === "captcha") return t(locale, "login.captchaError");
+    if (setupError === "locked") return t(locale, "login.lockedError", { seconds: retry ?? "?" });
+    return t(locale, "login.error");
+  }
+
+  function loginErrorMessage(): string | null {
+    if (!error) return null;
+    if (error === "inactive") return t(locale, "login.inactiveError");
+    if (error === "locked") return t(locale, "login.lockedError", { seconds: retry ?? "?" });
+    if (error === "captcha") return t(locale, "login.captchaError");
+    return t(locale, "login.error");
+  }
 
   return (
     <div className="container-narrow">
       <div className="page-heading">
-        <h1>🐾 {t(locale, "common.appName")}</h1>
+        <h1 style={{ display: "flex", alignItems: "center", gap: "0.5rem" }}>
+          <RoutyLogo size={34} />
+          {t(locale, "common.appName")}
+        </h1>
         <p>{needsSetup ? t(locale, "login.setupSubtitle") : t(locale, "login.subtitle")}</p>
       </div>
 
@@ -28,8 +51,15 @@ export default async function LoginPage({
         {needsSetup ? (
           <>
             <h2 style={{ fontSize: "1.1rem", marginBottom: "1rem" }}>{t(locale, "login.setupTitle")}</h2>
-            {setupError && <div className="alert alert-error" style={{ marginBottom: "1rem" }}>{t(locale, "login.error")}</div>}
+            {setupErrorMessage() && (
+              <div className="alert alert-error" style={{ marginBottom: "1rem" }}>{setupErrorMessage()}</div>
+            )}
             <form action={setupFirstProfileAction} className="stack">
+              <div className="field">
+                <label htmlFor="setupToken">{t(locale, "login.setupTokenLabel")}</label>
+                <input type="text" id="setupToken" name="setupToken" autoComplete="off" required />
+                <span className="hint">{t(locale, "login.setupTokenHint")}</span>
+              </div>
               <div className="field">
                 <label htmlFor="displayName">{t(locale, "profile.displayName")}</label>
                 <input type="text" id="displayName" name="displayName" required />
@@ -52,6 +82,7 @@ export default async function LoginPage({
                   ))}
                 </select>
               </div>
+              <CaptchaWidget config={captcha} />
               <button type="submit" className="btn-primary">
                 {t(locale, "profile.submit")}
               </button>
@@ -60,11 +91,8 @@ export default async function LoginPage({
         ) : (
           <>
             <h2 style={{ fontSize: "1.1rem", marginBottom: "1rem" }}>{t(locale, "login.title")}</h2>
-            {error === "inactive" && (
-              <div className="alert alert-error" style={{ marginBottom: "1rem" }}>{t(locale, "login.inactiveError")}</div>
-            )}
-            {error && error !== "inactive" && (
-              <div className="alert alert-error" style={{ marginBottom: "1rem" }}>{t(locale, "login.error")}</div>
+            {loginErrorMessage() && (
+              <div className="alert alert-error" style={{ marginBottom: "1rem" }}>{loginErrorMessage()}</div>
             )}
             <form action={loginAction} className="stack">
               <div className="field">
@@ -75,6 +103,7 @@ export default async function LoginPage({
                 <label htmlFor="password">{t(locale, "login.password")}</label>
                 <input type="password" id="password" name="password" autoComplete="current-password" required />
               </div>
+              <CaptchaWidget config={captcha} />
               <button type="submit" className="btn-primary">
                 {t(locale, "login.submit")}
               </button>

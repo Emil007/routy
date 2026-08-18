@@ -3,6 +3,7 @@ import { resolveLocale } from "@/lib/locale";
 import { t } from "@/lib/i18n";
 import { getSettings, SETTINGS_KEYS, type Settings } from "@/lib/settings";
 import { LocaleSelectForm } from "@/components/LocaleSelectForm";
+import { ThemeSelectForm } from "@/components/ThemeSelectForm";
 import { ConfirmSubmitForm } from "@/components/ConfirmSubmitForm";
 import { saveSettingsAction, saveWalkSpeedAction, changePasswordAction, deleteOwnAccountAction } from "./actions";
 
@@ -87,6 +88,11 @@ export default async function SettingsPage({
       <div className="card">
         <h2 style={{ fontSize: "1.1rem", marginBottom: "0.3rem" }}>{t(locale, "settings.languageTitle")}</h2>
         <LocaleSelectForm currentLocale={locale} />
+      </div>
+
+      <div className="card">
+        <h2 style={{ fontSize: "1.1rem", marginBottom: "0.3rem" }}>{t(locale, "settings.themeTitle")}</h2>
+        <ThemeSelectForm currentTheme={user.theme} locale={locale} />
       </div>
 
       <div className="card">

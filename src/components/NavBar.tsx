@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { logoutAction } from "@/app/actions";
+import { RoutyLogo } from "./RoutyLogo";
 
 export interface NavLink {
   href: string;
@@ -13,17 +14,21 @@ export function NavBar({
   links,
   greeting,
   logoutLabel,
+  version,
 }: {
   links: NavLink[];
   greeting: string;
   logoutLabel: string;
+  version: string;
 }) {
   const pathname = usePathname();
 
   return (
     <header className="topnav">
       <Link href="/route" className="brand">
-        🐾 Routy
+        <RoutyLogo size={30} />
+        Routy
+        <span className="brand-version">v{version}</span>
       </Link>
       <nav>
         {links.map((link) => (

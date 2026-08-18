@@ -2,7 +2,6 @@
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { t, type Locale } from "@/lib/i18n";
 import { pathLengthMeters, closestPointOnPath, type LatLng } from "@/lib/geo";
 import { findNodeCandidates } from "@/lib/nodeMatching";
@@ -18,10 +17,19 @@ interface SplitTarget {
 interface SplitDecision {
   choice: "existing" | "new";
   nodeId: number | null;
-  newName: string;
+  part1: string;
+  part2: string;
+  separator: "/" | " ";
 }
 
-export function EditSegmentWizard({
+/**
+ * Inline "Form bearbeiten" mode for a segment, embedded directly in the Übersicht map
+ * instead of a separate page. Two things can happen on a line click, picked via an
+ * explicit toggle so there's no ambiguity: insert a plain point (default), or split off a
+ * new junction node (the previous /map/edit behavior). Interior points can also be dragged
+ * or removed (via their own popup) — endpoints stay pinned to their nodes.
+ */
+export function SegmentGeometryEditor({
   locale,
   segmentId,
   initialPoints,
@@ -31,6 +39,7 @@ export function EditSegmentWizard({
   nodes,
   mergeRadiusM,
   canEditSegment,
+  onDone,
 }: {
   locale: Locale;
   segmentId: number;
@@ -41,9 +50,11 @@ export function EditSegmentWizard({
   nodes: NodeRow[];
   mergeRadiusM: number;
   canEditSegment: boolean;
+  onDone: () => void;
 }) {
   const router = useRouter();
   const [points, setPoints] = useState<LatLng[]>(initialPoints);
+  const [lineAction, setLineAction] = useState<"addPoint" | "split">("addPoint");
   const [geometryStatus, setGeometryStatus] = useState<"idle" | "saving" | "error">("idle");
   const [geometryMessage, setGeometryMessage] = useState<string | null>(null);
 
@@ -59,16 +70,31 @@ export function EditSegmentWizard({
     [points],
   );
 
+  function removePoint(index: number) {
+    setPoints((prev) => prev.filter((_, i) => i !== index));
+    setGeometryStatus("idle");
+    setGeometryMessage(null);
+  }
+
   const vertexMarkers: MapMarker[] = useMemo(
     () =>
-      points.map((p, i) => ({
-        id: `v-${i}`,
-        lat: p.lat,
-        lng: p.lng,
-        color: i === 0 || i === points.length - 1 ? "#a5711c" : "#9a3b29",
-        draggable: canEditSegment && i !== 0 && i !== points.length - 1,
-      })),
-    [points, canEditSegment],
+      points.map((p, i) => {
+        const isEndpoint = i === 0 || i === points.length - 1;
+        const removable = canEditSegment && !isEndpoint && points.length > 2;
+        return {
+          id: `v-${i}`,
+          lat: p.lat,
+          lng: p.lng,
+          color: isEndpoint ? "#a5711c" : "#9a3b29",
+          draggable: canEditSegment && !isEndpoint,
+          popup: removable ? (
+            <button type="button" className="btn-danger" onClick={() => removePoint(i)}>
+              {t(locale, "edit.removePoint")}
+            </button>
+          ) : undefined,
+        };
+      }),
+    [points, canEditSegment, locale],
   );
 
   const splitMarkers: MapMarker[] = splitTarget
@@ -96,12 +122,20 @@ export function EditSegmentWizard({
     if (id !== "edit" || !canEditSegment) return;
     const closest = closestPointOnPath(points, { lat, lng });
     if (!closest) return;
+
+    if (lineAction === "addPoint") {
+      setPoints((prev) => [...prev.slice(0, closest.index + 1), closest.point, ...prev.slice(closest.index + 1)]);
+      setGeometryStatus("idle");
+      setGeometryMessage(null);
+      return;
+    }
+
     const candidates = findNodeCandidates(nodes, closest.point, mergeRadiusM);
     setSplitTarget({ point: closest.point });
     setSplitDecision(
       candidates.length > 0
-        ? { choice: "existing", nodeId: candidates[0].id, newName: "" }
-        : { choice: "new", nodeId: null, newName: "" },
+        ? { choice: "existing", nodeId: candidates[0].id, part1: "", part2: "", separator: "/" }
+        : { choice: "new", nodeId: null, part1: "", part2: "", separator: "/" },
     );
     setSplitStatus("idle");
     setSplitMessage(null);
@@ -144,11 +178,12 @@ export function EditSegmentWizard({
         endpoint:
           splitDecision.choice === "existing" && splitDecision.nodeId
             ? { nodeId: splitDecision.nodeId }
-            : { newName: splitDecision.newName || null },
+            : { part1: splitDecision.part1, part2: splitDecision.part2, separator: splitDecision.separator },
       }),
     });
     if (res.ok) {
-      router.push("/map");
+      router.refresh();
+      onDone();
     } else {
       const body = (await res.json().catch(() => null)) as { error?: string } | null;
       setSplitStatus("error");
@@ -177,15 +212,35 @@ export function EditSegmentWizard({
           </span>
         </div>
 
+        {canEditSegment && (
+          <div className="btn-row">
+            <button
+              type="button"
+              className={lineAction === "addPoint" ? "btn-primary" : "btn-secondary"}
+              onClick={() => setLineAction("addPoint")}
+            >
+              {t(locale, "edit.addPointMode")}
+            </button>
+            <button
+              type="button"
+              className={lineAction === "split" ? "btn-primary" : "btn-secondary"}
+              onClick={() => setLineAction("split")}
+            >
+              {t(locale, "edit.splitMode")}
+            </button>
+          </div>
+        )}
+        {canEditSegment && <p className="hint">{lineAction === "addPoint" ? t(locale, "edit.addPointHint") : t(locale, "edit.splitModeHint")}</p>}
+
         <div className="btn-row">
           {canEditSegment && (
             <button type="button" className="btn-primary" onClick={saveGeometry} disabled={geometryStatus === "saving"}>
               {geometryStatus === "saving" ? t(locale, "edit.saving") : t(locale, "edit.saveGeometry")}
             </button>
           )}
-          <Link href="/map" className="btn-secondary">
+          <button type="button" className="btn-secondary" onClick={onDone}>
             {t(locale, "edit.backToMap")}
-          </Link>
+          </button>
         </div>
         {!canEditSegment && <p className="hint">{t(locale, "map.editBlockedNotOwner")}</p>}
 
@@ -206,10 +261,14 @@ export function EditSegmentWizard({
             nameConflict={null}
             decisionChoice={splitDecision.choice}
             decisionNodeId={splitDecision.nodeId}
-            decisionNewName={splitDecision.newName}
+            decisionPart1={splitDecision.part1}
+            decisionPart2={splitDecision.part2}
+            decisionSeparator={splitDecision.separator}
             onChoice={(v) => setSplitDecision((d) => (d ? { ...d, choice: v } : d))}
             onNodeId={(v) => setSplitDecision((d) => (d ? { ...d, nodeId: v } : d))}
-            onNewName={(v) => setSplitDecision((d) => (d ? { ...d, newName: v } : d))}
+            onPart1={(v) => setSplitDecision((d) => (d ? { ...d, part1: v } : d))}
+            onPart2={(v) => setSplitDecision((d) => (d ? { ...d, part2: v } : d))}
+            onSeparator={(v) => setSplitDecision((d) => (d ? { ...d, separator: v } : d))}
           />
 
           <div className="btn-row">

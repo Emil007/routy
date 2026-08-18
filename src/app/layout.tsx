@@ -11,9 +11,10 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const user = await getCurrentUser();
   const locale = await resolveLocale(user?.locale);
+  const theme = user?.theme && user.theme !== "auto" ? user.theme : undefined;
 
   return (
-    <html lang={locale}>
+    <html lang={locale} data-theme={theme}>
       <body>{children}</body>
     </html>
   );

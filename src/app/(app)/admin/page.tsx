@@ -104,11 +104,11 @@ export default async function AdminPage({
           </div>
           <div className="field">
             <label htmlFor="username">{t(locale, "profile.username")}</label>
-            <input type="text" id="username" name="username" required />
+            <input type="text" id="username" name="username" autoComplete="off" required />
           </div>
           <div className="field">
             <label htmlFor="password">{t(locale, "profile.password")}</label>
-            <input type="password" id="password" name="password" minLength={6} required />
+            <input type="password" id="password" name="password" autoComplete="new-password" minLength={6} required />
           </div>
           <div className="field">
             <label htmlFor="locale">{t(locale, "profile.locale")}</label>

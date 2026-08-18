@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { t, type Locale } from "@/lib/i18n";
 import { MapViewLazy } from "./MapViewLazy";
@@ -13,12 +13,18 @@ interface RouteStation {
   lng: number;
 }
 
+interface ShortStationGroup {
+  text: string;
+  viaSegmentName: string | null;
+}
+
 interface RouteDisplayPayload {
   nodeChain: number[];
   segmentIds: number[];
   lengthM: number;
   durationMin: number;
   stations: RouteStation[];
+  shortStationGroups: ShortStationGroup[];
   elevation: { gainM: number; lossM: number } | null;
   geometry: [number, number][];
 }
@@ -72,9 +78,10 @@ export function RouteGenerator({
     };
   }, [watchId]);
 
-  function nodeName(id: number): string {
-    return nodes.find((n) => n.id === id)?.name || `#${id}`;
-  }
+  const sortedNodes = useMemo(
+    () => [...nodes].sort((a, b) => (a.name || `#${a.id}`).localeCompare(b.name || `#${b.id}`, locale)),
+    [nodes, locale],
+  );
 
   async function callApi(path: string, body: unknown = {}): Promise<Response> {
     return fetch(path, {
@@ -278,7 +285,7 @@ export function RouteGenerator({
                 <option value="" disabled>
                   …
                 </option>
-                {nodes.map((n) => (
+                {sortedNodes.map((n) => (
                   <option key={n.id} value={n.id}>
                     {n.name || `#${n.id}`}
                     {n.isHome ? ` (${t(locale, "map.home")})` : ""}
@@ -303,7 +310,7 @@ export function RouteGenerator({
                   <option value="" disabled>
                     …
                   </option>
-                  {nodes.map((n) => (
+                  {sortedNodes.map((n) => (
                     <option key={n.id} value={n.id}>
                       {n.name || `#${n.id}`}
                     </option>
@@ -318,7 +325,7 @@ export function RouteGenerator({
               </label>
               <select id="waypointNode" value={waypointNodeId} onChange={(e) => setWaypointNodeId(e.target.value ? Number(e.target.value) : "")}>
                 <option value="">{t(locale, "route.waypointNone")}</option>
-                {nodes.map((n) => (
+                {sortedNodes.map((n) => (
                   <option key={n.id} value={n.id}>
                     {n.name || `#${n.id}`}
                   </option>
@@ -348,6 +355,7 @@ export function RouteGenerator({
       {result && (
         <div className="card stack">
           <MapViewLazy
+            fitKey={result.token || result.route.nodeChain.join("-")}
             lines={[{ id: "route", points: result.route.geometry }]}
             markers={[
               ...result.route.stations.map((s, idx) => ({
@@ -384,7 +392,9 @@ export function RouteGenerator({
           <div>
             <strong style={{ fontSize: "0.85rem", color: "var(--ink-soft)" }}>{t(locale, "route.stationList")}</strong>
             <p style={{ marginTop: "0.3rem" }}>
-              {result.route.stations.map((s) => s.name || nodeName(s.nodeId)).join(" › ")}
+              {result.route.shortStationGroups
+                .map((g) => (g.viaSegmentName ? `${g.text} (${t(locale, "route.via", { name: g.viaSegmentName })})` : g.text))
+                .join(" › ")}
             </p>
           </div>
 
