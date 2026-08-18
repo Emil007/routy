@@ -206,6 +206,22 @@ function runMigrations(db: Database.Database): void {
   }
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_favorite_route_share_token ON favorite_route(share_token)");
 
+  // session_id is a non-secret handle for the sessions list / revoke UI —
+  // separate from token_hash, which stays internal since it's derived from
+  // the actual bearer/cookie secret.
+  const sessionColumns = db.prepare("PRAGMA table_info(sessions)").all() as { name: string }[];
+  if (!sessionColumns.some((c) => c.name === "session_id")) {
+    db.exec("ALTER TABLE sessions ADD COLUMN session_id TEXT");
+    db.exec("UPDATE sessions SET session_id = lower(hex(randomblob(8))) WHERE session_id IS NULL");
+  }
+  if (!sessionColumns.some((c) => c.name === "device_name")) {
+    db.exec("ALTER TABLE sessions ADD COLUMN device_name TEXT");
+  }
+  if (!sessionColumns.some((c) => c.name === "client")) {
+    db.exec("ALTER TABLE sessions ADD COLUMN client TEXT NOT NULL DEFAULT 'web'");
+  }
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_session_id ON sessions(session_id)");
+
   // One-time promotion: on an already-deployed instance with no admin yet, the
   // earliest account becomes admin, and any pre-existing nodes/segments with no
   // owner (created before this feature existed) are attributed to them.
