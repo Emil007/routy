@@ -4,6 +4,8 @@ import { t } from "@/lib/i18n";
 import Link from "next/link";
 import { listNodes } from "@/lib/nodes";
 import { listSegments, getUsageMap, isCanonicalSegment } from "@/lib/segments";
+import { listAllUsers } from "@/lib/users";
+import { canEdit } from "@/lib/ownership";
 import { ConfirmSubmitForm } from "@/components/ConfirmSubmitForm";
 import { MapPageClient } from "./MapPageClient";
 import { deleteSegmentAction } from "./actions";
@@ -21,6 +23,10 @@ export default async function MapPage({
   const usage = getUsageMap();
   const nodesById = new Map(nodes.map((n) => [n.id, n]));
   const canonicalSegments = segments.filter(isCanonicalSegment);
+  const userNames = new Map(listAllUsers().map((u) => [u.id, u.displayName]));
+  function creatorName(id: number | null): string {
+    return id !== null ? (userNames.get(id) ?? `#${id}`) : "–";
+  }
 
   const segmentCounts = new Map<number, number>();
   for (const s of canonicalSegments) {
@@ -37,6 +43,7 @@ export default async function MapPage({
 
       {deleteError === "node_active" && <div className="alert alert-error">{t(locale, "map.deleteBlockedNode")}</div>}
       {deleteError === "segment_active" && <div className="alert alert-error">{t(locale, "map.deleteBlockedSegment")}</div>}
+      {deleteError === "not_owner" && <div className="alert alert-error">{t(locale, "map.editBlockedNotOwner")}</div>}
 
       <MapPageClient
         locale={locale}
@@ -46,6 +53,8 @@ export default async function MapPage({
           points: s.geometry.map((p): [number, number] => [p.lat, p.lng]),
         }))}
         segmentCounts={segmentCounts}
+        currentUser={{ id: user.id, role: user.role }}
+        userNames={Object.fromEntries(userNames)}
       />
 
       <div className="card">
@@ -60,6 +69,7 @@ export default async function MapPage({
                 <th>{t(locale, "import.duration")}</th>
                 <th>{t(locale, "route.elevationLabel")}</th>
                 <th>{t(locale, "map.usageHeading")}</th>
+                <th>{t(locale, "map.createdBy")}</th>
                 <th></th>
               </tr>
             </thead>
@@ -76,18 +86,21 @@ export default async function MapPage({
                       : "–"}
                   </td>
                   <td>{t(locale, "map.usageCount", { count: usage.get(s.id) ?? 0 })}</td>
+                  <td>{creatorName(s.submittedBy)}</td>
                   <td>
                     <div className="btn-row">
                       <Link href={`/map/edit/${s.id}`} className="btn-secondary">
                         {t(locale, "map.edit")}
                       </Link>
-                      <ConfirmSubmitForm
-                        action={deleteSegmentAction}
-                        confirmMessage={t(locale, "map.deleteConfirm")}
-                        hiddenName="segmentId"
-                        hiddenValue={s.id}
-                        buttonLabel={t(locale, "map.delete")}
-                      />
+                      {canEdit(user, s.submittedBy) && (
+                        <ConfirmSubmitForm
+                          action={deleteSegmentAction}
+                          confirmMessage={t(locale, "map.deleteConfirm")}
+                          hiddenName="segmentId"
+                          hiddenValue={s.id}
+                          buttonLabel={t(locale, "map.delete")}
+                        />
+                      )}
                     </div>
                   </td>
                 </tr>

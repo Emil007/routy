@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { getCurrentUser, userCount } from "@/lib/session";
 import { resolveLocale } from "@/lib/locale";
 import { t } from "@/lib/i18n";
+import { LOCALES, LOCALE_LABELS } from "@/lib/i18n";
 import { loginAction, setupFirstProfileAction } from "./actions";
 
 export default async function LoginPage({
@@ -44,8 +45,11 @@ export default async function LoginPage({
               <div className="field">
                 <label htmlFor="locale">{t(locale, "profile.locale")}</label>
                 <select id="locale" name="locale" defaultValue={locale}>
-                  <option value="de">Deutsch</option>
-                  <option value="en">English</option>
+                  {LOCALES.map((l) => (
+                    <option key={l} value={l}>
+                      {LOCALE_LABELS[l]}
+                    </option>
+                  ))}
                 </select>
               </div>
               <button type="submit" className="btn-primary">
@@ -56,7 +60,12 @@ export default async function LoginPage({
         ) : (
           <>
             <h2 style={{ fontSize: "1.1rem", marginBottom: "1rem" }}>{t(locale, "login.title")}</h2>
-            {error && <div className="alert alert-error" style={{ marginBottom: "1rem" }}>{t(locale, "login.error")}</div>}
+            {error === "inactive" && (
+              <div className="alert alert-error" style={{ marginBottom: "1rem" }}>{t(locale, "login.inactiveError")}</div>
+            )}
+            {error && error !== "inactive" && (
+              <div className="alert alert-error" style={{ marginBottom: "1rem" }}>{t(locale, "login.error")}</div>
+            )}
             <form action={loginAction} className="stack">
               <div className="field">
                 <label htmlFor="username">{t(locale, "login.username")}</label>

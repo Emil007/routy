@@ -9,6 +9,7 @@ export interface NodeRow {
   lat: number;
   lng: number;
   isHome: boolean;
+  createdBy: number | null;
 }
 
 interface NodeDbRow {
@@ -17,38 +18,39 @@ interface NodeDbRow {
   lat: number;
   lng: number;
   is_home: number;
+  created_by: number | null;
 }
 
 function mapNode(row: NodeDbRow): NodeRow {
-  return { id: row.id, name: row.name, lat: row.lat, lng: row.lng, isHome: row.is_home === 1 };
+  return { id: row.id, name: row.name, lat: row.lat, lng: row.lng, isHome: row.is_home === 1, createdBy: row.created_by };
 }
 
+const NODE_COLUMNS = "id, name, lat, lng, is_home, created_by";
+
 export function listNodes(): NodeRow[] {
-  const rows = db.prepare("SELECT id, name, lat, lng, is_home FROM nodes ORDER BY id").all() as NodeDbRow[];
+  const rows = db.prepare(`SELECT ${NODE_COLUMNS} FROM nodes ORDER BY id`).all() as NodeDbRow[];
   return rows.map(mapNode);
 }
 
 export function getNode(id: number): NodeRow | null {
-  const row = db.prepare("SELECT id, name, lat, lng, is_home FROM nodes WHERE id = ?").get(id) as
-    | NodeDbRow
-    | undefined;
+  const row = db.prepare(`SELECT ${NODE_COLUMNS} FROM nodes WHERE id = ?`).get(id) as NodeDbRow | undefined;
   return row ? mapNode(row) : null;
 }
 
 export function getHomeNode(): NodeRow | null {
-  const row = db.prepare("SELECT id, name, lat, lng, is_home FROM nodes WHERE is_home = 1 LIMIT 1").get() as
+  const row = db.prepare(`SELECT ${NODE_COLUMNS} FROM nodes WHERE is_home = 1 LIMIT 1`).get() as
     | NodeDbRow
     | undefined;
   return row ? mapNode(row) : null;
 }
 
-export function createNode(name: string | null, point: LatLng, isHome = false): NodeRow {
+export function createNode(name: string | null, point: LatLng, isHome = false, createdBy: number | null = null): NodeRow {
   if (isHome) {
     db.prepare("UPDATE nodes SET is_home = 0 WHERE is_home = 1").run();
   }
   const info = db
-    .prepare("INSERT INTO nodes (name, lat, lng, is_home) VALUES (?, ?, ?, ?)")
-    .run(name, point.lat, point.lng, isHome ? 1 : 0);
+    .prepare("INSERT INTO nodes (name, lat, lng, is_home, created_by) VALUES (?, ?, ?, ?, ?)")
+    .run(name, point.lat, point.lng, isHome ? 1 : 0, createdBy);
   return getNode(Number(info.lastInsertRowid)) as NodeRow;
 }
 

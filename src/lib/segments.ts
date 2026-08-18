@@ -344,7 +344,7 @@ export function splitSegment(
     if (!node) return { error: "unknown_node" };
     midNode = node;
   } else {
-    midNode = createNode(endpoint.newName, closest.point);
+    midNode = createNode(endpoint.newName, closest.point, false, submittedBy);
   }
 
   const tx = db.transaction(() => {

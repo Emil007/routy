@@ -3,6 +3,7 @@ import en from "./en.json";
 
 export type Locale = "de" | "en";
 export const LOCALES: Locale[] = ["de", "en"];
+export const LOCALE_LABELS: Record<Locale, string> = { de: "Deutsch", en: "English" };
 export const DEFAULT_LOCALE: Locale = "de";
 export const LOCALE_COOKIE = "routy_locale";
 
