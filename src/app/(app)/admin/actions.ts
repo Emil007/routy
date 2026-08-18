@@ -3,7 +3,15 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireAdmin, startImpersonation } from "@/lib/session";
-import { createUser, findUserByUsername, getUser, setUserActive, deleteUserPermanently, updateUserProfile } from "@/lib/users";
+import {
+  createUser,
+  findUserByUsername,
+  getUser,
+  setUserActive,
+  deleteUserPermanently,
+  updateUserProfile,
+  disableTotp,
+} from "@/lib/users";
 import { isLocale, DEFAULT_LOCALE } from "@/lib/i18n";
 import { logActivity } from "@/lib/activityLog";
 
@@ -69,6 +77,17 @@ export async function deleteUserAction(formData: FormData) {
   deleteUserPermanently(id);
   logActivity(admin.id, "delete", "user", id);
   revalidatePath("/admin");
+}
+
+/** Account-recovery path for a user who lost their authenticator — admin can force 2FA off without needing their password or code. */
+export async function resetTotpAction(formData: FormData) {
+  const admin = await requireAdmin();
+  const id = Number(formData.get("userId"));
+  if (!id) return;
+
+  disableTotp(id);
+  logActivity(admin.id, "reset_totp", "user", id);
+  revalidatePath(`/admin/${id}`);
 }
 
 export async function impersonateAction(formData: FormData) {

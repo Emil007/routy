@@ -152,6 +152,12 @@ function runMigrations(db: Database.Database): void {
   if (!userColumns.some((c) => c.name === "theme")) {
     db.exec("ALTER TABLE users ADD COLUMN theme TEXT NOT NULL DEFAULT 'auto'");
   }
+  if (!userColumns.some((c) => c.name === "totp_secret")) {
+    db.exec("ALTER TABLE users ADD COLUMN totp_secret TEXT");
+  }
+  if (!userColumns.some((c) => c.name === "totp_enabled")) {
+    db.exec("ALTER TABLE users ADD COLUMN totp_enabled INTEGER NOT NULL DEFAULT 0");
+  }
 
   const nodeColumns = db.prepare("PRAGMA table_info(nodes)").all() as { name: string }[];
   if (!nodeColumns.some((c) => c.name === "created_by")) {

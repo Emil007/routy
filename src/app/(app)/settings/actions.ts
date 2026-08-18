@@ -4,7 +4,17 @@ import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireUser, requireAdmin, destroyCurrentSession, destroyOtherSessions } from "@/lib/session";
 import { updateSettings, SETTINGS_KEYS } from "@/lib/settings";
-import { updateUserWalkSpeed, changeOwnPassword, setUserActive } from "@/lib/users";
+import {
+  updateUserWalkSpeed,
+  changeOwnPassword,
+  setUserActive,
+  getUser,
+  verifyLogin,
+  setPendingTotpSecret,
+  enableTotp,
+  disableTotp,
+} from "@/lib/users";
+import { generateTotpSecret, verifyTotpCode } from "@/lib/twoFactor";
 
 export async function saveSettingsAction(formData: FormData) {
   await requireAdmin();
@@ -47,6 +57,42 @@ export async function logoutEverywhereAction() {
   const user = await requireUser();
   await destroyOtherSessions(user.id);
   redirect("/settings?loggedOutEverywhere=1");
+}
+
+/** Generates (or regenerates) a pending secret and sends the user to the QR/confirm step — not enabled until confirmEnableTotpAction succeeds. */
+export async function startEnableTotpAction() {
+  const user = await requireUser();
+  setPendingTotpSecret(user.id, generateTotpSecret());
+  redirect("/settings?totpSetup=1");
+}
+
+export async function confirmEnableTotpAction(formData: FormData) {
+  const user = await requireUser();
+  const code = String(formData.get("totpCode") || "").trim();
+  const current = getUser(user.id);
+
+  if (!current?.totpSecret || !verifyTotpCode(current.totpSecret, current.username, code)) {
+    redirect("/settings?totpSetup=1&totpError=1");
+  }
+
+  enableTotp(user.id);
+  redirect("/settings?totpEnabled=1");
+}
+
+export async function cancelEnableTotpAction() {
+  const user = await requireUser();
+  disableTotp(user.id);
+  redirect("/settings");
+}
+
+export async function disableTotpAction(formData: FormData) {
+  const user = await requireUser();
+  const currentPassword = String(formData.get("currentPassword") || "");
+  if (!verifyLogin(user.username, currentPassword)) {
+    redirect("/settings?totpDisableError=1");
+  }
+  disableTotp(user.id);
+  redirect("/settings?totpDisabled=1");
 }
 
 export async function deleteOwnAccountAction() {

@@ -4,7 +4,7 @@ import { requireAdmin } from "@/lib/session";
 import { resolveLocale } from "@/lib/locale";
 import { t, LOCALES, LOCALE_LABELS } from "@/lib/i18n";
 import { getUser } from "@/lib/users";
-import { updateUserAction } from "../actions";
+import { updateUserAction, resetTotpAction } from "../actions";
 
 export default async function EditUserPage({
   params,
@@ -66,6 +66,21 @@ export default async function EditUserPage({
           </div>
         </form>
       </div>
+
+      {target.totpEnabled && (
+        <div className="card">
+          <h2 style={{ fontSize: "1.1rem", marginBottom: "0.3rem" }}>{t(locale, "admin.resetTotpTitle")}</h2>
+          <p style={{ color: "var(--ink-soft)", fontSize: "0.9rem", marginBottom: "1rem" }}>
+            {t(locale, "admin.resetTotpSubtitle")}
+          </p>
+          <form action={resetTotpAction}>
+            <input type="hidden" name="userId" value={target.id} />
+            <button type="submit" className="btn-secondary">
+              {t(locale, "admin.resetTotpButton")}
+            </button>
+          </form>
+        </div>
+      )}
     </>
   );
 }

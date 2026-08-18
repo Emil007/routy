@@ -1,4 +1,5 @@
 import { redirect } from "next/navigation";
+import { headers } from "next/headers";
 import { getCurrentUser, userCount } from "@/lib/session";
 import { resolveLocale } from "@/lib/locale";
 import { t } from "@/lib/i18n";
@@ -11,15 +12,16 @@ import { loginAction, setupFirstProfileAction } from "./actions";
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ error?: string; setupError?: string; retry?: string }>;
+  searchParams: Promise<{ error?: string; setupError?: string; retry?: string; totpRequired?: string; username?: string }>;
 }) {
   const user = await getCurrentUser();
   if (user) redirect("/route");
 
   const locale = await resolveLocale(null);
-  const { error, setupError, retry } = await searchParams;
+  const { error, setupError, retry, totpRequired, username: prefillUsername } = await searchParams;
   const needsSetup = userCount() === 0;
   const captcha = getCaptchaConfig();
+  const nonce = (await headers()).get("x-nonce") ?? "";
 
   function setupErrorMessage(): string | null {
     if (!setupError) return null;
@@ -34,6 +36,7 @@ export default async function LoginPage({
     if (error === "inactive") return t(locale, "login.inactiveError");
     if (error === "locked") return t(locale, "login.lockedError", { seconds: retry ?? "?" });
     if (error === "captcha") return t(locale, "login.captchaError");
+    if (error === "totp") return t(locale, "login.totpError");
     return t(locale, "login.error");
   }
 
@@ -82,7 +85,7 @@ export default async function LoginPage({
                   ))}
                 </select>
               </div>
-              <CaptchaWidget config={captcha} />
+              <CaptchaWidget config={captcha} nonce={nonce} />
               <button type="submit" className="btn-primary">
                 {t(locale, "profile.submit")}
               </button>
@@ -94,16 +97,40 @@ export default async function LoginPage({
             {loginErrorMessage() && (
               <div className="alert alert-error" style={{ marginBottom: "1rem" }}>{loginErrorMessage()}</div>
             )}
+            {totpRequired === "1" && !loginErrorMessage() && (
+              <div className="alert" style={{ marginBottom: "1rem" }}>{t(locale, "login.totpRequired")}</div>
+            )}
             <form action={loginAction} className="stack">
               <div className="field">
                 <label htmlFor="username">{t(locale, "login.username")}</label>
-                <input type="text" id="username" name="username" autoComplete="username" required />
+                <input
+                  type="text"
+                  id="username"
+                  name="username"
+                  autoComplete="username"
+                  defaultValue={prefillUsername ?? ""}
+                  required
+                />
               </div>
               <div className="field">
                 <label htmlFor="password">{t(locale, "login.password")}</label>
                 <input type="password" id="password" name="password" autoComplete="current-password" required />
               </div>
-              <CaptchaWidget config={captcha} />
+              {(totpRequired === "1" || error === "totp") && (
+                <div className="field">
+                  <label htmlFor="totpCode">{t(locale, "login.totpCodeLabel")}</label>
+                  <input
+                    type="text"
+                    id="totpCode"
+                    name="totpCode"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    autoFocus
+                  />
+                </div>
+              )}
+              <CaptchaWidget config={captcha} nonce={nonce} />
               <button type="submit" className="btn-primary">
                 {t(locale, "login.submit")}
               </button>
