@@ -5,7 +5,8 @@ network of paths — built by walking (or driving) around and submitting the
 paths you know, then letting Routy pick a fresh combination of them each
 time, favoring the ones you haven't walked in a while. Multiple people can
 share one instance, each with their own profile and stats, all drawing from
-the same path network.
+the same path network. The first account becomes the admin, who manages who
+else gets access.
 
 ## What it does
 
@@ -34,9 +35,11 @@ search. Accept a route and it becomes your active route — visible on
 
 **Edit the network.** Click a path on the map to correct its shape or split
 it into two at a new junction (e.g. once a crossing path appears). Click a
-node to rename it, drag it to reposition it, or delete it. Editing paths
-mid-walk (yours or someone else's) is blocked with an explanation instead of
-silently corrupting an active route.
+node to rename it, drag it to reposition it, or delete it. Every node and
+path shows who submitted it, and only that person (or the admin) can edit or
+delete it — everyone else can still see and use it. Editing paths mid-walk
+(yours or someone else's) is blocked with an explanation instead of silently
+corrupting an active route.
 
 **Track it.** A stats page shows your personal totals and recent walks
 (each removable, in case one was logged by mistake), your current and
@@ -46,10 +49,24 @@ Stone through Diamond) plus a few one-off badges, and which paths are used
 most and least across the whole network — so you know what to prioritize
 walking next.
 
+**Manage accounts.** The admin (the very first account) gets a "Users" page
+to create, edit, lock, or permanently delete other accounts, and can log in
+as any of them to help troubleshoot without needing their password.
+Everyone else manages their own password and language, and can deactivate
+their own account from Settings — only the admin can bring it back or
+delete it for good. Locking or deleting keeps a departed member's name on
+whatever they built, so the network's history stays intact.
+
 ## Features
 
 - Multiple profiles, one shared path network, each with separate stats and
   an optional personal walking pace (used to estimate durations)
+- Admin-managed accounts: the first account becomes admin and is the only
+  one who can create, edit, lock, or permanently delete other accounts, or
+  log in as one of them; everyone manages their own password and can
+  deactivate their own account
+- Nodes and paths are attributed to whoever created them and only editable
+  by that person or the admin, visible to everyone else
 - Freehand map drawing and GPX upload, both with junction detection/snapping
   and an OpenStreetMap-based name suggestion for new junctions
 - Route suggestions from a configurable length range, with "Longer" /
@@ -103,8 +120,8 @@ All data (the SQLite database) lives in the mounted volume (`./data` by
 default, or wherever you pointed it). Back up that folder to back up Routy.
 
 The very first time you open the site, Routy asks you to set up the first
-profile — no setup via environment variable needed. Any signed-in user can
-create further profiles from the Settings page.
+profile — no setup via environment variable needed. That account becomes the
+admin, and creates further accounts from the "Users" page.
 
 ### External services
 

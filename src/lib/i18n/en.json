@@ -21,9 +21,12 @@
     "map": "Network",
     "stats": "Stats",
     "settings": "Settings",
+    "admin": "Users",
     "newProfile": "New profile",
     "logout": "Log out",
-    "greeting": "Hi, {name}"
+    "greeting": "Hi, {name}",
+    "impersonating": "You're signed in as {name} (impersonating).",
+    "returnToAdmin": "Return to admin"
   },
   "login": {
     "title": "Sign in",
@@ -32,6 +35,7 @@
     "password": "Password",
     "submit": "Sign in",
     "error": "Username or password is incorrect.",
+    "inactiveError": "This account is deactivated. Contact your admin.",
     "setupTitle": "Set up the first profile",
     "setupSubtitle": "No profile exists yet — create the first account."
   },
@@ -131,11 +135,15 @@
     "moveNodeActive": "Drag active — drag the node on the map",
     "deleteNodeConfirm": "Really delete this node and the {count} path segment(s) connected to it? This cannot be undone.",
     "deleteBlockedNode": "This node can't be deleted — it's currently used by an active route.",
-    "deleteBlockedSegment": "This path can't be deleted — it's currently used by an active route."
+    "deleteBlockedSegment": "This path can't be deleted — it's currently used by an active route.",
+    "createdBy": "Created by",
+    "editBlockedNotOwner": "You can't edit this — only whoever created it, or an admin, can."
   },
   "settings": {
     "title": "Settings",
-    "subtitle": "These values control how generously nodes get merged and how routes are selected.",
+    "subtitle": "Your profile and personal settings.",
+    "networkTitle": "Network settings",
+    "networkSubtitle": "These values control how generously nodes get merged and how routes are selected. Admins only.",
     "merge_radius_m": "Merge radius (m)",
     "merge_radius_m_hint": "Points within this radius are treated as the same node.",
     "name_far_warn_m": "Name-conflict warning distance (m)",
@@ -159,7 +167,17 @@
     "suggest_max_km_hint": "Upper bound of the length range a route is suggested from.",
     "adjust_step_percent": "\"Longer\"/\"Shorter\" step (%)",
     "adjust_step_percent_hint": "How much the route changes on a \"Longer\" or \"Shorter\" click.",
-    "saved": "Settings saved."
+    "saved": "Settings saved.",
+    "languageTitle": "Language",
+    "changePasswordTitle": "Change password",
+    "currentPassword": "Current password",
+    "newPassword": "New password",
+    "passwordChanged": "Password changed.",
+    "passwordChangeError": "Current password is wrong, or the new password is too short.",
+    "deleteAccountTitle": "Delete account",
+    "deleteAccountSubtitle": "Your account will be deactivated. Only the admin can reactivate it.",
+    "deleteAccountConfirm": "Really delete your account? It will be deactivated until an admin reactivates it.",
+    "deleteAccountButton": "Delete account"
   },
   "stats": {
     "title": "Stats",
@@ -263,5 +281,27 @@
       "nightOwl": "Night owl",
       "nightOwlDesc": "Confirmed a walk after 10pm"
     }
+  },
+  "admin": {
+    "title": "User management",
+    "subtitle": "Create, lock, edit, or delete accounts.",
+    "usersHeading": "Users",
+    "roleHeading": "Role",
+    "statusHeading": "Status",
+    "roleAdmin": "Admin",
+    "roleUser": "User",
+    "statusActive": "Active",
+    "statusLocked": "Locked",
+    "statusDeleted": "Deleted",
+    "lock": "Lock",
+    "unlock": "Unlock",
+    "impersonate": "Log in as",
+    "deleteConfirm": "Really permanently delete this account? Login credentials are removed; nodes/paths they created stay attributed to their name.",
+    "createUserHeading": "Create a new user",
+    "userUpdated": "User updated.",
+    "editUserTitle": "Edit {name}",
+    "newPasswordLabel": "New password",
+    "newPasswordPlaceholder": "leave empty = unchanged",
+    "newPasswordHint": "Only fill in to reset the password (min. 6 characters)."
   }
 }

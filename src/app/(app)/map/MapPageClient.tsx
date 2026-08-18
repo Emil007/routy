@@ -6,6 +6,7 @@ import { t, type Locale } from "@/lib/i18n";
 import { MapViewLazy } from "@/components/MapViewLazy";
 import type { MapMarker, MapLine } from "@/components/MapView";
 import type { NodeRow } from "@/lib/nodes";
+import { canEdit } from "@/lib/ownership";
 import { renameNodeAction, setHomeNodeAction, deleteNodeAction } from "./actions";
 
 export function MapPageClient({
@@ -13,12 +14,16 @@ export function MapPageClient({
   nodes,
   lines,
   segmentCounts,
+  currentUser,
+  userNames,
 }: {
   locale: Locale;
   nodes: NodeRow[];
   lines: MapLine[];
   /** Number of physical path segments touching each node id — for the delete-confirm message. */
   segmentCounts: Map<number, number>;
+  currentUser: { id: number; role: "admin" | "user" };
+  userNames: Record<number, string>;
 }) {
   const router = useRouter();
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
@@ -92,51 +97,58 @@ export function MapPageClient({
           <div className="btn-row">
             <strong>{selectedNode.name || t(locale, "map.unnamedNode")}</strong>
             {selectedNode.isHome && <span className="chip">{t(locale, "map.home")}</span>}
+            <span className="chip">
+              {t(locale, "map.createdBy")}: {selectedNode.createdBy !== null ? (userNames[selectedNode.createdBy] ?? `#${selectedNode.createdBy}`) : "–"}
+            </span>
             <button type="button" className="btn-secondary" onClick={closeSelection}>
               {t(locale, "common.cancel")}
             </button>
           </div>
 
-          <form action={renameNodeAction} className="btn-row">
-            <input type="hidden" name="nodeId" value={selectedNode.id} />
-            <input type="text" name="name" defaultValue={selectedNode.name ?? ""} style={{ maxWidth: 200 }} />
-            <button type="submit" className="btn-secondary">
-              {t(locale, "map.rename")}
-            </button>
-          </form>
-
-          <div className="btn-row">
-            {!selectedNode.isHome && (
-              <form action={setHomeNodeAction}>
+          {canEdit(currentUser, selectedNode.createdBy) && (
+            <>
+              <form action={renameNodeAction} className="btn-row">
                 <input type="hidden" name="nodeId" value={selectedNode.id} />
+                <input type="text" name="name" defaultValue={selectedNode.name ?? ""} style={{ maxWidth: 200 }} />
                 <button type="submit" className="btn-secondary">
-                  {t(locale, "map.home")}
+                  {t(locale, "map.rename")}
                 </button>
               </form>
-            )}
-            <button
-              type="button"
-              className={moveMode ? "btn-primary" : "btn-secondary"}
-              onClick={() => setMoveMode((v) => !v)}
-              disabled={moveStatus === "saving"}
-            >
-              {moveMode ? t(locale, "map.moveNodeActive") : t(locale, "map.moveNode")}
-            </button>
-            <form
-              action={deleteNodeAction}
-              onSubmit={(e) => {
-                const count = segmentCounts.get(selectedNode.id) ?? 0;
-                if (!window.confirm(t(locale, "map.deleteNodeConfirm", { count }))) e.preventDefault();
-              }}
-            >
-              <input type="hidden" name="nodeId" value={selectedNode.id} />
-              <button type="submit" className="btn-danger">
-                {t(locale, "map.delete")}
-              </button>
-            </form>
-          </div>
 
-          {moveStatus === "error" && <div className="alert alert-error">{t(locale, "common.error")}</div>}
+              <div className="btn-row">
+                {!selectedNode.isHome && (
+                  <form action={setHomeNodeAction}>
+                    <input type="hidden" name="nodeId" value={selectedNode.id} />
+                    <button type="submit" className="btn-secondary">
+                      {t(locale, "map.home")}
+                    </button>
+                  </form>
+                )}
+                <button
+                  type="button"
+                  className={moveMode ? "btn-primary" : "btn-secondary"}
+                  onClick={() => setMoveMode((v) => !v)}
+                  disabled={moveStatus === "saving"}
+                >
+                  {moveMode ? t(locale, "map.moveNodeActive") : t(locale, "map.moveNode")}
+                </button>
+                <form
+                  action={deleteNodeAction}
+                  onSubmit={(e) => {
+                    const count = segmentCounts.get(selectedNode.id) ?? 0;
+                    if (!window.confirm(t(locale, "map.deleteNodeConfirm", { count }))) e.preventDefault();
+                  }}
+                >
+                  <input type="hidden" name="nodeId" value={selectedNode.id} />
+                  <button type="submit" className="btn-danger">
+                    {t(locale, "map.delete")}
+                  </button>
+                </form>
+              </div>
+
+              {moveStatus === "error" && <div className="alert alert-error">{t(locale, "common.error")}</div>}
+            </>
+          )}
         </div>
       )}
     </div>

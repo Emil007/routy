@@ -21,9 +21,12 @@
     "map": "Netzwerk",
     "stats": "Statistik",
     "settings": "Einstellungen",
+    "admin": "Benutzer",
     "newProfile": "Neues Profil",
     "logout": "Abmelden",
-    "greeting": "Hallo, {name}"
+    "greeting": "Hallo, {name}",
+    "impersonating": "Du bist als {name} eingeloggt (Impersonation).",
+    "returnToAdmin": "Zurück zu Admin"
   },
   "login": {
     "title": "Anmelden",
@@ -32,6 +35,7 @@
     "password": "Passwort",
     "submit": "Anmelden",
     "error": "Benutzername oder Passwort ist falsch.",
+    "inactiveError": "Dieses Konto ist deaktiviert. Wende dich an den Admin.",
     "setupTitle": "Erstes Profil einrichten",
     "setupSubtitle": "Noch kein Profil vorhanden — lege das erste Konto an."
   },
@@ -131,11 +135,15 @@
     "moveNodeActive": "Ziehen aktiv — Knoten auf der Karte ziehen",
     "deleteNodeConfirm": "Diesen Knoten und die {count} damit verbundenen Wegabschnitte wirklich löschen? Das kann nicht rückgängig gemacht werden.",
     "deleteBlockedNode": "Dieser Knoten kann nicht gelöscht werden — er wird gerade von einer aktiven Route genutzt.",
-    "deleteBlockedSegment": "Dieser Wegabschnitt kann nicht gelöscht werden — er wird gerade von einer aktiven Route genutzt."
+    "deleteBlockedSegment": "Dieser Wegabschnitt kann nicht gelöscht werden — er wird gerade von einer aktiven Route genutzt.",
+    "createdBy": "Angelegt von",
+    "editBlockedNotOwner": "Das kannst du nicht bearbeiten — nur wer es angelegt hat oder der Admin dürfen das."
   },
   "settings": {
     "title": "Einstellungen",
-    "subtitle": "Diese Werte steuern, wie großzügig Knoten zusammengeführt werden und wie Routen ausgewählt werden.",
+    "subtitle": "Dein Profil und deine persönlichen Einstellungen.",
+    "networkTitle": "Netzwerk-Einstellungen",
+    "networkSubtitle": "Diese Werte steuern, wie großzügig Knoten zusammengeführt werden und wie Routen ausgewählt werden. Nur für Admins sichtbar.",
     "merge_radius_m": "Zusammenführungs-Radius (m)",
     "merge_radius_m_hint": "Punkte innerhalb dieses Radius gelten als derselbe Knoten.",
     "name_far_warn_m": "Warnabstand bei Namensgleichheit (m)",
@@ -159,7 +167,17 @@
     "suggest_max_km_hint": "Obere Grenze für den Längenbereich, aus dem eine Route vorgeschlagen wird.",
     "adjust_step_percent": "Schrittweite für „Länger“/„Kürzer“ (%)",
     "adjust_step_percent_hint": "Wie stark sich die Route bei einem Klick auf „Länger“ oder „Kürzer“ verändert.",
-    "saved": "Einstellungen gespeichert."
+    "saved": "Einstellungen gespeichert.",
+    "languageTitle": "Sprache",
+    "changePasswordTitle": "Passwort ändern",
+    "currentPassword": "Aktuelles Passwort",
+    "newPassword": "Neues Passwort",
+    "passwordChanged": "Passwort geändert.",
+    "passwordChangeError": "Aktuelles Passwort ist falsch, oder das neue Passwort ist zu kurz.",
+    "deleteAccountTitle": "Account löschen",
+    "deleteAccountSubtitle": "Dein Account wird deaktiviert. Nur der Admin kann ihn wieder aktivieren.",
+    "deleteAccountConfirm": "Deinen Account wirklich löschen? Er wird deaktiviert, bis der Admin ihn reaktiviert.",
+    "deleteAccountButton": "Account löschen"
   },
   "stats": {
     "title": "Statistik",
@@ -263,5 +281,27 @@
       "nightOwl": "Nachteule",
       "nightOwlDesc": "Einen Spaziergang nach 22 Uhr bestätigt"
     }
+  },
+  "admin": {
+    "title": "Benutzerverwaltung",
+    "subtitle": "Accounts anlegen, sperren, bearbeiten oder löschen.",
+    "usersHeading": "Benutzer",
+    "roleHeading": "Rolle",
+    "statusHeading": "Status",
+    "roleAdmin": "Admin",
+    "roleUser": "Benutzer",
+    "statusActive": "Aktiv",
+    "statusLocked": "Gesperrt",
+    "statusDeleted": "Gelöscht",
+    "lock": "Sperren",
+    "unlock": "Entsperren",
+    "impersonate": "Einloggen als",
+    "deleteConfirm": "Diesen Account wirklich unwiderruflich löschen? Login-Daten werden entfernt, angelegte Wege/Knoten bleiben mit dem Namen erhalten.",
+    "createUserHeading": "Neuen Benutzer anlegen",
+    "userUpdated": "Benutzer aktualisiert.",
+    "editUserTitle": "{name} bearbeiten",
+    "newPasswordLabel": "Neues Passwort",
+    "newPasswordPlaceholder": "leer lassen = unverändert",
+    "newPasswordHint": "Nur ausfüllen, um das Passwort zurückzusetzen (mind. 6 Zeichen)."
   }
 }

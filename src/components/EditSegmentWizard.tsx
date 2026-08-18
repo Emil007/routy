@@ -30,6 +30,7 @@ export function EditSegmentWizard({
   networkLines,
   nodes,
   mergeRadiusM,
+  canEditSegment,
 }: {
   locale: Locale;
   segmentId: number;
@@ -39,6 +40,7 @@ export function EditSegmentWizard({
   networkLines: MapLine[];
   nodes: NodeRow[];
   mergeRadiusM: number;
+  canEditSegment: boolean;
 }) {
   const router = useRouter();
   const [points, setPoints] = useState<LatLng[]>(initialPoints);
@@ -64,9 +66,9 @@ export function EditSegmentWizard({
         lat: p.lat,
         lng: p.lng,
         color: i === 0 || i === points.length - 1 ? "#a5711c" : "#9a3b29",
-        draggable: i !== 0 && i !== points.length - 1,
+        draggable: canEditSegment && i !== 0 && i !== points.length - 1,
       })),
-    [points],
+    [points, canEditSegment],
   );
 
   const splitMarkers: MapMarker[] = splitTarget
@@ -91,7 +93,7 @@ export function EditSegmentWizard({
   }
 
   function handleLineClick(id: number | string, lat: number, lng: number) {
-    if (id !== "edit") return;
+    if (id !== "edit" || !canEditSegment) return;
     const closest = closestPointOnPath(points, { lat, lng });
     if (!closest) return;
     const candidates = findNodeCandidates(nodes, closest.point, mergeRadiusM);
@@ -176,13 +178,16 @@ export function EditSegmentWizard({
         </div>
 
         <div className="btn-row">
-          <button type="button" className="btn-primary" onClick={saveGeometry} disabled={geometryStatus === "saving"}>
-            {geometryStatus === "saving" ? t(locale, "edit.saving") : t(locale, "edit.saveGeometry")}
-          </button>
+          {canEditSegment && (
+            <button type="button" className="btn-primary" onClick={saveGeometry} disabled={geometryStatus === "saving"}>
+              {geometryStatus === "saving" ? t(locale, "edit.saving") : t(locale, "edit.saveGeometry")}
+            </button>
+          )}
           <Link href="/map" className="btn-secondary">
             {t(locale, "edit.backToMap")}
           </Link>
         </div>
+        {!canEditSegment && <p className="hint">{t(locale, "map.editBlockedNotOwner")}</p>}
 
         {geometryMessage && (
           <div className={geometryStatus === "error" ? "alert alert-error" : "alert alert-success"}>{geometryMessage}</div>

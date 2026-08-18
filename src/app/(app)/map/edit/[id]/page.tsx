@@ -5,6 +5,7 @@ import { t } from "@/lib/i18n";
 import { getSegment, listSegments, isCanonicalSegment } from "@/lib/segments";
 import { getNode, listNodes } from "@/lib/nodes";
 import { getSettings } from "@/lib/settings";
+import { canEdit } from "@/lib/ownership";
 import { EditSegmentWizard } from "@/components/EditSegmentWizard";
 
 export default async function EditSegmentPage({ params }: { params: Promise<{ id: string }> }) {
@@ -41,6 +42,7 @@ export default async function EditSegmentPage({ params }: { params: Promise<{ id
         networkLines={networkLines}
         nodes={nodes}
         mergeRadiusM={settings.merge_radius_m}
+        canEditSegment={canEdit(user, canonical.submittedBy)}
       />
     </>
   );

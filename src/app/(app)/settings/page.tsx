@@ -2,7 +2,9 @@ import { requireUser } from "@/lib/session";
 import { resolveLocale } from "@/lib/locale";
 import { t } from "@/lib/i18n";
 import { getSettings, SETTINGS_KEYS, type Settings } from "@/lib/settings";
-import { saveSettingsAction, saveWalkSpeedAction, createProfileAction } from "./actions";
+import { LocaleSelectForm } from "@/components/LocaleSelectForm";
+import { ConfirmSubmitForm } from "@/components/ConfirmSubmitForm";
+import { saveSettingsAction, saveWalkSpeedAction, changePasswordAction, deleteOwnAccountAction } from "./actions";
 
 const STEP: Partial<Record<keyof Settings, number>> = {
   daily_diversity_weight: 0.5,
@@ -15,12 +17,12 @@ const STEP: Partial<Record<keyof Settings, number>> = {
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ profileError?: string; profileSuccess?: string }>;
+  searchParams: Promise<{ passwordError?: string; passwordSuccess?: string }>;
 }) {
   const user = await requireUser();
   const locale = await resolveLocale(user.locale);
   const settings = getSettings();
-  const { profileError, profileSuccess } = await searchParams;
+  const { passwordError, passwordSuccess } = await searchParams;
 
   return (
     <>
@@ -29,27 +31,33 @@ export default async function SettingsPage({
         <p>{t(locale, "settings.subtitle")}</p>
       </div>
 
-      <div className="card">
-        <form action={saveSettingsAction} className="stack">
-          {SETTINGS_KEYS.map((key) => (
-            <div className="field" key={key}>
-              <label htmlFor={key}>{t(locale, `settings.${key}`)}</label>
-              <input
-                id={key}
-                name={key}
-                type="number"
-                step={STEP[key] ?? 1}
-                min={0}
-                defaultValue={settings[key]}
-              />
-              <span className="hint">{t(locale, `settings.${key}_hint`)}</span>
-            </div>
-          ))}
-          <button type="submit" className="btn-primary">
-            {t(locale, "common.save")}
-          </button>
-        </form>
-      </div>
+      {user.role === "admin" && (
+        <div className="card">
+          <h2 style={{ fontSize: "1.1rem", marginBottom: "0.3rem" }}>{t(locale, "settings.networkTitle")}</h2>
+          <p style={{ color: "var(--ink-soft)", fontSize: "0.9rem", marginBottom: "1rem" }}>
+            {t(locale, "settings.networkSubtitle")}
+          </p>
+          <form action={saveSettingsAction} className="stack">
+            {SETTINGS_KEYS.map((key) => (
+              <div className="field" key={key}>
+                <label htmlFor={key}>{t(locale, `settings.${key}`)}</label>
+                <input
+                  id={key}
+                  name={key}
+                  type="number"
+                  step={STEP[key] ?? 1}
+                  min={0}
+                  defaultValue={settings[key]}
+                />
+                <span className="hint">{t(locale, `settings.${key}_hint`)}</span>
+              </div>
+            ))}
+            <button type="submit" className="btn-primary">
+              {t(locale, "common.save")}
+            </button>
+          </form>
+        </div>
+      )}
 
       <div className="card">
         <h2 style={{ fontSize: "1.1rem", marginBottom: "0.3rem" }}>{t(locale, "settings.walkSpeedTitle")}</h2>
@@ -77,52 +85,44 @@ export default async function SettingsPage({
       </div>
 
       <div className="card">
-        <h2 style={{ fontSize: "1.1rem", marginBottom: "0.3rem" }}>{t(locale, "profile.title")}</h2>
-        <p style={{ color: "var(--ink-soft)", fontSize: "0.9rem", marginBottom: "1rem" }}>
-          {t(locale, "profile.subtitle")}
-        </p>
+        <h2 style={{ fontSize: "1.1rem", marginBottom: "0.3rem" }}>{t(locale, "settings.languageTitle")}</h2>
+        <LocaleSelectForm currentLocale={locale} />
+      </div>
 
-        {profileSuccess && (
-          <div className="alert alert-success" style={{ marginBottom: "1rem" }}>
-            {t(locale, "profile.success")}
-          </div>
-        )}
-        {profileError === "taken" && (
-          <div className="alert alert-error" style={{ marginBottom: "1rem" }}>
-            {t(locale, "profile.usernameTaken")}
-          </div>
-        )}
-        {profileError === "invalid" && (
-          <div className="alert alert-error" style={{ marginBottom: "1rem" }}>
-            {t(locale, "common.error")}
-          </div>
-        )}
-
-        <form action={createProfileAction} className="stack">
+      <div className="card">
+        <h2 style={{ fontSize: "1.1rem", marginBottom: "0.3rem" }}>{t(locale, "settings.changePasswordTitle")}</h2>
+        {passwordSuccess && <div className="alert alert-success" style={{ marginBottom: "1rem" }}>{t(locale, "settings.passwordChanged")}</div>}
+        {passwordError && <div className="alert alert-error" style={{ marginBottom: "1rem" }}>{t(locale, "settings.passwordChangeError")}</div>}
+        <form action={changePasswordAction} className="stack">
           <div className="field">
-            <label htmlFor="displayName">{t(locale, "profile.displayName")}</label>
-            <input type="text" id="displayName" name="displayName" required />
+            <label htmlFor="currentPassword">{t(locale, "settings.currentPassword")}</label>
+            <input type="password" id="currentPassword" name="currentPassword" autoComplete="current-password" required />
           </div>
           <div className="field">
-            <label htmlFor="username">{t(locale, "profile.username")}</label>
-            <input type="text" id="username" name="username" required />
-          </div>
-          <div className="field">
-            <label htmlFor="password">{t(locale, "profile.password")}</label>
-            <input type="password" id="password" name="password" minLength={6} required />
-          </div>
-          <div className="field">
-            <label htmlFor="profileLocale">{t(locale, "profile.locale")}</label>
-            <select id="profileLocale" name="locale" defaultValue={locale}>
-              <option value="de">Deutsch</option>
-              <option value="en">English</option>
-            </select>
+            <label htmlFor="newPassword">{t(locale, "settings.newPassword")}</label>
+            <input type="password" id="newPassword" name="newPassword" autoComplete="new-password" minLength={6} required />
           </div>
           <button type="submit" className="btn-secondary">
-            {t(locale, "profile.submit")}
+            {t(locale, "common.save")}
           </button>
         </form>
       </div>
+
+      {user.role !== "admin" && (
+        <div className="card">
+          <h2 style={{ fontSize: "1.1rem", marginBottom: "0.3rem" }}>{t(locale, "settings.deleteAccountTitle")}</h2>
+          <p style={{ color: "var(--ink-soft)", fontSize: "0.9rem", marginBottom: "1rem" }}>
+            {t(locale, "settings.deleteAccountSubtitle")}
+          </p>
+          <ConfirmSubmitForm
+            action={deleteOwnAccountAction}
+            confirmMessage={t(locale, "settings.deleteAccountConfirm")}
+            hiddenName="confirm"
+            hiddenValue="1"
+            buttonLabel={t(locale, "settings.deleteAccountButton")}
+          />
+        </div>
+      )}
     </>
   );
 }

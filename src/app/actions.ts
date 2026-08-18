@@ -3,13 +3,18 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { destroyCurrentSession, getCurrentUser } from "@/lib/session";
+import { destroyCurrentSession, getCurrentUser, endImpersonation } from "@/lib/session";
 import { LOCALE_COOKIE, isLocale } from "@/lib/i18n";
 import { updateUserLocale } from "@/lib/users";
 
 export async function logoutAction() {
   await destroyCurrentSession();
   redirect("/login");
+}
+
+export async function returnFromImpersonationAction() {
+  await endImpersonation();
+  redirect("/admin");
 }
 
 export async function setLocaleAction(formData: FormData) {

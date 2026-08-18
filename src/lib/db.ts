@@ -9,6 +9,9 @@ CREATE TABLE IF NOT EXISTS users (
   password_hash TEXT NOT NULL,
   display_name TEXT NOT NULL,
   locale TEXT NOT NULL DEFAULT 'de',
+  role TEXT NOT NULL DEFAULT 'user',
+  active INTEGER NOT NULL DEFAULT 1,
+  deleted_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -25,6 +28,7 @@ CREATE TABLE IF NOT EXISTS nodes (
   lat REAL NOT NULL,
   lng REAL NOT NULL,
   is_home INTEGER NOT NULL DEFAULT 0,
+  created_by INTEGER REFERENCES users(id),
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -103,6 +107,33 @@ function runMigrations(db: Database.Database): void {
   const userColumns = db.prepare("PRAGMA table_info(users)").all() as { name: string }[];
   if (!userColumns.some((c) => c.name === "walk_speed_kmh")) {
     db.exec("ALTER TABLE users ADD COLUMN walk_speed_kmh REAL");
+  }
+  if (!userColumns.some((c) => c.name === "role")) {
+    db.exec("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'");
+  }
+  if (!userColumns.some((c) => c.name === "active")) {
+    db.exec("ALTER TABLE users ADD COLUMN active INTEGER NOT NULL DEFAULT 1");
+  }
+  if (!userColumns.some((c) => c.name === "deleted_at")) {
+    db.exec("ALTER TABLE users ADD COLUMN deleted_at TEXT");
+  }
+
+  const nodeColumns = db.prepare("PRAGMA table_info(nodes)").all() as { name: string }[];
+  if (!nodeColumns.some((c) => c.name === "created_by")) {
+    db.exec("ALTER TABLE nodes ADD COLUMN created_by INTEGER REFERENCES users(id)");
+  }
+
+  // One-time promotion: on an already-deployed instance with no admin yet, the
+  // earliest account becomes admin, and any pre-existing nodes/segments with no
+  // owner (created before this feature existed) are attributed to them.
+  const hasAdmin = db.prepare("SELECT 1 FROM users WHERE role = 'admin' LIMIT 1").get();
+  if (!hasAdmin) {
+    const firstUser = db.prepare("SELECT id FROM users ORDER BY id LIMIT 1").get() as { id: number } | undefined;
+    if (firstUser) {
+      db.prepare("UPDATE users SET role = 'admin' WHERE id = ?").run(firstUser.id);
+      db.prepare("UPDATE nodes SET created_by = ? WHERE created_by IS NULL").run(firstUser.id);
+      db.prepare("UPDATE segments SET submitted_by = ? WHERE submitted_by IS NULL").run(firstUser.id);
+    }
   }
 }
 

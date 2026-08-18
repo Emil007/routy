@@ -34,6 +34,7 @@ const bodySchema = z.object({ tracks: z.array(trackSchema).min(1).max(50) });
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const userId = user.id;
 
   const json = await request.json().catch(() => null);
   const parsed = bodySchema.safeParse(json);
@@ -63,7 +64,7 @@ export async function POST(request: Request) {
     }
     const nearby = findNodeCandidates(createdThisBatch, point, settings.merge_radius_m)[0];
     if (nearby) return nearby.id;
-    const created = createNode(endpoint.newName, point);
+    const created = createNode(endpoint.newName, point, false, userId);
     createdThisBatch.push(created);
     return created.id;
   }

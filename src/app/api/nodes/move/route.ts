@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/session";
 import { getNode } from "@/lib/nodes";
 import { moveNode } from "@/lib/segments";
 import { getSettings, effectiveWalkSpeedKmh } from "@/lib/settings";
+import { canEdit } from "@/lib/ownership";
 
 const bodySchema = z.object({ nodeId: z.number().int().positive(), lat: z.number(), lng: z.number() });
 
@@ -17,6 +18,7 @@ export async function POST(request: Request) {
 
   const node = getNode(parsed.data.nodeId);
   if (!node) return NextResponse.json({ error: "not_found" }, { status: 404 });
+  if (!canEdit(user, node.createdBy)) return NextResponse.json({ error: "not_owner" }, { status: 403 });
 
   const settings = getSettings();
   const result = moveNode(

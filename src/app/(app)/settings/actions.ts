@@ -2,12 +2,12 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireUser } from "@/lib/session";
+import { requireUser, requireAdmin, destroyCurrentSession } from "@/lib/session";
 import { updateSettings, SETTINGS_KEYS } from "@/lib/settings";
-import { createUser, findUserByUsername, updateUserWalkSpeed } from "@/lib/users";
+import { updateUserWalkSpeed, changeOwnPassword, setUserActive } from "@/lib/users";
 
 export async function saveSettingsAction(formData: FormData) {
-  await requireUser();
+  await requireAdmin();
   const partial: Record<string, number> = {};
   for (const key of SETTINGS_KEYS) {
     const raw = formData.get(key);
@@ -32,21 +32,21 @@ export async function saveWalkSpeedAction(formData: FormData) {
   revalidatePath("/settings");
 }
 
-export async function createProfileAction(formData: FormData) {
-  await requireUser();
-
-  const username = String(formData.get("username") || "").trim();
-  const password = String(formData.get("password") || "");
-  const displayName = String(formData.get("displayName") || "").trim() || username;
-  const locale = String(formData.get("locale") || "de") === "en" ? "en" : "de";
-
-  if (!username || password.length < 6) {
-    redirect("/settings?profileError=invalid");
+export async function changePasswordAction(formData: FormData) {
+  const user = await requireUser();
+  const currentPassword = String(formData.get("currentPassword") || "");
+  const newPassword = String(formData.get("newPassword") || "");
+  if (newPassword.length < 6) {
+    redirect("/settings?passwordError=1");
   }
-  if (findUserByUsername(username)) {
-    redirect("/settings?profileError=taken");
-  }
+  const ok = changeOwnPassword(user.id, currentPassword, newPassword);
+  redirect(ok ? "/settings?passwordSuccess=1" : "/settings?passwordError=1");
+}
 
-  createUser(username, password, displayName, locale);
-  redirect("/settings?profileSuccess=1");
+export async function deleteOwnAccountAction() {
+  const user = await requireUser();
+  if (user.role === "admin") return;
+  setUserActive(user.id, false);
+  await destroyCurrentSession();
+  redirect("/login");
 }

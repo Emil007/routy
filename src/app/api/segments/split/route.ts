@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/session";
 import { splitSegment, getSegment } from "@/lib/segments";
 import { getSettings, effectiveWalkSpeedKmh } from "@/lib/settings";
 import { segmentUsedByActiveRoute } from "@/lib/activeRoute";
+import { canEdit } from "@/lib/ownership";
 
 const endpointSchema = z.union([
   z.object({ nodeId: z.number().int().positive() }),
@@ -28,7 +29,10 @@ export async function POST(request: Request) {
   // Splitting deletes the original segment (replacing it with two new ones), which
   // would silently corrupt any active route's stored segment_ids if it depends on it.
   const segment = getSegment(parsed.data.segmentId);
-  const relatedIds = segment ? [segment.id, ...(segment.reverseOf !== null ? [segment.reverseOf] : [])] : [parsed.data.segmentId];
+  if (!segment) return NextResponse.json({ error: "not_found" }, { status: 404 });
+  if (!canEdit(user, segment.submittedBy)) return NextResponse.json({ error: "not_owner" }, { status: 403 });
+
+  const relatedIds = [segment.id, ...(segment.reverseOf !== null ? [segment.reverseOf] : [])];
   if (segmentUsedByActiveRoute(relatedIds)) {
     return NextResponse.json({ error: "segment_active" }, { status: 409 });
   }
