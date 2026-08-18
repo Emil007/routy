@@ -112,19 +112,21 @@ export interface WalkLogEntry {
   nodeChain: number[];
   lengthM: number;
   durationMin: number;
+  nickname: string | null;
   acceptedAt: string;
 }
 
 export function getRecentWalks(userId: number, limit = 10): WalkLogEntry[] {
   const rows = db
     .prepare(
-      "SELECT id, node_chain, length_m, duration_min, accepted_at FROM walk_log WHERE user_id = ? ORDER BY accepted_at DESC LIMIT ?",
+      "SELECT id, node_chain, length_m, duration_min, nickname, accepted_at FROM walk_log WHERE user_id = ? ORDER BY accepted_at DESC LIMIT ?",
     )
     .all(userId, limit) as {
     id: number;
     node_chain: string;
     length_m: number;
     duration_min: number;
+    nickname: string | null;
     accepted_at: string;
   }[];
 
@@ -133,7 +135,36 @@ export function getRecentWalks(userId: number, limit = 10): WalkLogEntry[] {
     nodeChain: JSON.parse(r.node_chain) as number[],
     lengthM: r.length_m,
     durationMin: r.duration_min,
+    nickname: r.nickname,
     acceptedAt: r.accepted_at,
+  }));
+}
+
+export interface LeaderboardEntry {
+  userId: number;
+  displayName: string;
+  totalLengthM: number;
+  walkCount: number;
+}
+
+/** Per-profile totals for confirmed walks in the last 7 days, longest distance first. */
+export function getWeeklyLeaderboard(): LeaderboardEntry[] {
+  const rows = db
+    .prepare(
+      `SELECT w.user_id, u.display_name, SUM(w.length_m) AS total_m, COUNT(*) AS walks
+       FROM walk_log w
+       JOIN users u ON u.id = w.user_id
+       WHERE w.accepted_at >= datetime('now', '-7 days')
+       GROUP BY w.user_id
+       ORDER BY total_m DESC`,
+    )
+    .all() as { user_id: number; display_name: string; total_m: number; walks: number }[];
+
+  return rows.map((r) => ({
+    userId: r.user_id,
+    displayName: r.display_name,
+    totalLengthM: r.total_m,
+    walkCount: r.walks,
   }));
 }
 

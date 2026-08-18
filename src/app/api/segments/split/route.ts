@@ -12,7 +12,6 @@ const endpointSchema = z.union([
   z.object({
     part1: z.string().trim().max(255).default(""),
     part2: z.string().trim().max(255).default(""),
-    separator: z.enum(["/", " "]).default("/"),
   }),
 ]);
 
@@ -34,7 +33,7 @@ export async function POST(request: Request) {
   // Splitting deletes the original segment (replacing it with two new ones), which
   // would silently corrupt any active route's stored segment_ids if it depends on it.
   const segment = getSegment(parsed.data.segmentId);
-  if (!segment) return NextResponse.json({ error: "not_found" }, { status: 404 });
+  if (!segment || segment.deletedAt) return NextResponse.json({ error: "not_found" }, { status: 404 });
   if (!canEdit(user, segment.submittedBy)) return NextResponse.json({ error: "not_owner" }, { status: 403 });
 
   const relatedIds = [segment.id, ...(segment.reverseOf !== null ? [segment.reverseOf] : [])];
@@ -47,7 +46,7 @@ export async function POST(request: Request) {
     "nodeId" in endpointInput
       ? endpointInput
       : (() => {
-          const { name, nameParts } = resolveNamePartsInput(endpointInput.part1, endpointInput.part2, endpointInput.separator, user.id);
+          const { name, nameParts } = resolveNamePartsInput(endpointInput.part1, endpointInput.part2, "/", user.id);
           return { newName: name, nameParts };
         })();
 

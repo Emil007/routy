@@ -9,7 +9,6 @@ const bodySchema = z.object({
   nodeId: z.number().int().positive(),
   part1: z.string().trim().max(255).default(""),
   part2: z.string().trim().max(255).default(""),
-  separator: z.enum(["/", " "]).default("/"),
 });
 
 export async function POST(request: Request) {
@@ -21,10 +20,10 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: "invalid_body" }, { status: 400 });
 
   const node = getNode(parsed.data.nodeId);
-  if (!node) return NextResponse.json({ error: "not_found" }, { status: 404 });
+  if (!node || node.deletedAt) return NextResponse.json({ error: "not_found" }, { status: 404 });
   if (!canEdit(user, node.createdBy)) return NextResponse.json({ error: "not_owner" }, { status: 403 });
 
-  const { name, nameParts } = resolveNamePartsInput(parsed.data.part1, parsed.data.part2, parsed.data.separator, user.id);
+  const { name, nameParts } = resolveNamePartsInput(parsed.data.part1, parsed.data.part2, "/", user.id);
   if (!name) return NextResponse.json({ error: "empty_name" }, { status: 400 });
   renameNode(node.id, name, nameParts);
   return NextResponse.json({ ok: true, name });

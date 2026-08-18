@@ -46,6 +46,7 @@ export async function POST(request: Request) {
 
     const usageMap = getUsageMap();
     const dailyMap = getDailyUsageMap();
+    const geometryOf = new Map([...segmentsById].map(([id, s]) => [id, s.geometry]));
     const scored = scoreRoutes(
       candidates,
       pairOf,
@@ -55,6 +56,7 @@ export async function POST(request: Request) {
       state.seenUnion,
       (minValue + maxValue) / 2,
       state.mode,
+      geometryOf,
     );
     return pickBest(scored, state.seenKeys, state.explorerMode);
   }

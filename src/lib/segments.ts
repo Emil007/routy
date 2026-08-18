@@ -15,6 +15,9 @@ export interface SegmentRow {
   reverseOf: number | null;
   submittedBy: number | null;
   name: string | null;
+  deletedAt: string | null;
+  lockedUntil: string | null;
+  lockedReason: string | null;
   createdAt: string;
 }
 
@@ -33,6 +36,9 @@ interface SegmentDbRow {
   reverse_of: number | null;
   submitted_by: number | null;
   name: string | null;
+  deleted_at: string | null;
+  locked_until: string | null;
+  locked_reason: string | null;
   created_at: string;
 }
 
@@ -52,12 +58,26 @@ function mapSegment(row: SegmentDbRow): SegmentRow {
     reverseOf: row.reverse_of,
     submittedBy: row.submitted_by,
     name: row.name,
+    deletedAt: row.deleted_at,
+    lockedUntil: row.locked_until,
+    lockedReason: row.locked_reason,
     createdAt: row.created_at,
   };
 }
 
+/** True while `locked_until` is set and still in the future — excluded from new-route rotation until then. */
+export function isSegmentLocked(segment: Pick<SegmentRow, "lockedUntil">): boolean {
+  return segment.lockedUntil !== null && segment.lockedUntil > new Date().toISOString();
+}
+
 export function listSegments(): SegmentRow[] {
-  const rows = db.prepare("SELECT * FROM segments ORDER BY id").all() as SegmentDbRow[];
+  const rows = db.prepare("SELECT * FROM segments WHERE active = 1 ORDER BY id").all() as SegmentDbRow[];
+  return rows.map(mapSegment);
+}
+
+/** Soft-deleted segments, most recently deleted first — for the trash/restore UI. */
+export function listDeletedSegments(): SegmentRow[] {
+  const rows = db.prepare("SELECT * FROM segments WHERE active = 0 ORDER BY deleted_at DESC").all() as SegmentDbRow[];
   return rows.map(mapSegment);
 }
 
@@ -85,6 +105,31 @@ export function renameSegment(segmentId: number, name: string | null): void {
   if (segment.reverseOf !== null) {
     db.prepare("UPDATE segments SET name = ? WHERE id = ?").run(name, segment.reverseOf);
   }
+}
+
+/** Excludes a physical path from new-route generation until `until` (ISO datetime) — e.g. overgrown, construction. Applies to both rows of the pair. */
+export function lockSegment(segmentId: number, until: string, reason: string | null): void {
+  const segment = getSegment(segmentId);
+  if (!segment) return;
+  const tx = db.transaction(() => {
+    db.prepare("UPDATE segments SET locked_until = ?, locked_reason = ? WHERE id = ?").run(until, reason, segment.id);
+    if (segment.reverseOf !== null) {
+      db.prepare("UPDATE segments SET locked_until = ?, locked_reason = ? WHERE id = ?").run(until, reason, segment.reverseOf);
+    }
+  });
+  tx();
+}
+
+export function unlockSegment(segmentId: number): void {
+  const segment = getSegment(segmentId);
+  if (!segment) return;
+  const tx = db.transaction(() => {
+    db.prepare("UPDATE segments SET locked_until = NULL, locked_reason = NULL WHERE id = ?").run(segment.id);
+    if (segment.reverseOf !== null) {
+      db.prepare("UPDATE segments SET locked_until = NULL, locked_reason = NULL WHERE id = ?").run(segment.reverseOf);
+    }
+  });
+  tx();
 }
 
 /** Other canonical segments connecting the exact same two nodes (either direction) — the "which one did I mean" case. */
@@ -199,11 +244,18 @@ export function getDailyUsageMap(): Map<number, number> {
   return map;
 }
 
-export function recordWalk(userId: number, nodeChain: number[], segmentIds: number[], lengthM: number, durationMin: number): void {
+export function recordWalk(
+  userId: number,
+  nodeChain: number[],
+  segmentIds: number[],
+  lengthM: number,
+  durationMin: number,
+  nickname: string | null = null,
+): void {
   const tx = db.transaction(() => {
     db.prepare(
-      "INSERT INTO walk_log (user_id, node_chain, segment_ids, length_m, duration_min) VALUES (?, ?, ?, ?, ?)",
-    ).run(userId, JSON.stringify(nodeChain), JSON.stringify(segmentIds), lengthM, durationMin);
+      "INSERT INTO walk_log (user_id, node_chain, segment_ids, length_m, duration_min, nickname) VALUES (?, ?, ?, ?, ?, ?)",
+    ).run(userId, JSON.stringify(nodeChain), JSON.stringify(segmentIds), lengthM, durationMin, nickname);
 
     const bump = db.prepare(
       "UPDATE segment_usage SET usage_count = usage_count + 1, last_used_at = datetime('now') WHERE segment_id = ?",
@@ -213,12 +265,37 @@ export function recordWalk(userId: number, nodeChain: number[], segmentIds: numb
   tx();
 }
 
+/** Soft-deletes a segment and its reverse counterpart together — reversible via `restoreSegment`. */
+export function deleteSegment(id: number): void {
+  const segment = getSegment(id);
+  if (!segment) return;
+  const tx = db.transaction(() => {
+    db.prepare("UPDATE segments SET active = 0, deleted_at = datetime('now') WHERE id = ?").run(segment.id);
+    if (segment.reverseOf !== null) {
+      db.prepare("UPDATE segments SET active = 0, deleted_at = datetime('now') WHERE id = ?").run(segment.reverseOf);
+    }
+  });
+  tx();
+}
+
+export function restoreSegment(id: number): void {
+  const segment = getSegment(id);
+  if (!segment) return;
+  const tx = db.transaction(() => {
+    db.prepare("UPDATE segments SET active = 1, deleted_at = NULL WHERE id = ?").run(segment.id);
+    if (segment.reverseOf !== null) {
+      db.prepare("UPDATE segments SET active = 1, deleted_at = NULL WHERE id = ?").run(segment.reverseOf);
+    }
+  });
+  tx();
+}
+
 /**
- * Deletes a segment. Because the forward/reverse pair reference each other via
+ * Irreversible. Because the forward/reverse pair reference each other via
  * `reverse_of` (both `ON DELETE CASCADE`), deleting either row automatically
  * deletes its counterpart and both `segment_usage` rows.
  */
-export function deleteSegment(id: number): void {
+export function purgeSegment(id: number): void {
   db.prepare("DELETE FROM segments WHERE id = ?").run(id);
 }
 

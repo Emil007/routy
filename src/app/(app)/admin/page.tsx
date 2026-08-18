@@ -4,6 +4,8 @@ import { resolveLocale } from "@/lib/locale";
 import { t, LOCALES, LOCALE_LABELS } from "@/lib/i18n";
 import { listAllUsers } from "@/lib/users";
 import { ConfirmSubmitForm } from "@/components/ConfirmSubmitForm";
+import { UpdateBanner } from "@/components/UpdateBanner";
+import { checkForUpdate, isUpdateAvailable } from "@/lib/updateCheck";
 import { createUserAction, toggleActiveAction, deleteUserAction, impersonateAction } from "./actions";
 
 export default async function AdminPage({
@@ -15,6 +17,7 @@ export default async function AdminPage({
   const locale = await resolveLocale(admin.locale);
   const { error, edited } = await searchParams;
   const users = listAllUsers();
+  const update = await checkForUpdate();
 
   function statusLabel(u: (typeof users)[number]): string {
     if (u.deletedAt) return t(locale, "admin.statusDeleted");
@@ -27,7 +30,19 @@ export default async function AdminPage({
       <div className="page-heading">
         <h1>{t(locale, "admin.title")}</h1>
         <p>{t(locale, "admin.subtitle")}</p>
+        <p>
+          <Link href="/admin/activity">{t(locale, "admin.activityHeading")}</Link>
+        </p>
       </div>
+
+      {update && isUpdateAvailable(update.latestVersion) && (
+        <UpdateBanner
+          latestVersion={update.latestVersion}
+          url={update.url}
+          message={t(locale, "admin.updateAvailable")}
+          dismissLabel={t(locale, "admin.updateDismiss")}
+        />
+      )}
 
       {edited && <div className="alert alert-success">{t(locale, "admin.userUpdated")}</div>}
       {error === "taken" && <div className="alert alert-error">{t(locale, "profile.usernameTaken")}</div>}
@@ -124,6 +139,14 @@ export default async function AdminPage({
             {t(locale, "profile.submit")}
           </button>
         </form>
+      </div>
+
+      <div className="card">
+        <h2 style={{ fontSize: "1.1rem", marginBottom: "0.3rem" }}>{t(locale, "admin.backupHeading")}</h2>
+        <p style={{ marginBottom: "0.8rem" }}>{t(locale, "admin.backupDesc")}</p>
+        <a href="/api/admin/backup" className="btn-secondary">
+          {t(locale, "admin.backupButton")}
+        </a>
       </div>
     </>
   );

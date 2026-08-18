@@ -17,7 +17,7 @@ export async function POST(request: Request) {
   if (!parsed.success) return NextResponse.json({ error: "invalid_body" }, { status: 400 });
 
   const node = getNode(parsed.data.nodeId);
-  if (!node) return NextResponse.json({ error: "not_found" }, { status: 404 });
+  if (!node || node.deletedAt) return NextResponse.json({ error: "not_found" }, { status: 404 });
   if (!canEdit(user, node.createdBy)) return NextResponse.json({ error: "not_owner" }, { status: 403 });
 
   const settings = getSettings();

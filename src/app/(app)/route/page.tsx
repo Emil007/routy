@@ -24,6 +24,7 @@ export default async function RoutePage() {
   const favorites = listFavorites(user.id).map((f) => ({
     id: f.id,
     name: f.name,
+    shareToken: f.shareToken,
     display: buildRouteDisplay(f.nodeChain, f.segmentIds, f.lengthM, f.durationMin, nodesById, segmentsById),
   }));
 
@@ -42,6 +43,7 @@ export default async function RoutePage() {
           nodes={nodes}
           homeNodeId={home?.id ?? null}
           initialActiveRoute={activeDisplay}
+          initialNickname={active?.nickname ?? null}
           favorites={favorites}
         />
       )}

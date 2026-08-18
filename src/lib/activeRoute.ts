@@ -6,6 +6,7 @@ export interface ActiveRouteRow {
   segmentIds: number[];
   lengthM: number;
   durationMin: number;
+  nickname: string | null;
   acceptedAt: string;
 }
 
@@ -15,6 +16,7 @@ interface ActiveRouteDbRow {
   segment_ids: string;
   length_m: number;
   duration_min: number;
+  nickname: string | null;
   accepted_at: string;
 }
 
@@ -25,6 +27,7 @@ function mapRow(row: ActiveRouteDbRow): ActiveRouteRow {
     segmentIds: JSON.parse(row.segment_ids) as number[],
     lengthM: row.length_m,
     durationMin: row.duration_min,
+    nickname: row.nickname,
     acceptedAt: row.accepted_at,
   };
 }
@@ -39,15 +42,22 @@ export function setActiveRoute(
   route: { nodeChain: number[]; segmentIds: number[]; lengthM: number; durationMin: number },
 ): void {
   db.prepare(
-    `INSERT INTO active_route (user_id, node_chain, segment_ids, length_m, duration_min)
-     VALUES (?, ?, ?, ?, ?)
+    `INSERT INTO active_route (user_id, node_chain, segment_ids, length_m, duration_min, nickname)
+     VALUES (?, ?, ?, ?, ?, NULL)
      ON CONFLICT(user_id) DO UPDATE SET
        node_chain = excluded.node_chain,
        segment_ids = excluded.segment_ids,
        length_m = excluded.length_m,
        duration_min = excluded.duration_min,
+       nickname = NULL,
        accepted_at = datetime('now')`,
   ).run(userId, JSON.stringify(route.nodeChain), JSON.stringify(route.segmentIds), route.lengthM, route.durationMin);
+}
+
+/** Names the currently active route (e.g. "Sonntagsrunde mit Oma") — purely a label,
+ * shown in the active-route view and carried over into walk history on completion. */
+export function setActiveRouteNickname(userId: number, nickname: string | null): void {
+  db.prepare("UPDATE active_route SET nickname = ? WHERE user_id = ?").run(nickname, userId);
 }
 
 export function clearActiveRoute(userId: number): void {

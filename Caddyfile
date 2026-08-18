@@ -1,10 +1,8 @@
-# Only used when Routy's docker-compose "ssl" profile is enabled
-# (docker compose --profile ssl up -d). Replace the placeholder below with
-# your own domain — it must already point (A/AAAA record) at this server's
-# public IP so Let's Encrypt can verify it over port 80. That's the only
-# change needed; Caddy takes care of obtaining and renewing the certificate
-# automatically.
+# Only used when the "caddy" service in docker-compose.yml is uncommented.
+# Domain is set there via the DOMAIN environment variable — nothing to edit
+# in this file. Caddy takes care of obtaining and renewing the Let's Encrypt
+# certificate automatically.
 
-your-domain.example.com {
+{$DOMAIN} {
 	reverse_proxy routy:3000
 }

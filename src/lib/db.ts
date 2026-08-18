@@ -39,6 +39,8 @@ CREATE TABLE IF NOT EXISTS nodes (
   name_part_1_id INTEGER REFERENCES name_parts(id),
   name_part_2_id INTEGER REFERENCES name_parts(id),
   name_separator TEXT NOT NULL DEFAULT '/',
+  active INTEGER NOT NULL DEFAULT 1,
+  deleted_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -57,6 +59,10 @@ CREATE TABLE IF NOT EXISTS segments (
   reverse_of INTEGER REFERENCES segments(id) ON DELETE CASCADE,
   submitted_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
   name TEXT,
+  active INTEGER NOT NULL DEFAULT 1,
+  deleted_at TEXT,
+  locked_until TEXT,
+  locked_reason TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -76,6 +82,7 @@ CREATE TABLE IF NOT EXISTS walk_log (
   segment_ids TEXT NOT NULL,
   length_m INTEGER NOT NULL,
   duration_min INTEGER NOT NULL,
+  nickname TEXT,
   accepted_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -96,6 +103,7 @@ CREATE TABLE IF NOT EXISTS active_route (
   segment_ids TEXT NOT NULL,
   length_m INTEGER NOT NULL,
   duration_min INTEGER NOT NULL,
+  nickname TEXT,
   accepted_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -107,10 +115,23 @@ CREATE TABLE IF NOT EXISTS favorite_route (
   segment_ids TEXT NOT NULL,
   length_m INTEGER NOT NULL,
   duration_min INTEGER NOT NULL,
+  share_token TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_favorite_route_user ON favorite_route(user_id);
+
+CREATE TABLE IF NOT EXISTS activity_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  action TEXT NOT NULL,
+  entity_type TEXT NOT NULL,
+  entity_id INTEGER,
+  details TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_activity_log_created_at ON activity_log(created_at);
 `;
 
 /** Column additions to already-deployed tables — CREATE TABLE IF NOT EXISTS above only covers fresh installs. */
@@ -145,11 +166,45 @@ function runMigrations(db: Database.Database): void {
   if (!nodeColumns.some((c) => c.name === "name_separator")) {
     db.exec("ALTER TABLE nodes ADD COLUMN name_separator TEXT NOT NULL DEFAULT '/'");
   }
+  if (!nodeColumns.some((c) => c.name === "active")) {
+    db.exec("ALTER TABLE nodes ADD COLUMN active INTEGER NOT NULL DEFAULT 1");
+  }
+  if (!nodeColumns.some((c) => c.name === "deleted_at")) {
+    db.exec("ALTER TABLE nodes ADD COLUMN deleted_at TEXT");
+  }
 
   const segmentColumns = db.prepare("PRAGMA table_info(segments)").all() as { name: string }[];
   if (!segmentColumns.some((c) => c.name === "name")) {
     db.exec("ALTER TABLE segments ADD COLUMN name TEXT");
   }
+  if (!segmentColumns.some((c) => c.name === "active")) {
+    db.exec("ALTER TABLE segments ADD COLUMN active INTEGER NOT NULL DEFAULT 1");
+  }
+  if (!segmentColumns.some((c) => c.name === "deleted_at")) {
+    db.exec("ALTER TABLE segments ADD COLUMN deleted_at TEXT");
+  }
+  if (!segmentColumns.some((c) => c.name === "locked_until")) {
+    db.exec("ALTER TABLE segments ADD COLUMN locked_until TEXT");
+  }
+  if (!segmentColumns.some((c) => c.name === "locked_reason")) {
+    db.exec("ALTER TABLE segments ADD COLUMN locked_reason TEXT");
+  }
+
+  const activeRouteColumns = db.prepare("PRAGMA table_info(active_route)").all() as { name: string }[];
+  if (!activeRouteColumns.some((c) => c.name === "nickname")) {
+    db.exec("ALTER TABLE active_route ADD COLUMN nickname TEXT");
+  }
+
+  const walkLogColumns = db.prepare("PRAGMA table_info(walk_log)").all() as { name: string }[];
+  if (!walkLogColumns.some((c) => c.name === "nickname")) {
+    db.exec("ALTER TABLE walk_log ADD COLUMN nickname TEXT");
+  }
+
+  const favoriteRouteColumns = db.prepare("PRAGMA table_info(favorite_route)").all() as { name: string }[];
+  if (!favoriteRouteColumns.some((c) => c.name === "share_token")) {
+    db.exec("ALTER TABLE favorite_route ADD COLUMN share_token TEXT");
+  }
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_favorite_route_share_token ON favorite_route(share_token)");
 
   // One-time promotion: on an already-deployed instance with no admin yet, the
   // earliest account becomes admin, and any pre-existing nodes/segments with no

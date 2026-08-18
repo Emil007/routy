@@ -30,7 +30,6 @@ export function NodePopup({
   const [renaming, setRenaming] = useState(false);
   const [part1, setPart1] = useState(node.namePart1Text ?? node.name ?? "");
   const [part2, setPart2] = useState(node.namePart2Text ?? "");
-  const [separator, setSeparator] = useState<"/" | " ">(node.nameSeparator === " " ? " " : "/");
   const [status, setStatus] = useState<"idle" | "saving" | "error">("idle");
 
   async function saveRename() {
@@ -38,7 +37,7 @@ export function NodePopup({
     const res = await fetch("/api/nodes/rename", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nodeId: node.id, part1, part2, separator }),
+      body: JSON.stringify({ nodeId: node.id, part1, part2 }),
     });
     if (res.ok) {
       setRenaming(false);
@@ -80,10 +79,8 @@ export function NodePopup({
               point={{ lat: node.lat, lng: node.lng }}
               part1={part1}
               part2={part2}
-              separator={separator}
               onPart1={setPart1}
               onPart2={setPart2}
-              onSeparator={setSeparator}
             />
             <div className="btn-row">
               <button type="button" className="btn-primary" onClick={saveRename} disabled={status === "saving" || !part1.trim()}>

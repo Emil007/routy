@@ -57,6 +57,8 @@ export interface MapLine {
   points: [number, number][];
   color?: string;
   weight?: number;
+  /** Dashed stroke — used to mark a path as temporarily locked out of route rotation. */
+  dashed?: boolean;
   /** Rendered inside a real Leaflet Popup opened at the click position along this line. */
   popup?: ReactNode;
 }
@@ -111,6 +113,22 @@ function ClickHandler({ onMapClick }: { onMapClick: (lat: number, lng: number) =
   return null;
 }
 
+export interface MapViewState {
+  center: [number, number];
+  zoom: number;
+}
+
+/** Reports the current center/zoom on every pan/zoom — lets a parent remember the view
+ * across remounts (e.g. switching between the Übersicht's view/draw/edit modes, each of
+ * which mounts its own MapContainer) instead of resetting to the default fit every time. */
+function ViewTracker({ onViewChange }: { onViewChange: (view: MapViewState) => void }) {
+  const map = useMapEvents({
+    moveend: () => onViewChange({ center: [map.getCenter().lat, map.getCenter().lng], zoom: map.getZoom() }),
+    zoomend: () => onViewChange({ center: [map.getCenter().lat, map.getCenter().lng], zoom: map.getZoom() }),
+  });
+  return null;
+}
+
 export function MapView({
   markers = [],
   lines = [],
@@ -122,6 +140,8 @@ export function MapView({
   onLineClick,
   autoFit = true,
   fitKey,
+  initialView,
+  onViewChange,
   className,
 }: {
   markers?: MapMarker[];
@@ -140,9 +160,16 @@ export function MapView({
   autoFit?: boolean;
   /** Bump this (e.g. to a route token) when a genuinely new dataset should trigger a refit. */
   fitKey?: string | number;
+  /** Restore a previously-tracked center/zoom instead of the default fit-to-content —
+   * for a parent that remounts this map across mode switches and wants continuity. */
+  initialView?: MapViewState;
+  /** Fired on every pan/zoom with the current view, so a parent can pass it back in as
+   * `initialView` next time this map (or a sibling one) mounts. */
+  onViewChange?: (view: MapViewState) => void;
   className?: string;
 }) {
   const defaultCenter = useMemo<[number, number]>(() => {
+    if (initialView) return initialView.center;
     if (markers[0]) return [markers[0].lat, markers[0].lng];
     if (lines[0]?.points[0]) return lines[0].points[0];
     return [51.1657, 10.4515]; // Germany, fallback
@@ -151,7 +178,14 @@ export function MapView({
 
   return (
     <div className={`map-box ${className ?? ""}`} style={{ height }}>
-      <MapContainer center={defaultCenter} zoom={14} style={{ width: "100%", height: "100%" }} scrollWheelZoom>
+      <MapContainer
+        center={defaultCenter}
+        zoom={initialView?.zoom ?? 14}
+        style={{ width: "100%", height: "100%" }}
+        scrollWheelZoom
+        closePopupOnClick={false}
+      >
+        {onViewChange && <ViewTracker onViewChange={onViewChange} />}
         <LayersControl position="topright">
           {TILE_LAYERS.map((layer, idx) => (
             <LayersControl.BaseLayer key={layer.id} name={layer.name} checked={idx === 0}>
@@ -170,6 +204,7 @@ export function MapView({
             positions={line.points}
             color={line.color ?? "#2e6b49"}
             weight={line.weight ?? 4}
+            dashArray={line.dashed ? "8 8" : undefined}
             eventHandlers={onLineClick ? { click: (e) => onLineClick(line.id, e.latlng.lat, e.latlng.lng) } : undefined}
           >
             {line.popup && <Popup>{line.popup}</Popup>}
@@ -205,7 +240,7 @@ export function MapView({
             {marker.popup && <Popup>{marker.popup}</Popup>}
           </Marker>
         ))}
-        {autoFit && <FitBounds markers={markers} lines={lines} fitKey={fitKey} />}
+        {autoFit && !initialView && <FitBounds markers={markers} lines={lines} fitKey={fitKey} />}
         {onMapClick && <ClickHandler onMapClick={onMapClick} />}
       </MapContainer>
     </div>

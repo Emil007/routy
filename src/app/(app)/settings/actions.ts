@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireUser, requireAdmin, destroyCurrentSession } from "@/lib/session";
+import { requireUser, requireAdmin, destroyCurrentSession, destroyOtherSessions } from "@/lib/session";
 import { updateSettings, SETTINGS_KEYS } from "@/lib/settings";
 import { updateUserWalkSpeed, changeOwnPassword, setUserActive } from "@/lib/users";
 
@@ -41,6 +41,12 @@ export async function changePasswordAction(formData: FormData) {
   }
   const ok = changeOwnPassword(user.id, currentPassword, newPassword);
   redirect(ok ? "/settings?passwordSuccess=1" : "/settings?passwordError=1");
+}
+
+export async function logoutEverywhereAction() {
+  const user = await requireUser();
+  await destroyOtherSessions(user.id);
+  redirect("/settings?loggedOutEverywhere=1");
 }
 
 export async function deleteOwnAccountAction() {

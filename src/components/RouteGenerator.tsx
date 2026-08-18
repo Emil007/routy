@@ -1,10 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { t, type Locale } from "@/lib/i18n";
+import { haversineMeters, bearing, compassDirection } from "@/lib/geo";
 import { MapViewLazy } from "./MapViewLazy";
 import type { NodeRow } from "@/lib/nodes";
+
+const VOICE_ANNOUNCE_RADIUS_M = 50;
 
 interface RouteStation {
   nodeId: number;
@@ -37,6 +40,7 @@ interface GenerateResponse {
 interface FavoriteEntry {
   id: number;
   name: string;
+  shareToken: string | null;
   display: RouteDisplayPayload;
 }
 
@@ -45,12 +49,14 @@ export function RouteGenerator({
   nodes,
   homeNodeId,
   initialActiveRoute,
+  initialNickname,
   favorites,
 }: {
   locale: Locale;
   nodes: NodeRow[];
   homeNodeId: number | null;
   initialActiveRoute: RouteDisplayPayload | null;
+  initialNickname: string | null;
   favorites: FavoriteEntry[];
 }) {
   const router = useRouter();
@@ -69,8 +75,42 @@ export function RouteGenerator({
   const [favoriteName, setFavoriteName] = useState("");
   const [savingFavorite, setSavingFavorite] = useState(false);
 
+  const [nickname, setNickname] = useState(initialNickname ?? "");
+  const [nicknameStatus, setNicknameStatus] = useState<"idle" | "saving">("idle");
+
   const [myLocation, setMyLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [watchId, setWatchId] = useState<number | null>(null);
+  const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const announcedStationIndexRef = useRef(0);
+
+  useEffect(() => {
+    if (!voiceEnabled || mode !== "active" || !myLocation || !result) return;
+    const stations = result.route.stations;
+    const idx = announcedStationIndexRef.current;
+    if (idx >= stations.length) return;
+    const station = stations[idx];
+    const distance = haversineMeters(myLocation, { lat: station.lat, lng: station.lng });
+    if (distance <= VOICE_ANNOUNCE_RADIUS_M) {
+      announcedStationIndexRef.current = idx + 1;
+      if (typeof window !== "undefined" && "speechSynthesis" in window) {
+        const here = station.name || t(locale, "route.station");
+        const next = stations[idx + 1];
+        // On arrival, the useful thing to say is what's coming up next (and which
+        // way), not that you've reached the station you're already standing at.
+        const text = next
+          ? t(locale, "route.voiceArrivedNext", {
+              here,
+              next: next.name || t(locale, "route.station"),
+              direction: t(locale, `route.compass${compassDirection(bearing(station, next))}`),
+            })
+          : t(locale, "route.voiceArrivedFinal", { here });
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = locale === "de" ? "de-DE" : "en-US";
+        window.speechSynthesis.speak(utterance);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myLocation, voiceEnabled, mode]);
 
   useEffect(() => {
     return () => {
@@ -107,8 +147,7 @@ export function RouteGenerator({
     setWatchId(id);
   }
 
-  async function handleSuggest(e: React.FormEvent) {
-    e.preventDefault();
+  async function suggest(preset?: "short" | "long") {
     if (!startNodeId) return;
     setStatus("loading");
     setMessage(null);
@@ -117,6 +156,7 @@ export function RouteGenerator({
       destinationNodeId: isLoop ? startNodeId : destinationNodeId || startNodeId,
       waypointNodeId: waypointNodeId || null,
       explorerMode,
+      preset,
     });
     if (res.ok) {
       const data = (await res.json()) as GenerateResponse;
@@ -127,6 +167,11 @@ export function RouteGenerator({
       setStatus("error");
       setMessage(t(locale, "route.noRouteFound"));
     }
+  }
+
+  async function handleSuggest(e: React.FormEvent) {
+    e.preventDefault();
+    await suggest();
   }
 
   async function handleAnother() {
@@ -167,10 +212,19 @@ export function RouteGenerator({
       setMode("active");
       setStatus("idle");
       setMessage(null);
+      setNickname("");
+      announcedStationIndexRef.current = 0;
     } else {
       setStatus("idle");
       setMessage(t(locale, "route.sessionExpired"));
     }
+  }
+
+  async function saveNickname() {
+    setNicknameStatus("saving");
+    const res = await callApi("/api/route/nickname", { nickname });
+    setNicknameStatus("idle");
+    if (res.ok) router.refresh();
   }
 
   async function handleCancel() {
@@ -188,11 +242,13 @@ export function RouteGenerator({
       setMode("suggesting");
       setStatus("idle");
       setMessage(t(locale, "route.completedMessage"));
+      setNickname("");
       if (watchId !== null) {
         navigator.geolocation.clearWatch(watchId);
         setWatchId(null);
         setMyLocation(null);
       }
+      if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
     } else {
       setStatus("idle");
       setMessage(t(locale, "common.error"));
@@ -225,6 +281,8 @@ export function RouteGenerator({
       setMode("active");
       setStatus("idle");
       setMessage(null);
+      setNickname("");
+      announcedStationIndexRef.current = 0;
     } else {
       const body = (await res.json().catch(() => null)) as { error?: string } | null;
       setStatus("idle");
@@ -238,6 +296,17 @@ export function RouteGenerator({
     router.refresh();
   }
 
+  async function handleToggleShare(fav: FavoriteEntry) {
+    const res = await callApi(`/api/favorites/${fav.id}/share`, { enable: !fav.shareToken });
+    if (!res.ok) return;
+    const data = (await res.json()) as { shareToken: string | null };
+    if (data.shareToken) {
+      await navigator.clipboard.writeText(`${window.location.origin}/share/${data.shareToken}`);
+      setMessage(t(locale, "route.favoriteShareCopied"));
+    }
+    router.refresh();
+  }
+
   async function handleDiscardActive() {
     if (!window.confirm(t(locale, "route.discardConfirm"))) return;
     setStatus("loading");
@@ -246,11 +315,13 @@ export function RouteGenerator({
     setMode("suggesting");
     setStatus("idle");
     setMessage(null);
+    setNickname("");
     if (watchId !== null) {
       navigator.geolocation.clearWatch(watchId);
       setWatchId(null);
       setMyLocation(null);
     }
+    if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
   }
 
   return (
@@ -266,6 +337,9 @@ export function RouteGenerator({
                 </span>
                 <button type="button" className="btn-secondary" onClick={() => handleTakeFavorite(fav)} disabled={status === "loading"}>
                   {t(locale, "route.favoriteTake")}
+                </button>
+                <button type="button" className="btn-secondary" onClick={() => handleToggleShare(fav)}>
+                  {fav.shareToken ? t(locale, "route.favoriteUnshare") : t(locale, "route.favoriteShare")}
                 </button>
                 <button type="button" className="btn-danger" onClick={() => handleDeleteFavorite(fav.id)}>
                   {t(locale, "map.delete")}
@@ -341,14 +415,48 @@ export function RouteGenerator({
               {t(locale, "route.explorerModeHint")}
             </p>
 
-            <button type="submit" className="btn-primary" disabled={status === "loading" || !startNodeId}>
-              {status === "loading" ? t(locale, "route.generating") : t(locale, "route.suggest")}
-            </button>
+            <div className="btn-row">
+              <button type="submit" className="btn-primary" disabled={status === "loading" || !startNodeId}>
+                {status === "loading" ? t(locale, "route.generating") : t(locale, "route.suggest")}
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={status === "loading" || !startNodeId}
+                onClick={() => suggest("short")}
+              >
+                {t(locale, "route.presetShort")}
+              </button>
+              <button
+                type="button"
+                className="btn-secondary"
+                disabled={status === "loading" || !startNodeId}
+                onClick={() => suggest("long")}
+              >
+                {t(locale, "route.presetLong")}
+              </button>
+            </div>
           </form>
         </div>
       )}
 
       {mode === "active" && <div className="alert alert-success">{t(locale, "route.activeNotice")}</div>}
+
+      {mode === "active" && (
+        <div className="btn-row" style={{ alignItems: "center" }}>
+          <input
+            type="text"
+            value={nickname}
+            onChange={(e) => setNickname(e.target.value)}
+            onBlur={saveNickname}
+            placeholder={t(locale, "route.nicknamePlaceholder")}
+            style={{ maxWidth: "16rem" }}
+          />
+          <button type="button" className="btn-secondary" onClick={saveNickname} disabled={nicknameStatus === "saving"}>
+            {t(locale, "common.save")}
+          </button>
+        </div>
+      )}
 
       {message && <div className="alert alert-success">{message}</div>}
 
@@ -436,6 +544,14 @@ export function RouteGenerator({
               <>
                 <button type="button" className={watchId !== null ? "btn-primary" : "btn-secondary"} onClick={toggleLocation}>
                   {watchId !== null ? t(locale, "route.hideLocation") : t(locale, "route.showLocation")}
+                </button>
+                <button
+                  type="button"
+                  className={voiceEnabled ? "btn-primary" : "btn-secondary"}
+                  onClick={() => setVoiceEnabled((v) => !v)}
+                  title={t(locale, "route.voiceHint")}
+                >
+                  {voiceEnabled ? t(locale, "route.voiceOff") : t(locale, "route.voiceOn")}
                 </button>
                 <button type="button" className="btn-primary" onClick={handleComplete} disabled={status === "loading"}>
                   {t(locale, "route.completeButton")}

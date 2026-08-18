@@ -1,12 +1,13 @@
 import { requireUser } from "@/lib/session";
 import { resolveLocale } from "@/lib/locale";
 import { t } from "@/lib/i18n";
-import { listNodes } from "@/lib/nodes";
-import { listSegments, getUsageMap, isCanonicalSegment } from "@/lib/segments";
+import { listNodes, listDeletedNodes } from "@/lib/nodes";
+import { listSegments, listDeletedSegments, getUsageMap, isCanonicalSegment } from "@/lib/segments";
 import { listAllUsers } from "@/lib/users";
 import { getSettings, effectiveWalkSpeedKmh } from "@/lib/settings";
 import { OverviewMapClient } from "./OverviewMapClient";
 import { SegmentsTable } from "./SegmentsTable";
+import { TrashPanel } from "./TrashPanel";
 
 export default async function MapPage({
   searchParams,
@@ -22,6 +23,11 @@ export default async function MapPage({
   const canonicalSegments = segments.filter(isCanonicalSegment);
   const userNames = new Map(listAllUsers().map((u) => [u.id, u.displayName]));
   const settings = getSettings();
+
+  const deletedNodes = listDeletedNodes().filter((n) => user.role === "admin" || n.createdBy === user.id);
+  const deletedSegments = listDeletedSegments()
+    .filter(isCanonicalSegment)
+    .filter((s) => user.role === "admin" || s.submittedBy === user.id);
 
   const segmentCounts: Record<number, number> = {};
   for (const s of canonicalSegments) {
@@ -63,6 +69,8 @@ export default async function MapPage({
           currentUser={{ id: user.id, role: user.role }}
         />
       </details>
+
+      <TrashPanel locale={locale} deletedNodes={deletedNodes} deletedSegments={deletedSegments} />
     </>
   );
 }

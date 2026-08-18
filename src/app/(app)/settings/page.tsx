@@ -5,7 +5,13 @@ import { getSettings, SETTINGS_KEYS, type Settings } from "@/lib/settings";
 import { LocaleSelectForm } from "@/components/LocaleSelectForm";
 import { ThemeSelectForm } from "@/components/ThemeSelectForm";
 import { ConfirmSubmitForm } from "@/components/ConfirmSubmitForm";
-import { saveSettingsAction, saveWalkSpeedAction, changePasswordAction, deleteOwnAccountAction } from "./actions";
+import {
+  saveSettingsAction,
+  saveWalkSpeedAction,
+  changePasswordAction,
+  logoutEverywhereAction,
+  deleteOwnAccountAction,
+} from "./actions";
 
 const STEP: Partial<Record<keyof Settings, number>> = {
   daily_diversity_weight: 0.5,
@@ -18,12 +24,12 @@ const STEP: Partial<Record<keyof Settings, number>> = {
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ passwordError?: string; passwordSuccess?: string }>;
+  searchParams: Promise<{ passwordError?: string; passwordSuccess?: string; loggedOutEverywhere?: string }>;
 }) {
   const user = await requireUser();
   const locale = await resolveLocale(user.locale);
   const settings = getSettings();
-  const { passwordError, passwordSuccess } = await searchParams;
+  const { passwordError, passwordSuccess, loggedOutEverywhere } = await searchParams;
 
   return (
     <>
@@ -110,6 +116,21 @@ export default async function SettingsPage({
           </div>
           <button type="submit" className="btn-secondary">
             {t(locale, "common.save")}
+          </button>
+        </form>
+      </div>
+
+      <div className="card">
+        <h2 style={{ fontSize: "1.1rem", marginBottom: "0.3rem" }}>{t(locale, "settings.logoutEverywhereTitle")}</h2>
+        <p style={{ color: "var(--ink-soft)", fontSize: "0.9rem", marginBottom: "1rem" }}>
+          {t(locale, "settings.logoutEverywhereSubtitle")}
+        </p>
+        {loggedOutEverywhere && (
+          <div className="alert alert-success" style={{ marginBottom: "1rem" }}>{t(locale, "settings.loggedOutEverywhere")}</div>
+        )}
+        <form action={logoutEverywhereAction}>
+          <button type="submit" className="btn-secondary">
+            {t(locale, "settings.logoutEverywhereButton")}
           </button>
         </form>
       </div>

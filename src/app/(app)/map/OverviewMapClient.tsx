@@ -8,13 +8,20 @@ import { NodePopup } from "@/components/NodePopup";
 import { SegmentPopup } from "@/components/SegmentPopup";
 import { DrawPathWizard } from "@/components/DrawPathWizard";
 import { GpxImportWizard } from "@/components/GpxImportWizard";
+import { RecordTrackWizard } from "@/components/RecordTrackWizard";
 import { SegmentGeometryEditor } from "@/components/SegmentGeometryEditor";
-import type { MapMarker, MapLine } from "@/components/MapView";
+import type { MapMarker, MapLine, MapViewState } from "@/components/MapView";
 import type { NodeRow } from "@/lib/nodes";
 import type { SegmentRow } from "@/lib/segments";
 import { canEdit } from "@/lib/ownership";
 
-type Mode = "view" | "draw" | "gpx" | "editShape";
+type Mode = "view" | "draw" | "gpx" | "record" | "editShape";
+
+// Not imported from "@/lib/segments" — that module pulls in better-sqlite3,
+// which must never end up in a client bundle. Same one-line check, duplicated.
+function isLocked(segment: Pick<SegmentRow, "lockedUntil">): boolean {
+  return segment.lockedUntil !== null && segment.lockedUntil > new Date().toISOString();
+}
 
 export function OverviewMapClient({
   locale,
@@ -42,6 +49,10 @@ export function OverviewMapClient({
   const [editingSegmentId, setEditingSegmentId] = useState<number | null>(null);
   const [moveNodeId, setMoveNodeId] = useState<number | null>(null);
   const [moveStatus, setMoveStatus] = useState<"idle" | "saving" | "error">("idle");
+  // Every mode (view/draw/editShape) mounts its own MapContainer, which would otherwise
+  // reset to a fresh fit-to-content on every switch. Remembering the last pan/zoom here
+  // lets the next mode's map restore it instead.
+  const [lastView, setLastView] = useState<MapViewState | undefined>(undefined);
 
   const nodesById = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
 
@@ -101,6 +112,7 @@ export function OverviewMapClient({
       segments.map((s) => ({
         id: s.id,
         points: s.geometry.map((p): [number, number] => [p.lat, p.lng]),
+        dashed: isLocked(s),
         popup: (
           <SegmentPopup
             locale={locale}
@@ -129,7 +141,15 @@ export function OverviewMapClient({
             {t(locale, "overview.backToView")}
           </button>
         </div>
-        <DrawPathWizard locale={locale} nodes={nodes} networkLines={networkLines} mergeRadiusM={mergeRadiusM} walkSpeedKmh={walkSpeedKmh} />
+        <DrawPathWizard
+          locale={locale}
+          nodes={nodes}
+          networkLines={networkLines}
+          mergeRadiusM={mergeRadiusM}
+          walkSpeedKmh={walkSpeedKmh}
+          initialView={lastView}
+          onViewChange={setLastView}
+        />
       </div>
     );
   }
@@ -143,6 +163,27 @@ export function OverviewMapClient({
           </button>
         </div>
         <GpxImportWizard locale={locale} />
+      </div>
+    );
+  }
+
+  if (mode === "record") {
+    return (
+      <div className="stack">
+        <div className="btn-row">
+          <button type="button" className="btn-secondary" onClick={() => setMode("view")}>
+            {t(locale, "overview.backToView")}
+          </button>
+        </div>
+        <RecordTrackWizard
+          locale={locale}
+          nodes={nodes}
+          networkLines={networkLines}
+          mergeRadiusM={mergeRadiusM}
+          walkSpeedKmh={walkSpeedKmh}
+          initialView={lastView}
+          onViewChange={setLastView}
+        />
       </div>
     );
   }
@@ -168,6 +209,8 @@ export function OverviewMapClient({
           setEditingSegmentId(null);
           setMode("view");
         }}
+        initialView={lastView}
+        onViewChange={setLastView}
       />
     );
   }
@@ -175,13 +218,24 @@ export function OverviewMapClient({
   return (
     <div className="stack">
       <div className="card stack">
-        <MapViewLazy height={560} markers={markers} lines={lines} onMarkerDragEnd={handleMarkerDragEnd} className="map-box-large" />
+        <MapViewLazy
+          height={560}
+          markers={markers}
+          lines={lines}
+          onMarkerDragEnd={handleMarkerDragEnd}
+          className="map-box-large"
+          initialView={lastView}
+          onViewChange={setLastView}
+        />
         <div className="btn-row">
           <button type="button" className="btn-secondary" onClick={() => setMode("draw")}>
             {t(locale, "overview.drawMode")}
           </button>
           <button type="button" className="btn-secondary" onClick={() => setMode("gpx")}>
             {t(locale, "overview.gpxMode")}
+          </button>
+          <button type="button" className="btn-secondary" onClick={() => setMode("record")}>
+            {t(locale, "overview.recordMode")}
           </button>
         </div>
         <p style={{ color: "var(--ink-soft)", fontSize: "0.85rem" }}>{t(locale, "overview.interactionHint")}</p>

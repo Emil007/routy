@@ -6,6 +6,8 @@
 // widget's response token, get back JSON with `success`), so one small
 // module covers all of them instead of three near-duplicate integrations.
 
+import { log } from "./logger";
+
 export type CaptchaProvider = "none" | "turnstile" | "hcaptcha" | "recaptcha";
 
 interface ProviderInfo {
@@ -86,7 +88,8 @@ export async function verifyCaptcha(token: string | null): Promise<boolean> {
     if (!res.ok) return false;
     const data = (await res.json().catch(() => null)) as { success?: boolean } | null;
     return data?.success === true;
-  } catch {
+  } catch (err) {
+    log.warn("captcha verify request failed", { provider, error: String(err) });
     return false;
   }
 }

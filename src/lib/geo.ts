@@ -59,6 +59,33 @@ export function reversePoints(points: LatLng[]): LatLng[] {
   return [...points].reverse();
 }
 
+// Orientation test (2D cross product) using raw lat/lng as x/y — sign is preserved
+// under the independent, positive-only axis scaling that lat/lng vs. metres
+// distortion amounts to, so this needs no projection to detect crossings correctly.
+function orientation(o: LatLng, a: LatLng, b: LatLng): number {
+  return (a.lng - o.lng) * (b.lat - o.lat) - (a.lat - o.lat) * (b.lng - o.lng);
+}
+
+/** True if segment a1-a2 properly crosses segment b1-b2 (touching only at a shared endpoint doesn't count). */
+export function segmentsCross(a1: LatLng, a2: LatLng, b1: LatLng, b2: LatLng): boolean {
+  const d1 = orientation(b1, b2, a1);
+  const d2 = orientation(b1, b2, a2);
+  const d3 = orientation(a1, a2, b1);
+  const d4 = orientation(a1, a2, b2);
+  return ((d1 > 0 && d2 < 0) || (d1 < 0 && d2 > 0)) && ((d3 > 0 && d4 < 0) || (d3 < 0 && d4 > 0));
+}
+
+/** Counts how many pairs of non-adjacent legs in a walked path cross each other. */
+export function countSelfIntersections(points: LatLng[]): number {
+  let count = 0;
+  for (let i = 0; i < points.length - 1; i++) {
+    for (let j = i + 2; j < points.length - 1; j++) {
+      if (segmentsCross(points[i], points[i + 1], points[j], points[j + 1])) count++;
+    }
+  }
+  return count;
+}
+
 /** Initial compass bearing (0-360°) of travel from `a` to `b`. */
 export function bearing(a: LatLng, b: LatLng): number {
   const lat1 = (a.lat * Math.PI) / 180;
@@ -68,6 +95,15 @@ export function bearing(a: LatLng, b: LatLng): number {
   const x = Math.cos(lat1) * Math.sin(lat2) - Math.sin(lat1) * Math.cos(lat2) * Math.cos(dLng);
   const theta = Math.atan2(y, x);
   return ((theta * 180) / Math.PI + 360) % 360;
+}
+
+export type CompassPoint = "N" | "NE" | "E" | "SE" | "S" | "SW" | "W" | "NW";
+const COMPASS_POINTS: CompassPoint[] = ["N", "NE", "E", "SE", "S", "SW", "W", "NW"];
+
+/** Buckets a 0-360° bearing into one of 8 compass points. */
+export function compassDirection(bearingDeg: number): CompassPoint {
+  const normalized = ((bearingDeg % 360) + 360) % 360;
+  return COMPASS_POINTS[Math.round(normalized / 45) % 8];
 }
 
 // Small-scale (tens to hundreds of meters) local projection — accurate enough for

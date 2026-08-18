@@ -14,6 +14,8 @@ const bodySchema = z.object({
   destinationNodeId: z.number().int().positive().optional(),
   waypointNodeId: z.number().int().positive().nullable().optional(),
   explorerMode: z.boolean().default(false),
+  /** Biases the search toward the lower/upper half of the configured suggest-length range. */
+  preset: z.enum(["short", "long"]).optional(),
 });
 
 export async function POST(request: Request) {
@@ -25,7 +27,7 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: "invalid_body", issues: parsed.error.issues }, { status: 400 });
   }
-  const { waypointNodeId, explorerMode } = parsed.data;
+  const { waypointNodeId, explorerMode, preset } = parsed.data;
 
   const home = getHomeNode();
   const startNodeId = parsed.data.startNodeId ?? home?.id;
@@ -38,9 +40,14 @@ export async function POST(request: Request) {
   const { graph, pairOf, nodesById, segmentsById } = loadGraphContext();
   // No exact target: search the whole preferred-length band and let the scorer
   // (least backtracking, then least-used segments) pick the nicest route in it,
-  // rather than fixating on hitting one specific number of meters.
-  const minValue = settings.suggest_min_km * 1000;
-  const maxValue = settings.suggest_max_km * 1000;
+  // rather than fixating on hitting one specific number of meters. A short/long
+  // preset narrows the search to the lower/upper half of that same band instead
+  // of introducing a separate, unconfigurable range.
+  const fullMinValue = settings.suggest_min_km * 1000;
+  const fullMaxValue = settings.suggest_max_km * 1000;
+  const midValue = (fullMinValue + fullMaxValue) / 2;
+  const minValue = preset === "long" ? midValue : fullMinValue;
+  const maxValue = preset === "short" ? midValue : fullMaxValue;
   const mode = "km" as const;
 
   const candidates =
@@ -54,6 +61,7 @@ export async function POST(request: Request) {
 
   const usageMap = getUsageMap();
   const dailyMap = getDailyUsageMap();
+  const geometryOf = new Map([...segmentsById].map(([id, s]) => [id, s.geometry]));
   const scored = scoreRoutes(
     candidates,
     pairOf,
@@ -63,6 +71,7 @@ export async function POST(request: Request) {
     new Set(),
     (minValue + maxValue) / 2,
     mode,
+    geometryOf,
   );
   const best = pickBest(scored, new Set(), explorerMode);
   if (!best) {

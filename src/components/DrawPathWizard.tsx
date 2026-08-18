@@ -8,7 +8,7 @@ import { findNodeCandidates } from "@/lib/nodeMatching";
 import { MapViewLazy } from "./MapViewLazy";
 import { EndpointFields } from "./EndpointFields";
 import type { NodeRow } from "@/lib/nodes";
-import type { MapMarker, MapLine, MapCircle } from "./MapView";
+import type { MapMarker, MapLine, MapCircle, MapViewState } from "./MapView";
 
 interface DrawPoint extends LatLng {
   snappedNodeId: number | null;
@@ -19,16 +19,15 @@ interface EndpointDecision {
   nodeId: number | null;
   part1: string;
   part2: string;
-  separator: "/" | " ";
 }
 
 function initialEndpointDecision(point: DrawPoint, nodes: NodeRow[], radiusM: number): EndpointDecision {
   if (point.snappedNodeId !== null) {
-    return { choice: "existing", nodeId: point.snappedNodeId, part1: "", part2: "", separator: "/" };
+    return { choice: "existing", nodeId: point.snappedNodeId, part1: "", part2: "" };
   }
   const candidates = findNodeCandidates(nodes, point, radiusM);
-  if (candidates.length > 0) return { choice: "existing", nodeId: candidates[0].id, part1: "", part2: "", separator: "/" };
-  return { choice: "new", nodeId: null, part1: "", part2: "", separator: "/" };
+  if (candidates.length > 0) return { choice: "existing", nodeId: candidates[0].id, part1: "", part2: "" };
+  return { choice: "new", nodeId: null, part1: "", part2: "" };
 }
 
 export function DrawPathWizard({
@@ -37,12 +36,16 @@ export function DrawPathWizard({
   networkLines,
   mergeRadiusM,
   walkSpeedKmh,
+  initialView,
+  onViewChange,
 }: {
   locale: Locale;
   nodes: NodeRow[];
   networkLines: MapLine[];
   mergeRadiusM: number;
   walkSpeedKmh: number;
+  initialView?: MapViewState;
+  onViewChange?: (view: MapViewState) => void;
 }) {
   const router = useRouter();
   const [points, setPoints] = useState<DrawPoint[]>([]);
@@ -146,11 +149,11 @@ export function DrawPathWizard({
       start:
         startDecision.choice === "existing" && startDecision.nodeId
           ? { nodeId: startDecision.nodeId }
-          : { part1: startDecision.part1, part2: startDecision.part2, separator: startDecision.separator },
+          : { part1: startDecision.part1, part2: startDecision.part2 },
       end:
         endDecision.choice === "existing" && endDecision.nodeId
           ? { nodeId: endDecision.nodeId }
-          : { part1: endDecision.part1, part2: endDecision.part2, separator: endDecision.separator },
+          : { part1: endDecision.part1, part2: endDecision.part2 },
     };
 
     const res = await fetch("/api/gpx/commit", {
@@ -189,6 +192,8 @@ export function DrawPathWizard({
           onMapClick={phase === "drawing" ? handleMapClick : undefined}
           onMarkerClick={phase === "drawing" ? handleMarkerClick : undefined}
           onMarkerDragEnd={phase === "drawing" ? handleDraftDragEnd : undefined}
+          initialView={initialView}
+          onViewChange={onViewChange}
         />
 
         <div className="btn-row">
@@ -242,12 +247,10 @@ export function DrawPathWizard({
             decisionNodeId={startDecision.nodeId}
             decisionPart1={startDecision.part1}
             decisionPart2={startDecision.part2}
-            decisionSeparator={startDecision.separator}
             onChoice={(v) => setStartDecision((d) => (d ? { ...d, choice: v } : d))}
             onNodeId={(v) => setStartDecision((d) => (d ? { ...d, nodeId: v } : d))}
             onPart1={(v) => setStartDecision((d) => (d ? { ...d, part1: v } : d))}
             onPart2={(v) => setStartDecision((d) => (d ? { ...d, part2: v } : d))}
-            onSeparator={(v) => setStartDecision((d) => (d ? { ...d, separator: v } : d))}
           />
           <label className="checkbox">
             <input type="checkbox" checked={markStartAsHome} onChange={(e) => setMarkStartAsHome(e.target.checked)} />
@@ -264,12 +267,10 @@ export function DrawPathWizard({
             decisionNodeId={endDecision.nodeId}
             decisionPart1={endDecision.part1}
             decisionPart2={endDecision.part2}
-            decisionSeparator={endDecision.separator}
             onChoice={(v) => setEndDecision((d) => (d ? { ...d, choice: v } : d))}
             onNodeId={(v) => setEndDecision((d) => (d ? { ...d, nodeId: v } : d))}
             onPart1={(v) => setEndDecision((d) => (d ? { ...d, part1: v } : d))}
             onPart2={(v) => setEndDecision((d) => (d ? { ...d, part2: v } : d))}
-            onSeparator={(v) => setEndDecision((d) => (d ? { ...d, separator: v } : d))}
           />
 
           <button type="button" className="btn-primary" onClick={save} disabled={status === "saving"}>
