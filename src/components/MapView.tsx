@@ -5,7 +5,10 @@ import { MapContainer, TileLayer, LayersControl, Marker, Polyline, Circle, Popup
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
-/** Extensible base-layer list — add an entry here to offer another tile view everywhere maps are shown. */
+/** Extensible base-layer list — add an entry here to offer another tile view everywhere maps are shown.
+ * Kept to free, keyless tile services only (no API key/signup) — several other options from
+ * openstreetmap.org's own layer picker (Tracestrack Topo, MapTiler OMT, …) need a registered key
+ * and aren't usable this way. */
 const TILE_LAYERS = [
   {
     id: "streets",
@@ -19,6 +22,22 @@ const TILE_LAYERS = [
     url: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
     attribution:
       'Kartendaten: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, SRTM | Darstellung: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)',
+  },
+  {
+    id: "satellite",
+    name: "Satellit",
+    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+    attribution: "Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community",
+  },
+];
+
+/** Optional overlays drawn on top of the chosen base layer — checkboxes, combinable with any of them. */
+const TILE_OVERLAYS = [
+  {
+    id: "hiking-trails",
+    name: "Wanderwege (markiert)",
+    url: "https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png",
+    attribution: 'Wanderwege: &copy; <a href="https://waymarkedtrails.org">Waymarked Trails</a>',
   },
 ];
 
@@ -138,6 +157,11 @@ export function MapView({
             <LayersControl.BaseLayer key={layer.id} name={layer.name} checked={idx === 0}>
               <TileLayer attribution={layer.attribution} url={layer.url} />
             </LayersControl.BaseLayer>
+          ))}
+          {TILE_OVERLAYS.map((overlay) => (
+            <LayersControl.Overlay key={overlay.id} name={overlay.name}>
+              <TileLayer attribution={overlay.attribution} url={overlay.url} />
+            </LayersControl.Overlay>
           ))}
         </LayersControl>
         {lines.map((line) => (
