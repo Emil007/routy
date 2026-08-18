@@ -36,8 +36,13 @@
     "submit": "Sign in",
     "error": "Username or password is incorrect.",
     "inactiveError": "This account is deactivated. Contact your admin.",
+    "lockedError": "Too many failed attempts. Please try again in {seconds} seconds.",
+    "captchaError": "Captcha check failed. Please try again.",
     "setupTitle": "Set up the first profile",
-    "setupSubtitle": "No profile exists yet — create the first account."
+    "setupSubtitle": "No profile exists yet — create the first account.",
+    "setupTokenLabel": "Setup token",
+    "setupTokenHint": "Shown in the console when the container starts — check with \"docker compose logs -f\".",
+    "setupTokenError": "The setup token is wrong or missing."
   },
   "profile": {
     "title": "Create a new profile",

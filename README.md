@@ -88,6 +88,11 @@ whatever they built, so the network's history stays intact.
   fairness weighting, walking speed default, …) are adjustable in Settings
 - German and English, file-based (`src/lib/i18n/*.json`) and easy to extend
   with another language without touching any code
+- Login is rate-limited automatically; CAPTCHA (Turnstile/hCaptcha/reCAPTCHA)
+  is available as an opt-in on top, and a one-time setup token protects the
+  first-account setup screen
+- Optional, disabled-by-default automatic HTTPS for a public domain via a
+  Caddy profile in `docker-compose.yml`
 
 ## Running it (Docker, recommended)
 
@@ -120,8 +125,38 @@ All data (the SQLite database) lives in the mounted volume (`./data` by
 default, or wherever you pointed it). Back up that folder to back up Routy.
 
 The very first time you open the site, Routy asks you to set up the first
-profile — no setup via environment variable needed. That account becomes the
-admin, and creates further accounts from the "Users" page.
+profile. To stop a stranger from claiming that account if the site is
+reachable before you get to it, setup asks for a one-time token that's
+printed to the console on first start — run `docker compose logs -f` to read
+it. That first account becomes the admin, and creates further accounts from
+the "Users" page.
+
+### Security
+
+- **Login is rate-limited automatically** — no configuration, no external
+  service. After a handful of failed attempts for a username, further tries
+  are throttled with a growing delay. The same throttle also covers the
+  first-time setup token above.
+- **CAPTCHA is optional, off by default.** If you want one on top of the
+  rate-limiting (e.g. because the instance is on the public internet), set
+  `CAPTCHA_PROVIDER` to `turnstile`, `hcaptcha`, or `recaptcha` plus the
+  matching `CAPTCHA_SITE_KEY`/`CAPTCHA_SECRET_KEY` in `docker-compose.yml`
+  (commented-out examples with signup links are already there) — no code
+  changes, no rebuild.
+
+### Optional: automatic HTTPS for a public domain
+
+`docker-compose.yml` includes a disabled-by-default Caddy service that gets
+and renews a Let's Encrypt certificate automatically. To use it:
+
+1. Point your domain's A/AAAA record at this server's public IP.
+2. Edit `Caddyfile` and replace the placeholder domain with your real one.
+3. Start Compose with the extra profile: `docker compose --profile ssl up -d`
+
+That's it — no certificates to manage by hand. Ports 80 and 443 need to be
+reachable from the internet for Let's Encrypt's verification to succeed.
+`COOKIE_SECURE=true` (already the default) is correct in this setup, since
+Caddy is the one terminating HTTPS.
 
 ### External services
 
@@ -143,7 +178,9 @@ missing elevation lookup just leaves that path without elevation data, and a
 missing name suggestion just leaves the name field empty for you to fill in
 yourself.
 
-None of them require an API key or send any personal data.
+None of them require an API key or send any personal data. The only other
+external call Routy can make is the CAPTCHA verification described above —
+and only if you've explicitly turned that on.
 
 ## Development
 

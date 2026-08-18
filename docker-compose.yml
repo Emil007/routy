@@ -20,3 +20,40 @@ services:
       # so cookies can safely be marked Secure. Set this to "false" if you
       # access Routy directly over plain HTTP (e.g. only inside your LAN).
       - COOKIE_SECURE=true
+
+      # Optional CAPTCHA on the login screen, on top of the always-on
+      # rate-limiting. Off by default. To enable, uncomment CAPTCHA_PROVIDER
+      # (one of "turnstile", "hcaptcha", "recaptcha") and fill in the site/
+      # secret key pair from whichever provider you signed up with:
+      #   - Cloudflare Turnstile (free, privacy-friendly): https://dash.cloudflare.com/?to=/:account/turnstile
+      #   - hCaptcha (free): https://dashboard.hcaptcha.com/signup
+      #   - Google reCAPTCHA v2 (free): https://www.google.com/recaptcha/admin/create
+      # - CAPTCHA_PROVIDER=turnstile
+      # - CAPTCHA_SITE_KEY=your-site-key
+      # - CAPTCHA_SECRET_KEY=your-secret-key
+
+  # Optional: automatic HTTPS for a public domain, via Caddy. Disabled unless
+  # you start Compose with the "ssl" profile:
+  #   docker compose --profile ssl up -d
+  # Before that, edit ./Caddyfile and replace the placeholder with your real
+  # domain — it must already have an A/AAAA record pointing at this server's
+  # public IP, and ports 80+443 must be reachable from the internet (Let's
+  # Encrypt verifies ownership over port 80). Nothing else to configure.
+  caddy:
+    image: caddy:2-alpine
+    container_name: routy-caddy
+    profiles: ["ssl"]
+    restart: unless-stopped
+    depends_on:
+      - routy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  caddy_data:
+  caddy_config:

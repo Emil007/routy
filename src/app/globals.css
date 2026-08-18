@@ -181,7 +181,10 @@ label.checkbox {
 }
 
 button,
-.btn {
+.btn,
+.btn-primary,
+.btn-secondary,
+.btn-danger {
   font: inherit;
   font-weight: 600;
   border-radius: 8px;
@@ -192,6 +195,7 @@ button,
   align-items: center;
   justify-content: center;
   gap: 0.4rem;
+  text-decoration: none;
 }
 
 .btn-primary {
@@ -268,6 +272,18 @@ td {
   text-align: left;
   padding: 0.5rem 0.6rem;
   border-bottom: 1px solid var(--line);
+}
+
+.table-wrap .btn-row {
+  gap: 0.4rem;
+}
+
+.table-wrap .btn-row button,
+.table-wrap .btn-row .btn-primary,
+.table-wrap .btn-row .btn-secondary,
+.table-wrap .btn-row .btn-danger {
+  padding: 0.35rem 0.7rem;
+  font-size: 0.82rem;
 }
 
 th {

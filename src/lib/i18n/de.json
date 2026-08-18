@@ -36,8 +36,13 @@
     "submit": "Anmelden",
     "error": "Benutzername oder Passwort ist falsch.",
     "inactiveError": "Dieses Konto ist deaktiviert. Wende dich an den Admin.",
+    "lockedError": "Zu viele Fehlversuche. Bitte in {seconds} Sekunden erneut versuchen.",
+    "captchaError": "Captcha-Prüfung fehlgeschlagen. Bitte erneut versuchen.",
     "setupTitle": "Erstes Profil einrichten",
-    "setupSubtitle": "Noch kein Profil vorhanden — lege das erste Konto an."
+    "setupSubtitle": "Noch kein Profil vorhanden — lege das erste Konto an.",
+    "setupTokenLabel": "Setup-Token",
+    "setupTokenHint": "Wird beim Start des Containers in der Konsole angezeigt — mit „docker compose logs -f“ nachlesbar.",
+    "setupTokenError": "Setup-Token ist falsch oder fehlt."
   },
   "profile": {
     "title": "Neues Profil anlegen",
