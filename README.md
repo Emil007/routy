@@ -9,11 +9,14 @@ the same path network.
 
 ## What it does
 
-**Build the network.** Submit paths either by uploading a GPX file or by
-drawing them directly on the map (click to place points, with snapping to
-nearby known junctions you can toggle off when needed). Either way, Routy
-asks you to confirm whether each path's start and end point is an existing
-junction or a new one — every path automatically gets its reverse direction
+**Build the network.** Submit paths by drawing them directly on the map
+(click to place points, with snapping to nearby known junctions you can
+toggle off when needed) or by uploading a GPX file. Either way, Routy asks
+you to confirm whether each path's start and end point is an existing
+junction or a new one — and suggests a name for a new junction based on
+OpenStreetMap data nearby, with a compass-direction suffix if that name is
+already taken by another junction close by (best-effort; you can always
+type your own instead). Every path automatically gets its reverse direction
 created too, so it can be walked either way.
 
 **Get a route.** No need to type an exact distance — set a preferred length
@@ -21,10 +24,13 @@ range once in Settings, and Routy suggests a route from within it, picking
 the option that avoids doubling back on itself and favors paths you haven't
 used in a while over the one closest to a specific number. Don't like it?
 "Longer", "Shorter", or "Another route" get you a different one; each
-suggestion is randomized, so you don't keep seeing the same one. Accept a
-route and it becomes your active route — visible on `/route` on any device
-you sign into — until you confirm it as walked (which updates your stats) or
-discard it.
+suggestion is randomized, so you don't keep seeing the same one. An
+"Explorer mode" toggle biases suggestions even more strongly toward path
+segments nobody has walked at all yet. Found a route you want to keep
+walking? Save it as a favorite and take it again anytime without a fresh
+search. Accept a route and it becomes your active route — visible on
+`/route` on any device you sign into — until you confirm it as walked
+(which updates your stats) or discard it.
 
 **Edit the network.** Click a path on the map to correct its shape or split
 it into two at a new junction (e.g. once a crossing path appears). Click a
@@ -33,29 +39,34 @@ mid-walk (yours or someone else's) is blocked with an explanation instead of
 silently corrupting an active route.
 
 **Track it.** A stats page shows your personal totals and recent walks
-(each removable, in case one was logged by mistake), plus which paths are
-used most and least across the whole network — so you know what to
-prioritize walking next.
+(each removable, in case one was logged by mistake), your current and
+longest walking streak, a set of tiered achievements (walk count, distance,
+streak length, and how much of the network you've explored, each ranked
+Stone through Diamond) plus a few one-off badges, and which paths are used
+most and least across the whole network — so you know what to prioritize
+walking next.
 
 ## Features
 
 - Multiple profiles, one shared path network, each with separate stats and
   an optional personal walking pace (used to estimate durations)
-- GPX upload and freehand map drawing, both with junction detection/snapping
+- Freehand map drawing and GPX upload, both with junction detection/snapping
+  and an OpenStreetMap-based name suggestion for new junctions
 - Route suggestions from a configurable length range, with "Longer" /
-  "Shorter" / "Another route" refinement and randomized results
+  "Shorter" / "Another route" refinement, randomized results, and an
+  opt-in Explorer mode that prioritizes never-walked paths
+- Favorite routes: save a suggestion by name and take it again later without
+  searching, or delete it
 - Persistent, cross-device active-route tracking with an explicit
   walked/discard step, and optional live-location display on the map
   (browser geolocation, opt-in)
 - Interactive network map: click-to-edit paths (reshape, split), click-to-edit
   nodes (rename, move, delete), all with active-route-aware protection
-- Elevation (ascent/descent) shown per path and per route — read from GPX
-  files that have it, or looked up automatically otherwise, with a
-  Settings action to backfill it for paths that predate this feature
-- Route summaries name only the real decision points along the way, not
-  every waypoint passed through
-- Stats: personal totals, recent walks (deletable), network-wide
-  most/least-used paths
+- Elevation (ascent/descent) shown per path — in the network table and on
+  every route — read from GPX files that have it, or looked up automatically
+  otherwise
+- Stats: personal totals, recent walks (deletable), walking streaks, tiered
+  achievements, network-wide most/least-used paths
 - All the tunable numbers (merge radius, suggestion length range, tolerance,
   fairness weighting, walking speed default, …) are adjustable in Settings
 - German and English, file-based (`src/lib/i18n/*.json`) and easy to extend
@@ -97,7 +108,7 @@ create further profiles from the Settings page.
 
 ### External services
 
-Routy calls two free, public, keyless services over the internet:
+Routy calls a few free, public, keyless services over the internet:
 
 - **Map tiles** from `tile.openstreetmap.org` (with attribution) — that's
   the standard public OSM tile server, whose usage policy is explicitly
@@ -105,11 +116,17 @@ Routy calls two free, public, keyless services over the internet:
   (e.g. MapTiler, which has a free tier) would only be worth setting up at
   significantly higher traffic.
 - **Elevation lookups** from the Open-Meteo API, for paths that don't already
-  have elevation data. This is best-effort: if the container has no outbound
-  internet access, or the service is unreachable, saving or editing a path
-  still works fine — it's just saved without elevation data.
+  have elevation data.
+- **Junction name suggestions** from OpenStreetMap's Nominatim reverse
+  geocoding service, when creating a new junction.
 
-Neither requires an API key or sends any personal data.
+All three are best-effort: if the container has no outbound internet access,
+or a service is unreachable, saving or editing a path still works fine — a
+missing elevation lookup just leaves that path without elevation data, and a
+missing name suggestion just leaves the name field empty for you to fill in
+yourself.
+
+None of them require an API key or send any personal data.
 
 ## Development
 
