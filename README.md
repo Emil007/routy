@@ -17,6 +17,7 @@ docker compose up -d
 |---|---|
 | Port | `3000` |
 | Data | SQLite file under `./data` (bind-mounted volume) |
+| Logs | `docker compose logs -f` — JSON lines to stdout, auto-rotated by Docker (10MB × 5 files, gzipped) |
 | Config | none required — no API keys, no `.env` file (env vars go in `docker-compose.yml`) |
 | Update | `docker compose pull && docker compose up -d` |
 | Build locally instead | comment out `image:`, uncomment `build: .` in `docker-compose.yml`, then `docker compose up -d --build` |
@@ -27,9 +28,12 @@ Assumes a reverse proxy terminating HTTPS in front. `COOKIE_SECURE=true` is the 
 
 ### Security
 
-- Login and the setup token are rate-limited automatically, no config needed.
+- Login and the setup token are rate-limited automatically — both per-username and per-IP, no config needed.
+- Optional two-factor authentication (TOTP) — enable per-account from Settings; an admin can reset a locked-out user's 2FA from the admin page.
 - Optional CAPTCHA (Turnstile / hCaptcha / reCAPTCHA): set `CAPTCHA_PROVIDER`, `CAPTCHA_SITE_KEY`, `CAPTCHA_SECRET_KEY` in `docker-compose.yml`.
-- Sign out of every other device at once from Settings.
+- Sign out of every other device at once from Settings, or revoke a single device (e.g. a lost phone) individually.
+- Security headers and a nonce-based Content-Security-Policy on every response.
+- Container hardening: read-only root filesystem, all Linux capabilities dropped except the four the startup step needs, `no-new-privileges`, and a memory/CPU ceiling — all in `docker-compose.yml`.
 - `/api/health` for uptime checks (also wired into the container's own healthcheck).
 
 ### Backups

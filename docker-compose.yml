@@ -6,6 +6,31 @@ services:
     # build: .
     container_name: routy
     restart: unless-stopped
+    # Hardening: the container can't write anywhere except the bind-mounted
+    # data volume and two small in-memory scratch dirs, root loses every
+    # Linux capability except the four the entrypoint's initial chown+gosu
+    # step needs, and it can never gain new privileges (e.g. via a setuid
+    # binary) even as the "nextjs" user it drops to.
+    read_only: true
+    tmpfs:
+      - /tmp
+      - /app/.next/cache
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - SETUID
+      - SETGID
+      - DAC_OVERRIDE
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 512M
+        reservations:
+          memory: 128M
     ports:
       - "3000:3000"
     volumes:
@@ -23,6 +48,15 @@ services:
       timeout: 5s
       retries: 3
       start_period: 10s
+    logging:
+      # Docker's default json-file driver never rotates on its own — logs
+      # grow unbounded on the host otherwise. 10MB x 5 files, gzipped once
+      # rotated.
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+        compress: "true"
     environment:
       # Your reverse proxy already terminates HTTPS in front of this container,
       # so cookies can safely be marked Secure. Set this to "false" if you
@@ -62,6 +96,12 @@ services:
   #     - ./Caddyfile:/etc/caddy/Caddyfile:ro
   #     - caddy_data:/data
   #     - caddy_config:/config
+  #   logging:
+  #     driver: json-file
+  #     options:
+  #       max-size: "10m"
+  #       max-file: "5"
+  #       compress: "true"
 
 # volumes:
 #   caddy_data:
