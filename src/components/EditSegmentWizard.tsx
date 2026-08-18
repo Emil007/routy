@@ -196,6 +196,7 @@ export function EditSegmentWizard({
           <EndpointFields
             locale={locale}
             role="split"
+            point={splitTarget.point}
             candidates={splitCandidates}
             nameConflict={null}
             decisionChoice={splitDecision.choice}

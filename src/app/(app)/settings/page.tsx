@@ -2,7 +2,6 @@ import { requireUser } from "@/lib/session";
 import { resolveLocale } from "@/lib/locale";
 import { t } from "@/lib/i18n";
 import { getSettings, SETTINGS_KEYS, type Settings } from "@/lib/settings";
-import { BackfillElevationButton } from "@/components/BackfillElevationButton";
 import { saveSettingsAction, saveWalkSpeedAction, createProfileAction } from "./actions";
 
 const STEP: Partial<Record<keyof Settings, number>> = {
@@ -75,14 +74,6 @@ export default async function SettingsPage({
             {t(locale, "common.save")}
           </button>
         </form>
-      </div>
-
-      <div className="card">
-        <h2 style={{ fontSize: "1.1rem", marginBottom: "0.3rem" }}>{t(locale, "settings.elevationTitle")}</h2>
-        <p style={{ color: "var(--ink-soft)", fontSize: "0.9rem", marginBottom: "1rem" }}>
-          {t(locale, "settings.elevationSubtitle")}
-        </p>
-        <BackfillElevationButton locale={locale} />
       </div>
 
       <div className="card">

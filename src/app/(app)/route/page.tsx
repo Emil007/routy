@@ -3,8 +3,8 @@ import { resolveLocale } from "@/lib/locale";
 import { t } from "@/lib/i18n";
 import { listNodes, getHomeNode } from "@/lib/nodes";
 import { getActiveRoute } from "@/lib/activeRoute";
+import { listFavorites } from "@/lib/favorites";
 import { loadGraphContext } from "@/lib/routeContext";
-import { findCornerstoneIndices } from "@/lib/routing";
 import { buildRouteDisplay } from "@/lib/routeDisplay";
 import { RouteGenerator } from "@/components/RouteGenerator";
 
@@ -14,22 +14,18 @@ export default async function RoutePage() {
   const nodes = listNodes();
   const home = getHomeNode();
 
+  const { segmentsById, nodesById } = loadGraphContext();
+
   const active = getActiveRoute(user.id);
   const activeDisplay = active
-    ? (() => {
-        const { segmentsById, nodesById } = loadGraphContext();
-        const cornerstoneIndices = findCornerstoneIndices(active.nodeChain, active.segmentIds, segmentsById);
-        return buildRouteDisplay(
-          active.nodeChain,
-          active.segmentIds,
-          active.lengthM,
-          active.durationMin,
-          nodesById,
-          segmentsById,
-          cornerstoneIndices,
-        );
-      })()
+    ? buildRouteDisplay(active.nodeChain, active.segmentIds, active.lengthM, active.durationMin, nodesById, segmentsById)
     : null;
+
+  const favorites = listFavorites(user.id).map((f) => ({
+    id: f.id,
+    name: f.name,
+    display: buildRouteDisplay(f.nodeChain, f.segmentIds, f.lengthM, f.durationMin, nodesById, segmentsById),
+  }));
 
   return (
     <>
@@ -41,7 +37,13 @@ export default async function RoutePage() {
           <p>{t(locale, "import.noTracks")}</p>
         </div>
       ) : (
-        <RouteGenerator locale={locale} nodes={nodes} homeNodeId={home?.id ?? null} initialActiveRoute={activeDisplay} />
+        <RouteGenerator
+          locale={locale}
+          nodes={nodes}
+          homeNodeId={home?.id ?? null}
+          initialActiveRoute={activeDisplay}
+          favorites={favorites}
+        />
       )}
     </>
   );

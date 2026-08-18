@@ -46,6 +46,67 @@ export function getUserStats(userId: number): UserStats {
   };
 }
 
+export interface StreakStats {
+  currentStreak: number;
+  longestStreak: number;
+}
+
+/** Consecutive calendar days (UTC) with at least one confirmed walk. */
+export function getStreakStats(userId: number): StreakStats {
+  const rows = db
+    .prepare("SELECT DISTINCT date(accepted_at) AS d FROM walk_log WHERE user_id = ? ORDER BY d")
+    .all(userId) as { d: string }[];
+  const dates = rows.map((r) => r.d);
+  if (dates.length === 0) return { currentStreak: 0, longestStreak: 0 };
+
+  const DAY_MS = 86400000;
+  let longestStreak = 1;
+  let run = 1;
+  for (let i = 1; i < dates.length; i++) {
+    const prev = Date.parse(dates[i - 1] + "T00:00:00Z");
+    const curr = Date.parse(dates[i] + "T00:00:00Z");
+    run = curr - prev === DAY_MS ? run + 1 : 1;
+    longestStreak = Math.max(longestStreak, run);
+  }
+
+  const todayUTC = new Date();
+  todayUTC.setUTCHours(0, 0, 0, 0);
+  const lastDate = Date.parse(dates[dates.length - 1] + "T00:00:00Z");
+  const daysSinceLast = Math.round((todayUTC.getTime() - lastDate) / DAY_MS);
+
+  let currentStreak = 0;
+  if (daysSinceLast <= 1) {
+    currentStreak = 1;
+    for (let i = dates.length - 1; i > 0; i--) {
+      const prev = Date.parse(dates[i - 1] + "T00:00:00Z");
+      const curr = Date.parse(dates[i] + "T00:00:00Z");
+      if (curr - prev === DAY_MS) currentStreak++;
+      else break;
+    }
+  }
+
+  return { currentStreak, longestStreak };
+}
+
+/** How many times this user has walked each physical (canonical) segment. */
+export function getUserSegmentWalkCounts(userId: number): Map<number, number> {
+  const rows = db.prepare("SELECT segment_ids FROM walk_log WHERE user_id = ?").all(userId) as {
+    segment_ids: string;
+  }[];
+  const segments = listSegments();
+  const canonicalOf = new Map<number, number>(segments.map((s) => [s.id, canonicalSegmentId(s)]));
+
+  const counts = new Map<number, number>();
+  for (const row of rows) {
+    for (const id of JSON.parse(row.segment_ids) as number[]) {
+      const canon = canonicalOf.get(id);
+      if (canon === undefined) continue;
+      counts.set(canon, (counts.get(canon) ?? 0) + 1);
+    }
+  }
+  return counts;
+}
+
 export interface WalkLogEntry {
   id: number;
   nodeChain: number[];

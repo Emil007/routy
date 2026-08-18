@@ -2,7 +2,8 @@ import { requireUser } from "@/lib/session";
 import { resolveLocale } from "@/lib/locale";
 import { t } from "@/lib/i18n";
 import { listNodes } from "@/lib/nodes";
-import { getUserStats, getRecentWalks, getSegmentUsageStats } from "@/lib/stats";
+import { getUserStats, getRecentWalks, getSegmentUsageStats, getStreakStats } from "@/lib/stats";
+import { computeAchievements, TIERS } from "@/lib/achievements";
 import { ConfirmSubmitForm } from "@/components/ConfirmSubmitForm";
 import { deleteWalkAction } from "./actions";
 
@@ -13,11 +14,27 @@ function formatDate(iso: string, locale: string): string {
   });
 }
 
+const TIER_COLORS: Record<string, string> = {
+  stein: "#8a8a8a",
+  blech: "#9fa8b0",
+  bronze: "#a5711c",
+  silber: "#b0b6bd",
+  gold: "#c99a2e",
+  platin: "#7fd3c9",
+  diamant: "#5b9bd5",
+};
+
+function tierKey(tierIndex: number): string | null {
+  return tierIndex >= 0 ? TIERS[tierIndex] : null;
+}
+
 export default async function StatsPage() {
   const user = await requireUser();
   const locale = await resolveLocale(user.locale);
 
   const userStats = getUserStats(user.id);
+  const streakStats = getStreakStats(user.id);
+  const achievements = computeAchievements(user.id, locale);
   const recentWalks = getRecentWalks(user.id, 8);
   const usageStats = getSegmentUsageStats();
   const nodes = listNodes();
@@ -52,6 +69,49 @@ export default async function StatsPage() {
           <span className="chip">
             {t(locale, "stats.segmentsExplored")}: {userStats.segmentsExplored} / {userStats.totalSegments}
           </span>
+          <span className="chip">
+            {t(locale, "stats.currentStreak")}: {streakStats.currentStreak}
+          </span>
+          <span className="chip">
+            {t(locale, "stats.longestStreak")}: {streakStats.longestStreak}
+          </span>
+        </div>
+      </div>
+
+      <div className="card">
+        <h2 style={{ fontSize: "1.1rem", marginBottom: "0.8rem" }}>{t(locale, "achievements.title")}</h2>
+        <div className="grid-2-cols">
+          {achievements.scalable.map((a) => {
+            const key = tierKey(a.tierIndex);
+            return (
+              <div key={a.category} style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "0.6rem" }}>
+                <span
+                  style={{
+                    width: "0.9rem",
+                    height: "0.9rem",
+                    borderRadius: "50%",
+                    background: key ? TIER_COLORS[key] : "var(--ink-soft)",
+                    opacity: key ? 1 : 0.3,
+                    flexShrink: 0,
+                  }}
+                />
+                <div>
+                  <strong style={{ fontSize: "0.9rem" }}>
+                    {a.categoryLabel} — {a.tierLabel ?? t(locale, "achievements.noTierYet")}
+                  </strong>
+                  <p style={{ margin: 0, fontSize: "0.8rem", color: "var(--ink-soft)" }}>{a.progressLabel}</p>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <div className="btn-row" style={{ marginTop: "0.4rem" }}>
+          {achievements.special.map((s) => (
+            <span key={s.id} className="chip" style={{ opacity: s.earned ? 1 : 0.4 }} title={s.description}>
+              {s.earned ? "✓ " : "· "}
+              {s.label}
+            </span>
+          ))}
         </div>
       </div>
 

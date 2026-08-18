@@ -1,8 +1,6 @@
 // Route-finding: ported from the legacy Python bot's DFS approach, extended with
 // a dead-end exception and start/destination/waypoint support.
 
-import { bearing, angleDiff, type LatLng } from "./geo";
-
 export interface SegmentEdge {
   id: number;
   from: number;
@@ -241,6 +239,8 @@ export interface ScoredRoute {
   weightedUsage: number;
   overlap: number;
   delta: number;
+  /** Count of segments in the route that have never been walked by anyone (usage count 0). */
+  unexplored: number;
 }
 
 export function scoreRoutes(
@@ -265,6 +265,7 @@ export function scoreRoutes(
       overlap = unionSize > 0 ? inter / unionSize : 0;
     }
     const actual = mode === "km" ? route.lengthM : route.durationMin;
+    const unexplored = route.segmentIds.filter((id) => (usageMap.get(id) ?? 0) === 0).length;
     return {
       route,
       key: segmentSetKey(route.segmentIds),
@@ -272,16 +273,31 @@ export function scoreRoutes(
       weightedUsage: usageSum + dailySum,
       overlap,
       delta: Math.abs(actual - targetValue),
+      unexplored,
     };
   });
 }
 
-export function pickBest(scored: ScoredRoute[], excludeKeys: Set<string>): ScoredRoute | null {
+/**
+ * Picks the best-scoring route. In explorer mode, routes covering more
+ * never-walked segments win first — the usual backtrack/usage/overlap/delta
+ * chain still decides ties, so an explorer-mode pick is still as nice a loop
+ * as possible among the most-unexplored candidates. With explorer mode off
+ * this is unchanged from before.
+ */
+export function pickBest(scored: ScoredRoute[], excludeKeys: Set<string>, explorerMode = false): ScoredRoute | null {
   let best: ScoredRoute | null = null;
   for (const s of scored) {
     if (excludeKeys.has(s.key)) continue;
+    if (!best) {
+      best = s;
+      continue;
+    }
+    if (explorerMode && s.unexplored !== best.unexplored) {
+      if (s.unexplored > best.unexplored) best = s;
+      continue;
+    }
     if (
-      !best ||
       s.backtrack < best.backtrack ||
       (s.backtrack === best.backtrack &&
         (s.weightedUsage < best.weightedUsage ||
@@ -300,44 +316,4 @@ export function toleranceRange(
 ): { minValue: number; maxValue: number } {
   const tol = target * (tolerancePercent / 100);
   return { minValue: Math.max(0, target - tol), maxValue: target + tol };
-}
-
-const CORNERSTONE_TURN_THRESHOLD_DEG = 35;
-
-/**
- * Reduces a route's node chain to the waypoints worth calling out by name for a
- * walker following directions: the start, the destination, any explicitly
- * requested waypoint, and every node where the path actually turns (comparing
- * the direction of travel just before and just after that point). A node
- * where the path continues essentially straight through needs no mention —
- * even if other paths happen to branch off there, since nothing about
- * *this* route changes course at that point. A real turn (including the
- * dead-end u-turn at a spur's end) always stays.
- */
-export function findCornerstoneIndices(
-  nodeChain: number[],
-  segmentIds: number[],
-  segmentsById: Map<number, { geometry: LatLng[] }>,
-  forceKeepNodeIds?: Set<number>,
-): number[] {
-  const indices: number[] = [];
-  if (nodeChain.length === 0) return indices;
-  indices.push(0);
-  for (let i = 1; i < nodeChain.length - 1; i++) {
-    if (forceKeepNodeIds?.has(nodeChain[i])) {
-      indices.push(i);
-      continue;
-    }
-    const incoming = segmentsById.get(segmentIds[i - 1])?.geometry;
-    const outgoing = segmentsById.get(segmentIds[i])?.geometry;
-    if (!incoming || incoming.length < 2 || !outgoing || outgoing.length < 2) {
-      indices.push(i); // can't tell — keep it rather than risk hiding a real turn
-      continue;
-    }
-    const incomingBearing = bearing(incoming[incoming.length - 2], incoming[incoming.length - 1]);
-    const outgoingBearing = bearing(outgoing[0], outgoing[1]);
-    if (angleDiff(incomingBearing, outgoingBearing) >= CORNERSTONE_TURN_THRESHOLD_DEG) indices.push(i);
-  }
-  if (nodeChain.length > 1) indices.push(nodeChain.length - 1);
-  return indices;
 }

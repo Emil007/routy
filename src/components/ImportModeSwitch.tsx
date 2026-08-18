@@ -20,16 +20,16 @@ export function ImportModeSwitch({
   mergeRadiusM: number;
   walkSpeedKmh: number;
 }) {
-  const [mode, setMode] = useState<"upload" | "draw">("upload");
+  const [mode, setMode] = useState<"upload" | "draw">("draw");
 
   return (
     <div className="stack">
       <div className="btn-row">
-        <button type="button" className={mode === "upload" ? "btn-primary" : "btn-secondary"} onClick={() => setMode("upload")}>
-          {t(locale, "import.uploadMode")}
-        </button>
         <button type="button" className={mode === "draw" ? "btn-primary" : "btn-secondary"} onClick={() => setMode("draw")}>
           {t(locale, "import.drawMode")}
+        </button>
+        <button type="button" className={mode === "upload" ? "btn-primary" : "btn-secondary"} onClick={() => setMode("upload")}>
+          {t(locale, "import.uploadMode")}
         </button>
       </div>
 
