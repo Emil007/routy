@@ -1,4 +1,5 @@
-import { cookies } from "next/headers";
+import { randomBytes } from "node:crypto";
+import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { db } from "./db";
 import { hashToken, newSessionToken } from "./auth";
@@ -6,6 +7,7 @@ import { hashToken, newSessionToken } from "./auth";
 export const SESSION_COOKIE = "routy_session";
 export const IMPERSONATOR_COOKIE = "routy_impersonator_token";
 const SESSION_TTL_DAYS = 30;
+export type SessionClient = "web" | "app";
 
 export function sessionCookieOptions() {
   const secure =
@@ -19,16 +21,32 @@ export function sessionCookieOptions() {
   };
 }
 
-export async function createSession(userId: number): Promise<string> {
+export async function createSession(
+  userId: number,
+  opts?: { deviceName?: string | null; client?: SessionClient },
+): Promise<string> {
   const token = newSessionToken();
   const tokenHash = hashToken(token);
+  const sessionId = randomBytes(8).toString("hex");
   const expiresAt = new Date(Date.now() + SESSION_TTL_DAYS * 86400000).toISOString();
-  db.prepare("INSERT INTO sessions (token_hash, user_id, expires_at) VALUES (?, ?, ?)").run(
-    tokenHash,
-    userId,
-    expiresAt,
-  );
+  db.prepare(
+    "INSERT INTO sessions (token_hash, user_id, expires_at, session_id, device_name, client) VALUES (?, ?, ?, ?, ?, ?)",
+  ).run(tokenHash, userId, expiresAt, sessionId, opts?.deviceName ?? null, opts?.client ?? "web");
   return token;
+}
+
+/** Reads `Authorization: Bearer <token>` — how the native app authenticates instead of a cookie. */
+export async function getBearerToken(): Promise<string | null> {
+  const store = await headers();
+  const auth = store.get("authorization");
+  if (!auth?.startsWith("Bearer ")) return null;
+  const token = auth.slice("Bearer ".length).trim();
+  return token || null;
+}
+
+/** Deletes a session by its raw token, regardless of whether it arrived as a cookie or a bearer token. */
+export function destroySessionByToken(token: string): void {
+  db.prepare("DELETE FROM sessions WHERE token_hash = ?").run(hashToken(token));
 }
 
 export async function destroyCurrentSession(): Promise<void> {
@@ -61,6 +79,7 @@ export interface SessionUser {
   role: "admin" | "user";
   active: boolean;
   theme: string;
+  totpEnabled: boolean;
 }
 
 interface SessionRow {
@@ -72,12 +91,13 @@ interface SessionRow {
   role: "admin" | "user";
   active: number;
   theme: string;
+  totpEnabled: number;
   expiresAt: string;
 }
 
 export async function getCurrentUser(): Promise<SessionUser | null> {
   const store = await cookies();
-  const token = store.get(SESSION_COOKIE)?.value;
+  const token = store.get(SESSION_COOKIE)?.value ?? (await getBearerToken());
   if (!token) return null;
 
   const tokenHash = hashToken(token);
@@ -85,7 +105,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     .prepare(
       `SELECT u.id as id, u.username as username, u.display_name as displayName, u.locale as locale,
               u.walk_speed_kmh as walkSpeedKmh, u.role as role, u.active as active, u.theme as theme,
-              s.expires_at as expiresAt
+              u.totp_enabled as totpEnabled, s.expires_at as expiresAt
        FROM sessions s JOIN users u ON u.id = s.user_id
        WHERE s.token_hash = ?`,
     )
@@ -110,6 +130,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     role: row.role,
     active: row.active === 1,
     theme: row.theme,
+    totpEnabled: row.totpEnabled === 1,
   };
 }
 
@@ -177,4 +198,52 @@ export async function endImpersonation(): Promise<boolean> {
 export async function isImpersonating(): Promise<boolean> {
   const store = await cookies();
   return !!store.get(IMPERSONATOR_COOKIE)?.value;
+}
+
+export interface SessionListEntry {
+  sessionId: string;
+  deviceName: string | null;
+  client: SessionClient;
+  createdAt: string;
+  expiresAt: string;
+  isCurrent: boolean;
+}
+
+interface SessionListRow {
+  sessionId: string;
+  deviceName: string | null;
+  client: SessionClient;
+  createdAt: string;
+  expiresAt: string;
+  tokenHash: string;
+}
+
+/** Every active session/device for a user — Settings' "sign out everywhere" list, extended with device metadata. */
+export async function listSessions(userId: number): Promise<SessionListEntry[]> {
+  const store = await cookies();
+  const currentToken = store.get(SESSION_COOKIE)?.value ?? (await getBearerToken());
+  const currentHash = currentToken ? hashToken(currentToken) : null;
+
+  const rows = db
+    .prepare(
+      `SELECT session_id as sessionId, device_name as deviceName, client as client,
+              created_at as createdAt, expires_at as expiresAt, token_hash as tokenHash
+       FROM sessions WHERE user_id = ? ORDER BY created_at DESC`,
+    )
+    .all(userId) as SessionListRow[];
+
+  return rows.map((r) => ({
+    sessionId: r.sessionId,
+    deviceName: r.deviceName,
+    client: r.client,
+    createdAt: r.createdAt,
+    expiresAt: r.expiresAt,
+    isCurrent: r.tokenHash === currentHash,
+  }));
+}
+
+/** Revokes one session by its (non-secret) session_id, scoped to userId so you can only revoke your own. */
+export function revokeSessionById(userId: number, sessionId: string): boolean {
+  const result = db.prepare("DELETE FROM sessions WHERE session_id = ? AND user_id = ?").run(sessionId, userId);
+  return result.changes > 0;
 }

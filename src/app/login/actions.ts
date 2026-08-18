@@ -4,9 +4,10 @@ import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
 import { verifyLogin, createUser } from "@/lib/users";
 import { createSession, userCount, SESSION_COOKIE, sessionCookieOptions } from "@/lib/session";
-import { checkLockout, recordFailure, clearAttempts } from "@/lib/loginRateLimit";
+import { checkLockout, recordFailure, clearAttempts, getClientIp, IP_LOCKOUT_THRESHOLD } from "@/lib/loginRateLimit";
 import { verifyCaptcha, getCaptchaFieldName } from "@/lib/captcha";
 import { verifySetupToken } from "@/lib/setupToken";
+import { verifyTotpCode } from "@/lib/twoFactor";
 
 async function establishSession(userId: number) {
   const token = await createSession(userId);
@@ -23,26 +24,47 @@ function captchaToken(formData: FormData): string | null {
 export async function loginAction(formData: FormData) {
   const username = String(formData.get("username") || "").trim();
   const password = String(formData.get("password") || "");
+  const userKey = `login:${username}`;
+  const ip = await getClientIp();
+  const ipKey = `login-ip:${ip}`;
 
-  const lockout = checkLockout(`login:${username}`);
-  if (lockout.locked) {
-    redirect(`/login?error=locked&retry=${lockout.retryAfterSeconds}`);
+  const lockout = checkLockout(userKey);
+  const ipLockout = checkLockout(ipKey);
+  if (lockout.locked || ipLockout.locked) {
+    const retry = Math.max(lockout.retryAfterSeconds, ipLockout.retryAfterSeconds);
+    redirect(`/login?error=locked&retry=${retry}`);
   }
 
   if (!(await verifyCaptcha(captchaToken(formData)))) {
-    recordFailure(`login:${username}`);
+    recordFailure(userKey);
+    recordFailure(ipKey, IP_LOCKOUT_THRESHOLD);
     redirect("/login?error=captcha");
   }
 
   const user = verifyLogin(username, password);
   if (!user) {
-    recordFailure(`login:${username}`);
+    recordFailure(userKey);
+    recordFailure(ipKey, IP_LOCKOUT_THRESHOLD);
     redirect("/login?error=1");
   }
   if (!user.active) {
     redirect("/login?error=inactive");
   }
-  clearAttempts(`login:${username}`);
+
+  if (user.totpEnabled) {
+    const code = String(formData.get("totpCode") || "").trim();
+    if (!code) {
+      redirect(`/login?totpRequired=1&username=${encodeURIComponent(username)}`);
+    }
+    if (!user.totpSecret || !verifyTotpCode(user.totpSecret, user.username, code)) {
+      recordFailure(userKey);
+      recordFailure(ipKey, IP_LOCKOUT_THRESHOLD);
+      redirect(`/login?error=totp&username=${encodeURIComponent(username)}`);
+    }
+  }
+
+  clearAttempts(userKey);
+  clearAttempts(ipKey);
   await establishSession(user.id);
   redirect("/route");
 }

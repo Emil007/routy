@@ -2,6 +2,8 @@ import { requireUser } from "@/lib/session";
 import { resolveLocale } from "@/lib/locale";
 import { t } from "@/lib/i18n";
 import { getSettings, SETTINGS_KEYS, type Settings } from "@/lib/settings";
+import { getUser } from "@/lib/users";
+import { totpQrCodeDataUrl } from "@/lib/twoFactor";
 import { LocaleSelectForm } from "@/components/LocaleSelectForm";
 import { ThemeSelectForm } from "@/components/ThemeSelectForm";
 import { ConfirmSubmitForm } from "@/components/ConfirmSubmitForm";
@@ -11,6 +13,10 @@ import {
   changePasswordAction,
   logoutEverywhereAction,
   deleteOwnAccountAction,
+  startEnableTotpAction,
+  confirmEnableTotpAction,
+  cancelEnableTotpAction,
+  disableTotpAction,
 } from "./actions";
 
 const STEP: Partial<Record<keyof Settings, number>> = {
@@ -24,12 +30,25 @@ const STEP: Partial<Record<keyof Settings, number>> = {
 export default async function SettingsPage({
   searchParams,
 }: {
-  searchParams: Promise<{ passwordError?: string; passwordSuccess?: string; loggedOutEverywhere?: string }>;
+  searchParams: Promise<{
+    passwordError?: string;
+    passwordSuccess?: string;
+    loggedOutEverywhere?: string;
+    totpSetup?: string;
+    totpError?: string;
+    totpEnabled?: string;
+    totpDisabled?: string;
+    totpDisableError?: string;
+  }>;
 }) {
   const user = await requireUser();
   const locale = await resolveLocale(user.locale);
   const settings = getSettings();
-  const { passwordError, passwordSuccess, loggedOutEverywhere } = await searchParams;
+  const { passwordError, passwordSuccess, loggedOutEverywhere, totpSetup, totpError, totpEnabled, totpDisabled, totpDisableError } =
+    await searchParams;
+
+  const pendingTotp = totpSetup === "1" ? getUser(user.id) : null;
+  const totpQrCode = pendingTotp?.totpSecret ? await totpQrCodeDataUrl(pendingTotp.totpSecret, user.username) : null;
 
   return (
     <>
@@ -118,6 +137,71 @@ export default async function SettingsPage({
             {t(locale, "common.save")}
           </button>
         </form>
+      </div>
+
+      <div className="card">
+        <h2 style={{ fontSize: "1.1rem", marginBottom: "0.3rem" }}>{t(locale, "settings.totpTitle")}</h2>
+        <p style={{ color: "var(--ink-soft)", fontSize: "0.9rem", marginBottom: "1rem" }}>{t(locale, "settings.totpSubtitle")}</p>
+
+        {pendingTotp?.totpSecret && totpQrCode ? (
+          <>
+            {totpError === "1" && (
+              <div className="alert alert-error" style={{ marginBottom: "1rem" }}>{t(locale, "settings.totpConfirmError")}</div>
+            )}
+            <p style={{ marginBottom: "0.5rem" }}>{t(locale, "settings.totpScanHint")}</p>
+            {/* eslint-disable-next-line @next/next/no-img-element -- server-rendered data: URL, no optimization needed */}
+            <img src={totpQrCode} alt="" width={220} height={220} style={{ marginBottom: "0.5rem" }} />
+            <p className="hint" style={{ marginBottom: "1rem", wordBreak: "break-all" }}>
+              {t(locale, "settings.totpManualKey")}: {pendingTotp.totpSecret}
+            </p>
+            <form action={confirmEnableTotpAction} id="confirmTotpForm" className="stack">
+              <div className="field">
+                <label htmlFor="totpCode">{t(locale, "login.totpCodeLabel")}</label>
+                <input type="text" id="totpCode" name="totpCode" inputMode="numeric" autoComplete="one-time-code" maxLength={6} required />
+              </div>
+            </form>
+            <div className="btn-row">
+              <button type="submit" form="confirmTotpForm" className="btn-primary">
+                {t(locale, "settings.totpConfirmButton")}
+              </button>
+              <form action={cancelEnableTotpAction}>
+                <button type="submit" className="btn-secondary">
+                  {t(locale, "common.cancel")}
+                </button>
+              </form>
+            </div>
+          </>
+        ) : user.totpEnabled ? (
+          <>
+            {totpEnabled === "1" && (
+              <div className="alert alert-success" style={{ marginBottom: "1rem" }}>{t(locale, "settings.totpEnabledMessage")}</div>
+            )}
+            {totpDisableError === "1" && (
+              <div className="alert alert-error" style={{ marginBottom: "1rem" }}>{t(locale, "settings.totpDisableError")}</div>
+            )}
+            <p style={{ marginBottom: "1rem" }}>{t(locale, "settings.totpEnabledStatus")}</p>
+            <form action={disableTotpAction} className="stack">
+              <div className="field">
+                <label htmlFor="totpCurrentPassword">{t(locale, "settings.currentPassword")}</label>
+                <input type="password" id="totpCurrentPassword" name="currentPassword" autoComplete="current-password" required />
+              </div>
+              <button type="submit" className="btn-secondary">
+                {t(locale, "settings.totpDisableButton")}
+              </button>
+            </form>
+          </>
+        ) : (
+          <>
+            {totpDisabled === "1" && (
+              <div className="alert alert-success" style={{ marginBottom: "1rem" }}>{t(locale, "settings.totpDisabledMessage")}</div>
+            )}
+            <form action={startEnableTotpAction}>
+              <button type="submit" className="btn-secondary">
+                {t(locale, "settings.totpEnableButton")}
+              </button>
+            </form>
+          </>
+        )}
       </div>
 
       <div className="card">

@@ -15,6 +15,9 @@ export interface UserRow {
   active: boolean;
   deletedAt: string | null;
   theme: string;
+  /** Set as soon as 2FA setup starts, kept even before totpEnabled flips on so the same QR code can be re-confirmed. */
+  totpSecret: string | null;
+  totpEnabled: boolean;
 }
 
 interface UserDbRow {
@@ -28,6 +31,8 @@ interface UserDbRow {
   active: number;
   deleted_at: string | null;
   theme: string;
+  totp_secret: string | null;
+  totp_enabled: number;
 }
 
 function mapUser(row: UserDbRow): UserRow {
@@ -42,6 +47,8 @@ function mapUser(row: UserDbRow): UserRow {
     active: row.active === 1,
     deletedAt: row.deleted_at,
     theme: row.theme,
+    totpSecret: row.totp_secret,
+    totpEnabled: row.totp_enabled === 1,
   };
 }
 
@@ -149,4 +156,18 @@ export function deleteUserPermanently(userId: number): void {
 
 function randomPlaceholderPassword(): string {
   return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+}
+
+/** Stores a freshly generated secret without turning 2FA on yet — that happens once the user proves they captured it. */
+export function setPendingTotpSecret(userId: number, secret: string): void {
+  db.prepare("UPDATE users SET totp_secret = ?, totp_enabled = 0 WHERE id = ?").run(secret, userId);
+}
+
+export function enableTotp(userId: number): void {
+  db.prepare("UPDATE users SET totp_enabled = 1 WHERE id = ?").run(userId);
+}
+
+/** Also the account-recovery path for admins when a user loses their authenticator. */
+export function disableTotp(userId: number): void {
+  db.prepare("UPDATE users SET totp_secret = NULL, totp_enabled = 0 WHERE id = ?").run(userId);
 }
