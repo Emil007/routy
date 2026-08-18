@@ -233,6 +233,7 @@ export function DrawPathWizard({
           <EndpointFields
             locale={locale}
             role="start"
+            point={points[0]}
             candidates={findNodeCandidates(nodes, points[0], mergeRadiusM)}
             nameConflict={null}
             decisionChoice={startDecision.choice}
@@ -250,6 +251,7 @@ export function DrawPathWizard({
           <EndpointFields
             locale={locale}
             role="end"
+            point={points[points.length - 1]}
             candidates={findNodeCandidates(nodes, points[points.length - 1], mergeRadiusM)}
             nameConflict={null}
             decisionChoice={endDecision.choice}

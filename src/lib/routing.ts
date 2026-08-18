@@ -1,8 +1,6 @@
 // Route-finding: ported from the legacy Python bot's DFS approach, extended with
 // a dead-end exception and start/destination/waypoint support.
 
-import { bearing, angleDiff, type LatLng } from "./geo";
-
 export interface SegmentEdge {
   id: number;
   from: number;
@@ -300,44 +298,4 @@ export function toleranceRange(
 ): { minValue: number; maxValue: number } {
   const tol = target * (tolerancePercent / 100);
   return { minValue: Math.max(0, target - tol), maxValue: target + tol };
-}
-
-const CORNERSTONE_TURN_THRESHOLD_DEG = 35;
-
-/**
- * Reduces a route's node chain to the waypoints worth calling out by name for a
- * walker following directions: the start, the destination, any explicitly
- * requested waypoint, and every node where the path actually turns (comparing
- * the direction of travel just before and just after that point). A node
- * where the path continues essentially straight through needs no mention —
- * even if other paths happen to branch off there, since nothing about
- * *this* route changes course at that point. A real turn (including the
- * dead-end u-turn at a spur's end) always stays.
- */
-export function findCornerstoneIndices(
-  nodeChain: number[],
-  segmentIds: number[],
-  segmentsById: Map<number, { geometry: LatLng[] }>,
-  forceKeepNodeIds?: Set<number>,
-): number[] {
-  const indices: number[] = [];
-  if (nodeChain.length === 0) return indices;
-  indices.push(0);
-  for (let i = 1; i < nodeChain.length - 1; i++) {
-    if (forceKeepNodeIds?.has(nodeChain[i])) {
-      indices.push(i);
-      continue;
-    }
-    const incoming = segmentsById.get(segmentIds[i - 1])?.geometry;
-    const outgoing = segmentsById.get(segmentIds[i])?.geometry;
-    if (!incoming || incoming.length < 2 || !outgoing || outgoing.length < 2) {
-      indices.push(i); // can't tell — keep it rather than risk hiding a real turn
-      continue;
-    }
-    const incomingBearing = bearing(incoming[incoming.length - 2], incoming[incoming.length - 1]);
-    const outgoingBearing = bearing(outgoing[0], outgoing[1]);
-    if (angleDiff(incomingBearing, outgoingBearing) >= CORNERSTONE_TURN_THRESHOLD_DEG) indices.push(i);
-  }
-  if (nodeChain.length > 1) indices.push(nodeChain.length - 1);
-  return indices;
 }

@@ -4,7 +4,6 @@ import { t } from "@/lib/i18n";
 import { listNodes, getHomeNode } from "@/lib/nodes";
 import { getActiveRoute } from "@/lib/activeRoute";
 import { loadGraphContext } from "@/lib/routeContext";
-import { findCornerstoneIndices } from "@/lib/routing";
 import { buildRouteDisplay } from "@/lib/routeDisplay";
 import { RouteGenerator } from "@/components/RouteGenerator";
 
@@ -18,7 +17,6 @@ export default async function RoutePage() {
   const activeDisplay = active
     ? (() => {
         const { segmentsById, nodesById } = loadGraphContext();
-        const cornerstoneIndices = findCornerstoneIndices(active.nodeChain, active.segmentIds, segmentsById);
         return buildRouteDisplay(
           active.nodeChain,
           active.segmentIds,
@@ -26,7 +24,6 @@ export default async function RoutePage() {
           active.durationMin,
           nodesById,
           segmentsById,
-          cornerstoneIndices,
         );
       })()
     : null;

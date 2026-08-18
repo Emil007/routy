@@ -18,7 +18,6 @@ interface RouteDisplayPayload {
   lengthM: number;
   durationMin: number;
   stations: RouteStation[];
-  cornerstones: RouteStation[];
   elevation: { gainM: number; lossM: number } | null;
   geometry: [number, number][];
 }
@@ -303,7 +302,7 @@ export function RouteGenerator({
           <div>
             <strong style={{ fontSize: "0.85rem", color: "var(--ink-soft)" }}>{t(locale, "route.stationList")}</strong>
             <p style={{ marginTop: "0.3rem" }}>
-              {result.route.cornerstones.map((s) => s.name || nodeName(s.nodeId)).join(" › ")}
+              {result.route.stations.map((s) => s.name || nodeName(s.nodeId)).join(" › ")}
             </p>
           </div>
 

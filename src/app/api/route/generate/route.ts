@@ -5,7 +5,7 @@ import { getSettings } from "@/lib/settings";
 import { getHomeNode } from "@/lib/nodes";
 import { getUsageMap, getDailyUsageMap } from "@/lib/segments";
 import { loadGraphContext } from "@/lib/routeContext";
-import { findDirectRoutes, findWaypointRoutes, scoreRoutes, pickBest, findCornerstoneIndices } from "@/lib/routing";
+import { findDirectRoutes, findWaypointRoutes, scoreRoutes, pickBest } from "@/lib/routing";
 import { createRouteSession } from "@/lib/routeSessions";
 import { buildRouteDisplay } from "@/lib/routeDisplay";
 
@@ -86,12 +86,6 @@ export async function POST(request: Request) {
     widenSteps: 0,
   });
 
-  const cornerstoneIndices = findCornerstoneIndices(
-    best.route.nodeChain,
-    best.route.segmentIds,
-    segmentsById,
-    waypointNodeId ? new Set([waypointNodeId]) : undefined,
-  );
   const display = buildRouteDisplay(
     best.route.nodeChain,
     best.route.segmentIds,
@@ -99,7 +93,6 @@ export async function POST(request: Request) {
     best.route.durationMin,
     nodesById,
     segmentsById,
-    cornerstoneIndices,
   );
 
   return NextResponse.json({ token, route: display });

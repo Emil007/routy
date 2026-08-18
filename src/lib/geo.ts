@@ -70,12 +70,6 @@ export function bearing(a: LatLng, b: LatLng): number {
   return ((theta * 180) / Math.PI + 360) % 360;
 }
 
-/** Smallest angle (0-180°) between two compass bearings. */
-export function angleDiff(a: number, b: number): number {
-  const diff = Math.abs(a - b) % 360;
-  return diff > 180 ? 360 - diff : diff;
-}
-
 // Small-scale (tens to hundreds of meters) local projection — accurate enough for
 // finding where on a walking path a point falls, without pulling in a full
 // geodesy library.

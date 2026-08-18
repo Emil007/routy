@@ -58,6 +58,7 @@ export default async function MapPage({
                 <th>{t(locale, "route.destination")}</th>
                 <th>{t(locale, "import.length")}</th>
                 <th>{t(locale, "import.duration")}</th>
+                <th>{t(locale, "route.elevationLabel")}</th>
                 <th>{t(locale, "map.usageHeading")}</th>
                 <th></th>
               </tr>
@@ -69,6 +70,11 @@ export default async function MapPage({
                   <td>{nodesById.get(s.endNodeId)?.name || `#${s.endNodeId}`}</td>
                   <td>{(s.lengthM / 1000).toFixed(2)} {t(locale, "common.km")}</td>
                   <td>{s.durationMin} {t(locale, "common.min")}</td>
+                  <td>
+                    {s.elevation
+                      ? `↗${s.elevation.gainM} ↘${s.elevation.lossM} m`
+                      : "–"}
+                  </td>
                   <td>{t(locale, "map.usageCount", { count: usage.get(s.id) ?? 0 })}</td>
                   <td>
                     <div className="btn-row">

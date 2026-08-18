@@ -204,6 +204,7 @@ export function GpxImportWizard({ locale }: { locale: Locale }) {
                     <EndpointFields
                       locale={locale}
                       role="start"
+                      point={start}
                       candidates={track.startCandidates}
                       nameConflict={track.startNameConflict}
                       decisionChoice={decision.startChoice}
@@ -224,6 +225,7 @@ export function GpxImportWizard({ locale }: { locale: Locale }) {
                     <EndpointFields
                       locale={locale}
                       role="end"
+                      point={end}
                       candidates={track.endCandidates}
                       nameConflict={track.endNameConflict}
                       decisionChoice={decision.endChoice}

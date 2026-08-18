@@ -144,11 +144,6 @@
     "walkSpeedTitle": "Your pace",
     "walkSpeedSubtitle": "Overrides the network default for your profile only — affects the estimated duration of new paths and routes.",
     "walkSpeedHint": "Leave empty to use the network default (currently {default} km/h).",
-    "elevationTitle": "Elevation data",
-    "elevationSubtitle": "Paths created before this feature existed, or without GPX elevation data, have none yet. This looks it up after the fact (may take a bit depending on how many paths there are).",
-    "elevationBackfillButton": "Fetch missing elevation data",
-    "elevationBackfillRunning": "Fetching elevation data …",
-    "elevationBackfillResult": "{updated} of {attempted} paths updated.",
     "suggest_min_km": "Suggested length, minimum (km)",
     "suggest_min_km_hint": "Lower bound of the length range a route is suggested from.",
     "suggest_max_km": "Suggested length, maximum (km)",
@@ -206,5 +201,17 @@
     "splitting": "Splitting …",
     "splitError": "Could not split the path.",
     "splitBlockedActive": "This path can't be split right now — it's currently used by an active route."
+  },
+  "nodeNaming": {
+    "directions": {
+      "n": "North",
+      "ne": "Northeast",
+      "e": "East",
+      "se": "Southeast",
+      "s": "South",
+      "sw": "Southwest",
+      "w": "West",
+      "nw": "Northwest"
+    }
   }
 }

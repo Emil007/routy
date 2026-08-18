@@ -2,10 +2,12 @@
 
 import { t, type Locale } from "@/lib/i18n";
 import type { NodeCandidate } from "@/lib/nodeMatching";
+import type { LatLng } from "@/lib/geo";
 
 export function EndpointFields({
   locale,
   role,
+  point,
   candidates,
   nameConflict,
   decisionChoice,
@@ -17,6 +19,7 @@ export function EndpointFields({
 }: {
   locale: Locale;
   role: "start" | "end" | "split";
+  point: LatLng;
   candidates: NodeCandidate[];
   nameConflict: NodeCandidate | null;
   decisionChoice: "existing" | "new";
@@ -26,6 +29,22 @@ export function EndpointFields({
   onNodeId: (v: number) => void;
   onNewName: (v: string) => void;
 }) {
+  function handleChoice(v: "existing" | "new") {
+    onChoice(v);
+    if (v === "new" && !decisionNewName) {
+      fetch("/api/nodes/suggest-name", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lat: point.lat, lng: point.lng }),
+      })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data: { suggestion?: string | null } | null) => {
+          if (data?.suggestion) onNewName(data.suggestion);
+        })
+        .catch(() => {});
+    }
+  }
+
   return (
     <div className="field">
       <label>
@@ -36,11 +55,11 @@ export function EndpointFields({
           type="button"
           className={decisionChoice === "existing" ? "btn-primary" : "btn-secondary"}
           disabled={candidates.length === 0}
-          onClick={() => onChoice("existing")}
+          onClick={() => handleChoice("existing")}
         >
           {t(locale, "import.useExisting")}
         </button>
-        <button type="button" className={decisionChoice === "new" ? "btn-primary" : "btn-secondary"} onClick={() => onChoice("new")}>
+        <button type="button" className={decisionChoice === "new" ? "btn-primary" : "btn-secondary"} onClick={() => handleChoice("new")}>
           {t(locale, "import.createNew")}
         </button>
       </div>
