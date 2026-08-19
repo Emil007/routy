@@ -20,6 +20,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   return (
     <>
+      {/* client=app → admin WebView only; native Android tabs authenticate via Bearer token */}
       <NavBar
         links={links}
         greeting={t(locale, "nav.greeting", { name: user.displayName })}

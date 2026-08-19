@@ -80,9 +80,9 @@ export interface SessionUser {
   active: boolean;
   theme: string;
   totpEnabled: boolean;
-  /** Which client created this session — "app" covers both the native app itself and its
-   *  WebView tabs, since they share the same session cookie. Lets pages served into a WebView
-   *  tab hide chrome (e.g. NavBar's own nav links) that's redundant with the app's native UI. */
+  /** Which client created this session — `"app"` is the native Android app (Bearer token) and its
+   *  admin WebView tab (shared session cookie). Used to hide NavBar chrome in the WebView only;
+   *  browser sessions use `"web"` and get the full site header. */
   client: SessionClient;
 }
 

@@ -94,6 +94,7 @@ No API keys, no personal data sent. The only other outbound call is CAPTCHA veri
 **Mobile**
 - Installable as a PWA; map tiles you've already viewed stay visible offline
 - No reliable background GPS in browsers, so live recording needs the screen on and the app in the foreground
+- **Android app** (separate repo): Route, Map, Stats, Settings, and GPS recording are native; only the Admin tab loads this server in a WebView. Browser users still get the full web UI at `/map`, `/settings`, etc.
 
 **Other**
 - Stats: totals, recent walks, streaks, weekly household leaderboard, tiered achievements, network-wide usage

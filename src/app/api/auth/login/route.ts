@@ -13,8 +13,8 @@ const bodySchema = z.object({
 });
 
 /**
- * Token-based login for the native app (no cookies, no CAPTCHA widget to render) —
- * relies on the same brute-force lockout as the web login form instead.
+ * Token-based login for the native Android app (Bearer auth). Sessions are tagged
+ * `client: "app"` so the admin WebView can hide NavBar chrome; native tabs do not load these pages.
  */
 export async function POST(request: Request) {
   const json = await request.json().catch(() => null);

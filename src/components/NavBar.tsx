@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { logoutAction } from "@/app/actions";
+import { navChromeVisibility } from "@/lib/navChrome";
 import { RoutyLogo } from "./RoutyLogo";
 
 export interface NavLink {
@@ -21,14 +22,13 @@ export function NavBar({
   greeting: string;
   logoutLabel: string;
   version: string;
-  /** True when loaded in the native Android app's WebView tabs — the app shell already provides
-   *  brand, bottom nav, and (on non-settings tabs) native logout. Embedded pages hide redundant
-   *  chrome; logout stays available here only on Settings. */
+  /** True for Android admin WebView only — native shell provides nav and logout elsewhere. */
   embedded?: boolean;
 }) {
   const pathname = usePathname();
-  const showHeaderChrome = !embedded;
-  const showUserbar = !embedded || pathname === "/settings";
+  const { showHeaderChrome, showUserbar } = navChromeVisibility(embedded);
+
+  if (!showHeaderChrome && !showUserbar) return null;
 
   return (
     <header className="topnav">
