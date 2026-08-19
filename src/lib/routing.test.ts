@@ -227,6 +227,32 @@ describe("scoreRoutes + pickBest", () => {
     expect(best?.route.segmentIds).toEqual([1, 2, 3, 4]);
   });
 
+  it("counts stale segments once per physical path", () => {
+    const pairOf = new Map<number, number>([
+      [1, 2],
+      [2, 1],
+    ]);
+    const candidates = [
+      { nodeChain: [1, 3, 1], segmentIds: [1, 2], lengthM: 400, durationMin: 8 },
+    ];
+    const staleSegmentIds = new Set([1, 2]);
+    const scored = scoreRoutes(
+      candidates,
+      pairOf,
+      new Map(),
+      new Map(),
+      0,
+      new Set(),
+      400,
+      "km",
+      new Map(),
+      new Set(),
+      new Map(),
+      staleSegmentIds,
+    );
+    expect(scored[0]?.staleCount).toBe(1);
+  });
+
   it("prefers more stale segments in surprise mode", () => {
     const scored = [
       {

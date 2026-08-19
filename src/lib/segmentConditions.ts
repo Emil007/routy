@@ -1,10 +1,11 @@
 import { db } from "./db";
-import { getSegment } from "./segments";
+import { canonicalSegmentId, directedPairIds, getSegment } from "./segments";
 
 export const CONDITION_REASONS = ["muddy", "flooded", "construction", "dog", "icy", "overgrown"] as const;
 export type ConditionReason = (typeof CONDITION_REASONS)[number];
 
 export const DEFAULT_CONDITION_DAYS = 7;
+export const MAX_ACTIVE_CONDITIONS_PER_PATH = 5;
 
 export interface SegmentConditionRow {
   id: number;
@@ -55,17 +56,38 @@ export function listActiveConditions(): SegmentConditionRow[] {
   return rows.map(rowFromDb);
 }
 
-/** Per segment: number of active condition reports (for routing penalty weighting). */
+/** Per directed segment id: active condition report count (mirrored across path pair). */
 export function getConditionPenaltyMap(): Map<number, number> {
-  const map = new Map<number, number>();
+  const byCanon = new Map<number, number>();
   for (const c of listActiveConditions()) {
-    map.set(c.segmentId, (map.get(c.segmentId) ?? 0) + 1);
+    const segment = getSegment(c.segmentId);
+    const canon = segment ? canonicalSegmentId(segment) : c.segmentId;
+    byCanon.set(canon, (byCanon.get(canon) ?? 0) + 1);
+  }
+  const map = new Map<number, number>();
+  for (const [canon, count] of byCanon) {
+    for (const id of directedPairIds(canon)) {
+      map.set(id, count);
+    }
   }
   return map;
 }
 
 export function listActiveConditionsForSegment(segmentId: number): SegmentConditionRow[] {
-  return listActiveConditions().filter((c) => c.segmentId === segmentId);
+  const segment = getSegment(segmentId);
+  if (!segment) return [];
+  const canon = canonicalSegmentId(segment);
+  return listActiveConditions().filter((c) => {
+    const s = getSegment(c.segmentId);
+    return s !== null && canonicalSegmentId(s) === canon;
+  });
+}
+
+function activeOnPath(canonId: number): SegmentConditionRow[] {
+  return listActiveConditions().filter((c) => {
+    const s = getSegment(c.segmentId);
+    return s !== null && canonicalSegmentId(s) === canonId;
+  });
 }
 
 export function reportCondition(
@@ -74,20 +96,32 @@ export function reportCondition(
   reportedBy: number,
   days = DEFAULT_CONDITION_DAYS,
 ): SegmentConditionRow | null {
+  purgeExpiredConditions();
   const segment = getSegment(segmentId);
   if (!segment || segment.deletedAt) return null;
-  const expiresAt = new Date(Date.now() + days * 86400000).toISOString();
+
+  const canon = canonicalSegmentId(segment);
+  const active = activeOnPath(canon);
+  const existing = active.find((c) => c.reportedBy === reportedBy && c.reason === reason);
+  if (existing) return existing;
+  if (active.length >= MAX_ACTIVE_CONDITIONS_PER_PATH) return null;
+
   const result = db
     .prepare(
-      "INSERT INTO segment_condition (segment_id, reason, reported_by, expires_at) VALUES (?, ?, ?, ?)",
+      "INSERT INTO segment_condition (segment_id, reason, reported_by, expires_at, created_at) VALUES (?, ?, ?, datetime('now', '+' || ? || ' days'), datetime('now'))",
     )
-    .run(segmentId, reason, reportedBy, expiresAt);
-  return {
-    id: Number(result.lastInsertRowid),
-    segmentId,
-    reason,
-    reportedBy,
-    expiresAt,
-    createdAt: new Date().toISOString(),
+    .run(segmentId, reason, reportedBy, days);
+  const row = db
+    .prepare(
+      "SELECT id, segment_id, reason, reported_by, expires_at, created_at FROM segment_condition WHERE id = ?",
+    )
+    .get(Number(result.lastInsertRowid)) as {
+    id: number;
+    segment_id: number;
+    reason: string;
+    reported_by: number;
+    expires_at: string;
+    created_at: string;
   };
+  return rowFromDb(row);
 }

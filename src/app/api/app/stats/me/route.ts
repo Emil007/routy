@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
 import { resolveLocale } from "@/lib/locale";
-import { getUserStats, getStreakStats, getRecentWalks } from "@/lib/stats";
+import { getUserStats, getStreakStats, getRecentWalks, getSegmentUsageStats } from "@/lib/stats";
 import { computeAchievements } from "@/lib/achievements";
 import { computeUserPoints } from "@/lib/points";
 
@@ -18,5 +18,6 @@ export async function GET() {
     achievements: computeAchievements(user.id, locale),
     recentWalks: getRecentWalks(user.id, 8),
     points: computeUserPoints(user.id),
+    networkUsage: getSegmentUsageStats(),
   });
 }

@@ -4,12 +4,14 @@ import { verifyLogin } from "@/lib/users";
 import { createSession, type SessionUser } from "@/lib/session";
 import { checkLockout, recordFailure, clearAttempts, getClientIp, IP_LOCKOUT_THRESHOLD } from "@/lib/loginRateLimit";
 import { verifyTotpCode } from "@/lib/twoFactor";
+import { verifyCaptcha } from "@/lib/captcha";
 
 const bodySchema = z.object({
   username: z.string().trim().min(1),
   password: z.string().min(1),
   deviceName: z.string().trim().max(120).optional(),
   totpCode: z.string().trim().optional(),
+  captchaToken: z.string().trim().optional(),
 });
 
 /**
@@ -21,7 +23,7 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) return NextResponse.json({ error: "invalid_body" }, { status: 400 });
 
-  const { username, password, deviceName, totpCode } = parsed.data;
+  const { username, password, deviceName, totpCode, captchaToken } = parsed.data;
   const lockoutKey = `login:${username}`;
   const ip = await getClientIp();
   const ipLockoutKey = `login-ip:${ip}`;
@@ -33,6 +35,12 @@ export async function POST(request: Request) {
       { error: "locked", retryAfterSeconds: Math.max(lockout.retryAfterSeconds, ipLockout.retryAfterSeconds) },
       { status: 429 },
     );
+  }
+
+  if (!(await verifyCaptcha(captchaToken ?? null))) {
+    recordFailure(lockoutKey);
+    recordFailure(ipLockoutKey, IP_LOCKOUT_THRESHOLD);
+    return NextResponse.json({ error: "captcha_failed" }, { status: 401 });
   }
 
   const user = verifyLogin(username, password);

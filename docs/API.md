@@ -121,12 +121,12 @@ Soft routing penalty only — segments are not hard-excluded.
 
 ## Stats (native)
 
-| Method | Path | Response |
-|--------|------|----------|
-| GET | `/api/app/stats/me` | stats, streak, achievements, recentWalks, points |
-| GET | `/api/app/stats/leaderboard/weekly` | `{ leaderboard[] }` |
-| GET | `/api/app/stats/leaderboard/points` | `{ leaderboard[] }` |
-| POST | `/api/app/stats/walks/delete` | `{ walkId }` | `{ ok: true }` | Removes walk from history; adjusts segment usage counts. |
+| Method | Path | Body | Response |
+|--------|------|------|----------|
+| GET | `/api/app/stats/me` | — | stats, streak, achievements, recentWalks, points, networkUsage |
+| GET | `/api/app/stats/leaderboard/weekly` | — | `{ leaderboard[], userId }` |
+| GET | `/api/app/stats/leaderboard/points` | — | `{ leaderboard[], userId }` |
+| POST | `/api/app/stats/walks/delete` | `{ walkId }` | `{ ok: true }` — removes walk; adjusts segment usage |
 
 ## Admin
 

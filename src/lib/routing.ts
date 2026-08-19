@@ -310,7 +310,15 @@ export function scoreRoutes(
       (s, id) => s + (conditionCounts.get(id) ?? 0) * CONDITION_PENALTY_WEIGHT,
       0,
     );
-    const staleCount = route.segmentIds.filter((id) => staleSegmentIds.has(id)).length;
+    const staleCount = (() => {
+      const seen = new Set<number>();
+      for (const id of route.segmentIds) {
+        if (!staleSegmentIds.has(id)) continue;
+        const pair = pairOf.get(id);
+        seen.add(pair !== undefined ? Math.min(id, pair) : id);
+      }
+      return seen.size;
+    })();
     return {
       route,
       key: segmentSetKey(route.segmentIds),

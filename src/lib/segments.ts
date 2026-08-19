@@ -97,6 +97,27 @@ export function isCanonicalSegment(s: Pick<SegmentRow, "id" | "reverseOf">): boo
   return s.reverseOf === null || s.id < s.reverseOf;
 }
 
+/** Lower id of the two directed rows for one physical path. */
+export function canonicalSegmentId(s: Pick<SegmentRow, "id" | "reverseOf">): number {
+  return s.reverseOf !== null ? Math.min(s.id, s.reverseOf) : s.id;
+}
+
+/** Both directed segment ids for the same physical path (for avoid/condition mirroring). */
+export function directedPairIds(segmentId: number): number[] {
+  const segment = getSegment(segmentId);
+  if (!segment) return [segmentId];
+  const ids = new Set<number>([segment.id]);
+  if (segment.reverseOf !== null) {
+    ids.add(segment.reverseOf);
+  } else {
+    const reverse = db
+      .prepare("SELECT id FROM segments WHERE reverse_of = ? AND deleted_at IS NULL LIMIT 1")
+      .get(segment.id) as { id: number } | undefined;
+    if (reverse) ids.add(reverse.id);
+  }
+  return [...ids];
+}
+
 /** A segment's name applies to the physical path regardless of direction, so both rows of the pair get it. */
 export function renameSegment(segmentId: number, name: string | null): void {
   const segment = getSegment(segmentId);

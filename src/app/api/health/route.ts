@@ -3,6 +3,8 @@ import fs from "node:fs/promises";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { APP_VERSION, APP_VERSION_DISPLAY } from "@/lib/version";
+import { userCount } from "@/lib/session";
+import { getCaptchaConfig } from "@/lib/captcha";
 
 async function lastBackupTimestamp(): Promise<string | null> {
   const dbPath = process.env.DATABASE_PATH || path.join(process.cwd(), "data", "routy.db");
@@ -35,6 +37,8 @@ export async function GET() {
       nodeCount: nodeRow.c,
       segmentCount: segmentRow.c,
       lastBackupAt: await lastBackupTimestamp(),
+      needsSetup: userCount() === 0,
+      captcha: getCaptchaConfig(),
     });
   } catch {
     return NextResponse.json({ status: "error", version: APP_VERSION, dbReachable: false }, { status: 500 });

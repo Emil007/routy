@@ -8,6 +8,7 @@ import { segmentUsedByActiveRoute } from "@/lib/activeRoute";
 import { canEdit } from "@/lib/ownership";
 import { resolveNamePartsInput } from "@/lib/nameParts";
 import { logActivity } from "@/lib/activityLog";
+import { db } from "@/lib/db";
 
 const bodySchema = z.object({
   proposalId: z.number().int().positive(),
@@ -39,16 +40,28 @@ export async function POST(request: Request) {
 
   const { name, nameParts } = resolveNamePartsInput(parsed.data.part1 ?? "", parsed.data.part2 ?? "", "/", user.id);
   const settings = getSettings();
-  const result = splitSegment(
-    proposal.segmentId,
-    { lat: proposal.lat, lng: proposal.lng },
-    { newName: name, nameParts },
-    user.id,
-    effectiveWalkSpeedKmh(user.walkSpeedKmh, settings),
-  );
-  if ("error" in result) return NextResponse.json({ error: result.error }, { status: 400 });
+  const walkSpeed = effectiveWalkSpeedKmh(user.walkSpeedKmh, settings);
 
-  markProposalAccepted(proposal.id);
+  let result: { newNodeId: number } | { error: string };
+  try {
+    result = db.transaction(() => {
+      const splitResult = splitSegment(
+        proposal.segmentId,
+        { lat: proposal.lat, lng: proposal.lng },
+        { newName: name, nameParts },
+        user.id,
+        walkSpeed,
+      );
+      if ("error" in splitResult) throw new Error(splitResult.error);
+      if (!markProposalAccepted(proposal.id)) throw new Error("proposal_gone");
+      return splitResult;
+    })();
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "error";
+    if (msg === "proposal_gone") return NextResponse.json({ error: "not_found" }, { status: 404 });
+    return NextResponse.json({ error: msg }, { status: 400 });
+  }
+
   logActivity(user.id, "accept_proposal", "segment", segment.id, { proposalId: proposal.id, newNodeId: result.newNodeId });
   return NextResponse.json({ ok: true, newNodeId: result.newNodeId });
 }
