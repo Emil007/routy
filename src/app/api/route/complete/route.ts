@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
 import { getActiveRoute, clearActiveRoute } from "@/lib/activeRoute";
-import { computeUserPoints } from "@/lib/points";
+import { computeBasePoints, streakMultiplier } from "@/lib/points";
 import { recordWalk } from "@/lib/segments";
 import { getStreakStats } from "@/lib/stats";
 
@@ -12,16 +12,18 @@ export async function POST() {
   const active = getActiveRoute(user.id);
   if (!active) return NextResponse.json({ error: "no_active_route" }, { status: 404 });
 
-  const before = computeUserPoints(user.id);
   recordWalk(user.id, active.nodeChain, active.segmentIds, active.lengthM, active.durationMin, active.nickname);
   clearActiveRoute(user.id);
-  const after = computeUserPoints(user.id);
   const streak = getStreakStats(user.id);
+  const multiplier = streakMultiplier(streak.currentStreak);
+  const walkBase = computeBasePoints([
+    { length_m: active.lengthM, segment_ids: JSON.stringify(active.segmentIds) },
+  ]);
 
   return NextResponse.json({
     success: true,
-    pointsEarned: after.totalPoints - before.totalPoints,
-    streakMultiplier: after.streakMultiplier,
+    pointsEarned: Math.round(walkBase * multiplier),
+    streakMultiplier: multiplier,
     currentStreak: streak.currentStreak,
   });
 }

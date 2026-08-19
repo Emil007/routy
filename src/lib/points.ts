@@ -10,7 +10,7 @@ export interface UserPoints {
 
 type WalkRow = { length_m: number; segment_ids: string };
 
-function streakMultiplier(currentStreak: number): number {
+export function streakMultiplier(currentStreak: number): number {
   if (currentStreak >= 30) return 2.0;
   if (currentStreak >= 14) return 1.5;
   if (currentStreak >= 7) return 1.25;
