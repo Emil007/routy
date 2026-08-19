@@ -272,10 +272,12 @@ export function RouteGenerator({
   }
 
   async function handleSaveFavorite() {
-    if (!result || !favoriteName.trim()) return;
+    if (!result) return;
+    const name = (mode === "active" ? nickname : favoriteName).trim();
+    if (!name) return;
     setSavingFavorite(true);
     const res = await callApi("/api/favorites", {
-      name: favoriteName.trim(),
+      name,
       nodeChain: result.route.nodeChain,
       segmentIds: result.route.segmentIds,
       lengthM: result.route.lengthM,
@@ -283,7 +285,7 @@ export function RouteGenerator({
     });
     setSavingFavorite(false);
     if (res.ok) {
-      setFavoriteName("");
+      if (mode === "suggesting") setFavoriteName("");
       flashMessage(t(locale, "route.favoriteSaved"));
       router.refresh();
     }
@@ -388,7 +390,7 @@ export function RouteGenerator({
             type="text"
             value={favoriteName}
             onChange={(e) => setFavoriteName(e.target.value)}
-            placeholder={t(locale, "route.favoriteNamePlaceholder")}
+            placeholder={t(locale, "route.routeNamePlaceholder")}
             style={{ maxWidth: "9rem", fontSize: "0.82rem", padding: "0.35rem 0.5rem" }}
           />
           <button type="button" className="btn-secondary btn-compact" onClick={handleSaveFavorite} disabled={savingFavorite || !favoriteName.trim()}>
@@ -418,20 +420,13 @@ export function RouteGenerator({
             type="text"
             value={nickname}
             onChange={(e) => setNickname(e.target.value)}
-            placeholder={t(locale, "route.nicknamePlaceholder")}
-            style={{ maxWidth: "8rem", fontSize: "0.82rem", padding: "0.35rem 0.5rem" }}
+            placeholder={t(locale, "route.routeNamePlaceholder")}
+            style={{ maxWidth: "10rem", fontSize: "0.82rem", padding: "0.35rem 0.5rem" }}
           />
           <button type="button" className="btn-secondary btn-compact" onClick={saveNickname} disabled={nicknameStatus === "saving"}>
-            {t(locale, "route.saveNickname")}
+            {t(locale, "route.saveName")}
           </button>
-          <input
-            type="text"
-            value={favoriteName}
-            onChange={(e) => setFavoriteName(e.target.value)}
-            placeholder={t(locale, "route.favoriteNamePlaceholder")}
-            style={{ maxWidth: "8rem", fontSize: "0.82rem", padding: "0.35rem 0.5rem" }}
-          />
-          <button type="button" className="btn-secondary btn-compact" onClick={handleSaveFavorite} disabled={savingFavorite || !favoriteName.trim()}>
+          <button type="button" className="btn-secondary btn-compact" onClick={handleSaveFavorite} disabled={savingFavorite || !nickname.trim()}>
             {t(locale, "route.saveFavorite")}
           </button>
         </>
