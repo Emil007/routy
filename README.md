@@ -4,8 +4,11 @@ Self-hosted route planner for dog walks (and any other walks you care to log). E
 
 Built as a hobby project by a sysadmin, not a product team. It works well for our household; it is not professionally audited. Read the code before you trust it with anything important.
 
-**Server** (this repo) · current line **0.33s**  
-**Android app** · [routy-android](https://github.com/Emil007/routy-android) · **0.31b** (separate release tags: `v0.33s` vs `v0.31b`)
+This repository is the **server** (web UI + API + database). There is also a companion **[Android app](https://github.com/Emil007/routy-android)** — same login, same path network, but native map, GPS recording while you walk, and offline cache. Use the browser alone or pair it with the app; the app cannot run without this server.
+
+**Server** (this repo) · **0.33s** · [`Emil007/routy`](https://github.com/Emil007/routy)  
+**Android app** · **0.31b** · [`Emil007/routy-android`](https://github.com/Emil007/routy-android)  
+*(Independent release tags: `v0.33s` vs `v0.31b`.)*
 
 ---
 
@@ -71,6 +74,10 @@ Login and setup are rate-limited out of the box. Container runs read-only root, 
 | Account security (password, 2FA) | Settings page | Opens Settings in Custom Tab |
 
 Map tiles and elevation/name lookups use public OSM-related services (no API keys). See compose comments if you need outbound allowlists.
+
+### Android app
+
+Install from [routy-android](https://github.com/Emil007/routy-android) (GitHub Actions APK or a release tag). Point it at this server's URL after `docker compose up`. No extra server config beyond HTTPS and a reachable `/api/health`.
 
 ---
 
