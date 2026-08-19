@@ -14,7 +14,7 @@ function parseVersion(v: string): number[] {
   return v
     .replace(/^v/, "")
     .split(".")
-    .map((n) => parseInt(n, 10) || 0);
+    .map((n) => parseInt(n.replace(/[^0-9].*/, ""), 10) || 0);
 }
 
 function isNewer(latest: string, current: string): boolean {

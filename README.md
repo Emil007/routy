@@ -102,6 +102,17 @@ No API keys, no personal data sent. The only other outbound call is CAPTCHA veri
 - DE/EN, JSON-file-based i18n, easy to extend
 - Routing/matching parameters (merge radius, tolerance, fairness weighting, …) tunable in Settings
 
+## Version numbers
+
+Routy uses two independent release lines — same `MAJOR.MINOR` style, different suffix:
+
+| Component | Repo | Form | Example |
+|-----------|------|------|---------|
+| **Server** | this repo | `MAJOR.MINORs` (git tag `v0.21s`, package.json `0.21.0`) | **0.21s** |
+| **Android app** | [routy-android](https://github.com/Emil007/routy-android) | `MAJOR.MINORa` (git tag `v0.13a`) | **0.13a** |
+
+Server patch in `package.json` stays `0`; the `s`/`a` suffix identifies which product shipped.
+
 ## Tech stack & development
 
 | | |

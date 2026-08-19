@@ -1,19 +1,17 @@
 import pkg from "../../package.json";
 
-/** Full semver from package.json (e.g. "0.20.0"). */
+/** Full semver from package.json (e.g. "0.21.0"). Patch is always 0 — use display/tag for releases. */
 export const APP_VERSION = pkg.version;
 
-/** UI-friendly version — 0.20.0 → "0.2", 0.16.0 → "0.16". */
+/**
+ * Routy server display + git tag suffix: package.json `0.21.0` → `0.21s`.
+ * Android uses the same MAJOR.MINOR with an `a` suffix in routy-android (independent line).
+ */
 export function formatVersionDisplay(version: string): string {
-  const parts = version.split(".");
-  if (parts.length >= 3 && parts[2] === "0") {
-    const minor = Number.parseInt(parts[1] ?? "0", 10);
-    if (minor % 10 === 0 && minor >= 10) {
-      return `${parts[0]}.${minor / 10}`;
-    }
-    return `${parts[0]}.${minor}`;
-  }
-  return version.replace(/\.0$/, "");
+  const cleaned = version.replace(/^v/, "");
+  const match = /^(\d+)\.(\d+)/.exec(cleaned);
+  if (!match) return cleaned.endsWith("s") ? cleaned : `${cleaned}s`;
+  return `${match[1]}.${match[2]}s`;
 }
 
 export const APP_VERSION_DISPLAY = formatVersionDisplay(APP_VERSION);
