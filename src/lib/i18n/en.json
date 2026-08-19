@@ -83,6 +83,8 @@
     "via": "via {name}",
     "activeNotice": "You have an active route. Confirm it as walked, or discard it to get a new suggestion.",
     "nicknamePlaceholder": "Name for this walk (optional)",
+    "saveNickname": "Save nickname",
+    "nicknameSaved": "Nickname saved.",
     "completeButton": "Confirm as walked",
     "discardButton": "Discard",
     "discardConfirm": "Discard this route? Won't count as walked.",
@@ -116,6 +118,7 @@
     "favoriteDeleteConfirm": "Delete this favorite route?",
     "favoriteStale": "Route includes segments that have since been deleted — can't be taken anymore.",
     "favoriteShare": "Share",
+    "favoriteCopyLink": "Copy link",
     "favoriteUnshare": "Stop sharing",
     "favoriteShareCopied": "Link copied!"
   },

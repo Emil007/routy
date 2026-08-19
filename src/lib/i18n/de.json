@@ -83,6 +83,8 @@
     "via": "via {name}",
     "activeNotice": "Du hast eine aktive Route. Bestätige sie als gegangen, oder verwirf sie, um eine neue vorzuschlagen.",
     "nicknamePlaceholder": "Name für diesen Spaziergang (optional)",
+    "saveNickname": "Spitzname speichern",
+    "nicknameSaved": "Name gespeichert.",
     "completeButton": "Als gegangen bestätigen",
     "discardButton": "Verwerfen",
     "discardConfirm": "Route verwerfen? Zählt dann nicht als gegangen.",
@@ -116,6 +118,7 @@
     "favoriteDeleteConfirm": "Lieblingsroute löschen?",
     "favoriteStale": "Route enthält inzwischen gelöschte Wegabschnitte — kann nicht mehr übernommen werden.",
     "favoriteShare": "Teilen",
+    "favoriteCopyLink": "Link kopieren",
     "favoriteUnshare": "Teilen beenden",
     "favoriteShareCopied": "Link kopiert!"
   },

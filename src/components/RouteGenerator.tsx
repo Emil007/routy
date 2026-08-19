@@ -224,7 +224,12 @@ export function RouteGenerator({
     setNicknameStatus("saving");
     const res = await callApi("/api/route/nickname", { nickname });
     setNicknameStatus("idle");
-    if (res.ok) router.refresh();
+    if (res.ok) {
+      setMessage(t(locale, "route.nicknameSaved"));
+      router.refresh();
+    } else {
+      setMessage(t(locale, "common.error"));
+    }
   }
 
   async function handleCancel() {
@@ -296,6 +301,12 @@ export function RouteGenerator({
     router.refresh();
   }
 
+  async function handleCopyShareLink(fav: FavoriteEntry) {
+    if (!fav.shareToken) return;
+    await navigator.clipboard.writeText(`${window.location.origin}/share/${fav.shareToken}`);
+    setMessage(t(locale, "route.favoriteShareCopied"));
+  }
+
   async function handleToggleShare(fav: FavoriteEntry) {
     const res = await callApi(`/api/favorites/${fav.id}/share`, { enable: !fav.shareToken });
     if (!res.ok) return;
@@ -303,6 +314,8 @@ export function RouteGenerator({
     if (data.shareToken) {
       await navigator.clipboard.writeText(`${window.location.origin}/share/${data.shareToken}`);
       setMessage(t(locale, "route.favoriteShareCopied"));
+    } else {
+      setMessage(t(locale, "route.favoriteUnshare"));
     }
     router.refresh();
   }
@@ -341,6 +354,11 @@ export function RouteGenerator({
                 <button type="button" className="btn-secondary" onClick={() => handleToggleShare(fav)}>
                   {fav.shareToken ? t(locale, "route.favoriteUnshare") : t(locale, "route.favoriteShare")}
                 </button>
+                {fav.shareToken && (
+                  <button type="button" className="btn-secondary" onClick={() => handleCopyShareLink(fav)}>
+                    {t(locale, "route.favoriteCopyLink")}
+                  </button>
+                )}
                 <button type="button" className="btn-danger" onClick={() => handleDeleteFavorite(fav.id)}>
                   {t(locale, "map.delete")}
                 </button>
@@ -453,7 +471,7 @@ export function RouteGenerator({
             style={{ maxWidth: "16rem" }}
           />
           <button type="button" className="btn-secondary" onClick={saveNickname} disabled={nicknameStatus === "saving"}>
-            {t(locale, "common.save")}
+            {t(locale, "route.saveNickname")}
           </button>
         </div>
       )}
@@ -558,6 +576,21 @@ export function RouteGenerator({
                 </button>
                 <button type="button" className="btn-danger" onClick={handleDiscardActive} disabled={status === "loading"}>
                   {t(locale, "route.discardButton")}
+                </button>
+                <input
+                  type="text"
+                  value={favoriteName}
+                  onChange={(e) => setFavoriteName(e.target.value)}
+                  placeholder={t(locale, "route.favoriteNamePlaceholder")}
+                  style={{ maxWidth: "12rem" }}
+                />
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={handleSaveFavorite}
+                  disabled={savingFavorite || !favoriteName.trim()}
+                >
+                  {t(locale, "route.saveFavorite")}
                 </button>
               </>
             )}
