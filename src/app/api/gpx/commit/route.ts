@@ -9,6 +9,7 @@ import { elevationStats, type LatLng } from "@/lib/geo";
 import { attachElevation } from "@/lib/elevation";
 import { logActivity } from "@/lib/activityLog";
 import { detectProposalsFromTrack } from "@/lib/discovery";
+import { db } from "@/lib/db";
 
 const pointSchema = z.object({ lat: z.number(), lng: z.number(), ele: z.number().optional() });
 
@@ -37,6 +38,14 @@ const trackSchema = z.object({
 
 const bodySchema = z.object({ tracks: z.array(trackSchema).min(1).max(50) });
 
+type PreparedTrack = {
+  track: z.infer<typeof trackSchema>;
+  points: z.infer<typeof pointSchema>[];
+  elevation: z.infer<typeof elevationSchema>;
+  startPoint: LatLng;
+  endPoint: LatLng;
+};
+
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
@@ -49,51 +58,12 @@ export async function POST(request: Request) {
   }
 
   const settings = getSettings();
-  // Tracks in the same upload often share an endpoint (that's the whole point of a
-  // batch import) even though none of those nodes existed yet when /gpx/parse ran.
-  // Keep a running list of nodes created *within this same commit* so later tracks
-  // snap onto them instead of duplicating them. This must NOT include pre-existing
-  // nodes: when the client explicitly says "create a new node" (a `newName`
-  // endpoint), that choice was already made in the UI — usually after showing the
-  // user any nearby existing node and letting them decide against reusing it — so
-  // silently reusing a pre-existing node here would discard that decision and the
-  // name they typed.
-  const createdThisBatch: NodeRow[] = [];
+  const prepared: PreparedTrack[] = [];
 
-  function resolveEndpoint(endpoint: { nodeId: number } | { part1: string; part2: string }, point: LatLng): number | null {
-    if ("nodeId" in endpoint) {
-      const node = getNode(endpoint.nodeId);
-      return node && !node.deletedAt ? node.id : null;
-    }
-    const nearby = findNodeCandidates(createdThisBatch, point, settings.merge_radius_m)[0];
-    if (nearby) return nearby.id;
-    const { name, nameParts } = resolveNamePartsInput(endpoint.part1, endpoint.part2, "/", userId);
-    const created = createNode(name, point, false, userId, nameParts);
-    createdThisBatch.push(created);
-    logActivity(userId, "create", "node", created.id, { name: created.name });
-    return created.id;
-  }
-
-  let saved = 0;
   for (const track of parsed.data.tracks) {
     const startPoint = track.points[0];
     const endPoint = track.points[track.points.length - 1];
 
-    const startNodeId = resolveEndpoint(track.start, startPoint);
-    if (startNodeId === null) return NextResponse.json({ error: "unknown_start_node" }, { status: 400 });
-
-    const endNodeId = resolveEndpoint(track.end, endPoint);
-    if (endNodeId === null) return NextResponse.json({ error: "unknown_end_node" }, { status: 400 });
-
-    if (track.markStartAsHome) {
-      setHomeNode(startNodeId);
-      const homeNode = getNode(startNodeId);
-      logActivity(user.id, "set_home", "node", startNodeId, { name: homeNode?.name ?? null });
-    }
-
-    // GPX tracks usually carry recorded elevation already; drawn paths never do
-    // (a map click has no altitude). Either way, if it's missing, look it up —
-    // best-effort, never blocks the save if the lookup fails or times out.
     let points = track.points;
     let elevation = track.elevation;
     if (!elevation) {
@@ -105,24 +75,73 @@ export async function POST(request: Request) {
       }
     }
 
-    const { forwardId } = createSegmentWithReverse({
-      startNodeId,
-      endNodeId,
+    prepared.push({
+      track,
       points,
-      lengthM: track.lengthM,
-      durationMin: track.durationMin,
       elevation,
-      source: track.source,
-      submittedBy: user.id,
+      startPoint,
+      endPoint,
     });
-    const created = getSegment(forwardId);
-    logActivity(user.id, track.source === "drawn" ? "create" : "gpx_commit", "segment", forwardId, {
-      name: created?.name ?? null,
-      source: track.source,
-    });
-    detectProposalsFromTrack(points, user.id);
-    saved++;
   }
 
-  return NextResponse.json({ saved });
+  try {
+    const saved = db.transaction(() => {
+      const createdThisBatch: NodeRow[] = [];
+
+      function resolveEndpoint(endpoint: { nodeId: number } | { part1: string; part2: string }, point: LatLng): number | null {
+        if ("nodeId" in endpoint) {
+          const node = getNode(endpoint.nodeId);
+          return node && !node.deletedAt ? node.id : null;
+        }
+        const nearby = findNodeCandidates(createdThisBatch, point, settings.merge_radius_m)[0];
+        if (nearby) return nearby.id;
+        const { name, nameParts } = resolveNamePartsInput(endpoint.part1, endpoint.part2, "/", userId);
+        const created = createNode(name, point, false, userId, nameParts);
+        createdThisBatch.push(created);
+        logActivity(userId, "create", "node", created.id, { name: created.name });
+        return created.id;
+      }
+
+      let count = 0;
+      for (const { track, points, elevation, startPoint, endPoint } of prepared) {
+        const startNodeId = resolveEndpoint(track.start, startPoint);
+        if (startNodeId === null) throw new Error("unknown_start_node");
+
+        const endNodeId = resolveEndpoint(track.end, endPoint);
+        if (endNodeId === null) throw new Error("unknown_end_node");
+
+        if (track.markStartAsHome) {
+          setHomeNode(startNodeId);
+          const homeNode = getNode(startNodeId);
+          logActivity(user.id, "set_home", "node", startNodeId, { name: homeNode?.name ?? null });
+        }
+
+        const { forwardId } = createSegmentWithReverse({
+          startNodeId,
+          endNodeId,
+          points,
+          lengthM: track.lengthM,
+          durationMin: track.durationMin,
+          elevation,
+          source: track.source,
+          submittedBy: user.id,
+        });
+        const created = getSegment(forwardId);
+        logActivity(user.id, track.source === "drawn" ? "create" : "gpx_commit", "segment", forwardId, {
+          name: created?.name ?? null,
+          source: track.source,
+        });
+        detectProposalsFromTrack(points, user.id);
+        count++;
+      }
+      return count;
+    })();
+
+    return NextResponse.json({ saved });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "commit_failed";
+    if (message === "unknown_start_node") return NextResponse.json({ error: "unknown_start_node" }, { status: 400 });
+    if (message === "unknown_end_node") return NextResponse.json({ error: "unknown_end_node" }, { status: 400 });
+    throw err;
+  }
 }

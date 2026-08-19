@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
-import { verifyLogin, createUser } from "@/lib/users";
+import { verifyLogin, tryCreateFirstAdmin } from "@/lib/users";
 import { createSession, userCount, SESSION_COOKIE, sessionCookieOptions } from "@/lib/session";
 import { checkLockout, recordFailure, clearAttempts, getClientIp, IP_LOCKOUT_THRESHOLD } from "@/lib/loginRateLimit";
 import { verifyCaptcha, getCaptchaFieldName } from "@/lib/captcha";
@@ -100,7 +100,10 @@ export async function setupFirstProfileAction(formData: FormData) {
     redirect("/login?setupError=1");
   }
 
-  const user = createUser(username, password, displayName, locale, "admin");
+  const user = tryCreateFirstAdmin(username, password, displayName, locale);
+  if (!user) {
+    redirect("/login");
+  }
   clearAttempts("setup");
   await establishSession(user.id);
   redirect("/route");

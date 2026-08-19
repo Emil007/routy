@@ -13,10 +13,10 @@ Shared contract between the **web app**, **native Android app**, and any future 
 |--------|------|---------------|----------|-------|
 | POST | `/api/auth/login` | `{ username, password, deviceName?, totpCode?, captchaToken? }` | `{ token, user }` | Sets cookie for web; Android stores `token`. |
 | POST | `/api/auth/setup` | `{ setupToken, username, password, displayName?, locale?, deviceName?, captchaToken? }` | `{ token, user }` | First-user registration (native onboarding). `409 already_setup` if users exist. |
-| POST | `/api/auth/logout` | — | 204 | |
+| POST | `/api/auth/logout` | — | `{ ok: true }` | |
 | GET | `/api/auth/me` | — | `{ user }` | |
 | GET | `/api/auth/sessions` | — | `{ sessions[] }` | |
-| DELETE | `/api/auth/sessions/:sessionId` | — | 204 | Revoke one session. |
+| DELETE | `/api/auth/sessions/:sessionId` | — | `{ ok: true }` | Revoke one session. |
 | POST | `/api/auth/sessions/revoke-others` | — | `{ revoked }` | |
 | PATCH | `/api/app/profile` | `{ locale?, theme?, walkSpeedKmh? \| null }` | `{ user }` | Send `"walkSpeedKmh": null` to clear override. |
 
@@ -36,12 +36,12 @@ Shared contract between the **web app**, **native Android app**, and any future 
 | POST | `/api/route/generate` | `{ startNodeId, destinationNodeId, waypointNodeId?, explorerMode?, surpriseMode?, preset? }` | `{ token, route }` |
 | POST | `/api/route/widen` | `{ token }` | `{ token, route }` |
 | POST | `/api/route/adjust` | `{ token, direction }` | `{ token, route }` |
-| POST | `/api/route/accept` | `{ token }` | 204 | Active route stored server-side. |
-| POST | `/api/route/cancel` | `{ token }` | 204 | |
+| POST | `/api/route/accept` | `{ token }` | `{ success: true }` | Active route stored server-side. |
+| POST | `/api/route/cancel` | `{ token }` | `{ success: true }` | |
 | POST | `/api/route/complete` | — | `{ … }` | Logs walk, clears active route. |
-| POST | `/api/route/discard` | — | 204 | |
+| POST | `/api/route/discard` | — | `{ ok: true }` | |
 | GET | `/api/route/state` | — | active route or empty | |
-| POST | `/api/route/nickname` | `{ nickname }` | 204 | Active route label. |
+| POST | `/api/route/nickname` | `{ nickname }` | `{ ok: true }` | Active route label. |
 
 **Presets:** `preset` may be `"short"`, `"long"`, or `"surprise"` (bias toward segments not walked in 30+ days). `surpriseMode: true` is equivalent to `preset: "surprise"`.
 
@@ -59,7 +59,7 @@ Soft routing penalty only — segments are not hard-excluded.
 
 | Method | Path | Body | Response |
 |--------|------|------|----------|
-| POST | `/api/segments/condition` | `{ segmentId, reason, days? }` | `{ condition }` |
+| POST | `/api/segments/condition` | `{ segmentId, reason, days? }` | `{ condition }` | `409 condition_limit_reached` when path has too many active reports. |
 
 **Reasons:** `muddy`, `flooded`, `construction`, `dog`, `icy`, `overgrown`. Reports expire (default 7 days). Active conditions are included in bootstrap as `segmentConditions[]` and add a stronger routing penalty than the avoid list.
 
@@ -81,13 +81,12 @@ Soft routing penalty only — segments are not hard-excluded.
 
 | Method | Path | Body | Response |
 |--------|------|------|----------|
-| GET | `/api/favorites` | — | `{ favorites[] }` |
-| POST | `/api/favorites` | `{ name, nodeChain, segmentIds, lengthM, durationMin }` | `{ id }` |
-| POST | `/api/favorites/:id/accept` | — | 204 | Becomes active route. |
-| POST | `/api/favorites/:id/delete` | — | 204 | |
+| POST | `/api/favorites` | `{ name, nodeChain, segmentIds, lengthM, durationMin }` | `{ favorite }` | Web loads favorites via bootstrap; this endpoint saves only. |
+| POST | `/api/favorites/:id/accept` | — | `{ ok: true }` | Becomes active route. |
+| POST | `/api/favorites/:id/delete` | — | `{ ok: true }` | |
 | POST | `/api/favorites/:id/share` | `{ enable: boolean }` | `{ shareToken \| null }` |
 | GET | `/api/share/:token` | — | route preview | Public read. |
-| POST | `/api/share/:token/accept` | — | 204 | |
+| POST | `/api/share/:token/accept` | — | `{ ok: true }` |
 
 ## GPX / recording
 
@@ -110,7 +109,7 @@ Soft routing penalty only — segments are not hard-excluded.
 | POST | `/api/nodes/delete` | Soft delete. |
 | POST | `/api/nodes/restore` | |
 | POST | `/api/nodes/purge` | Admin permanent delete. |
-| GET | `/api/nodes/suggest-name-parts` | Reverse geocode hint for junction names. |
+| POST | `/api/nodes/suggest-name-parts` | Body `{ lat, lng }` → name-part hints. |
 | GET | `/api/segments` | All segments + geometry. |
 | POST | `/api/segments/geometry` | Replace segment shape. |
 | POST | `/api/segments/split` | Split at point. |
@@ -119,7 +118,7 @@ Soft routing penalty only — segments are not hard-excluded.
 | POST | `/api/segments/delete` | Soft delete. |
 | POST | `/api/segments/restore` | |
 | POST | `/api/segments/purge` | Admin permanent delete. |
-| GET | `/api/app/map/trash` | — | `{ deletedNodes[], deletedSegments[] }` | Soft-deleted items visible to owner (admin sees all). |
+| GET | `/api/app/map/trash` | `{ deletedNodes[], deletedSegments[] }` — soft-deleted items visible to owner (admin sees all). |
 
 ## Stats (native)
 

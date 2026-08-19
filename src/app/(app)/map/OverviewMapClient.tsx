@@ -30,6 +30,7 @@ interface PathProposal {
   segmentName: string | null;
   lat: number;
   lng: number;
+  createdBy: number;
 }
 
 // Not imported from "@/lib/segments" — that module pulls in better-sqlite3,
@@ -311,19 +312,27 @@ export function OverviewMapClient({
           {!proposalsLoading && proposals.length === 0 && (
             <p className="hint" style={{ margin: 0 }}>{t(locale, "map.proposalsEmpty")}</p>
           )}
-          {proposals.map((p) => (
+          {proposals.map((p) => {
+            const segment = segments.find((s) => s.id === p.segmentId);
+            const canManage = canEdit(currentUser, segment?.submittedBy ?? null);
+            return (
             <div key={p.id} className="btn-row" style={{ gap: "0.35rem", flexWrap: "wrap" }}>
               <span className="chip">
                 {p.segmentName || t(locale, "map.proposalSegment", { id: p.segmentId })}
               </span>
-              <button type="button" className="btn-primary btn-compact" onClick={() => acceptProposal(p.id)}>
-                {t(locale, "map.proposalAccept")}
-              </button>
-              <button type="button" className="btn-secondary btn-compact" onClick={() => dismissProposal(p.id)}>
-                {t(locale, "map.proposalDismiss")}
-              </button>
+              {canManage && (
+                <>
+                  <button type="button" className="btn-primary btn-compact" onClick={() => acceptProposal(p.id)}>
+                    {t(locale, "map.proposalAccept")}
+                  </button>
+                  <button type="button" className="btn-secondary btn-compact" onClick={() => dismissProposal(p.id)}>
+                    {t(locale, "map.proposalDismiss")}
+                  </button>
+                </>
+              )}
             </div>
-          ))}
+            );
+          })}
         </div>
       </details>
       {moveStatus === "error" && <div className="alert alert-error" style={{ padding: "0.45rem 0.65rem", fontSize: "0.82rem" }}>{t(locale, "common.error")}</div>}

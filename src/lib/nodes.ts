@@ -141,7 +141,17 @@ export function deleteNode(id: number): void {
 }
 
 export function restoreNode(id: number): void {
-  db.prepare("UPDATE nodes SET active = 1, deleted_at = NULL WHERE id = ?").run(id);
+  const row = db.prepare("SELECT deleted_at FROM nodes WHERE id = ?").get(id) as { deleted_at: string | null } | undefined;
+  const deletedAt = row?.deleted_at;
+  const tx = db.transaction(() => {
+    db.prepare("UPDATE nodes SET active = 1, deleted_at = NULL WHERE id = ?").run(id);
+    if (deletedAt) {
+      db.prepare(
+        "UPDATE segments SET active = 1, deleted_at = NULL WHERE (start_node_id = ? OR end_node_id = ?) AND active = 0 AND deleted_at = ?",
+      ).run(id, id, deletedAt);
+    }
+  });
+  tx();
 }
 
 /** Irreversible. Cascades to every segment touching this node via the FK. */

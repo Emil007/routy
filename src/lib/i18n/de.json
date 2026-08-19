@@ -459,8 +459,10 @@
       "purge": "Endgültig löschen",
       "lock": "Sperren",
       "unlock": "Entsperren",
-      "gpx_commit": "GPX-Import",
+      "gpx_commit": "GPX import",
       "walk_complete": "Runde abgeschlossen",
+      "accept_proposal": "Vorschlag angenommen",
+      "report_condition": "Zustand gemeldet",
       "reset_totp": "2FA zurücksetzen",
       "impersonate": "Einloggen als"
     },

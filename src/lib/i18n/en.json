@@ -461,6 +461,8 @@
       "unlock": "Unlock",
       "gpx_commit": "GPX import",
       "walk_complete": "Walk completed",
+      "accept_proposal": "Proposal accepted",
+      "report_condition": "Condition reported",
       "reset_totp": "Reset 2FA",
       "impersonate": "Impersonate"
     },

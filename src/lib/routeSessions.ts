@@ -50,6 +50,13 @@ export function getRouteSession(token: string): RouteSessionState | null {
   return store.get(token) ?? null;
 }
 
+export function assertRouteSessionOwner(token: string, userId: number): RouteSessionState | "missing" | "forbidden" {
+  const session = getRouteSession(token);
+  if (!session) return "missing";
+  if (session.userId !== userId) return "forbidden";
+  return session;
+}
+
 export function updateRouteSession(token: string, patch: Partial<RouteSessionState>): void {
   const existing = store.get(token);
   if (!existing) return;

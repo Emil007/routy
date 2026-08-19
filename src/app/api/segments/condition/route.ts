@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { CONDITION_REASONS, reportCondition } from "@/lib/segmentConditions";
 import { logActivity } from "@/lib/activityLog";
+import { getSegment } from "@/lib/segments";
 
 const bodySchema = z.object({
   segmentId: z.number().int().positive(),
@@ -18,8 +19,11 @@ export async function POST(request: Request) {
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) return NextResponse.json({ error: "invalid_body", issues: parsed.error.issues }, { status: 400 });
 
+  const segment = getSegment(parsed.data.segmentId);
+  if (!segment || segment.deletedAt) return NextResponse.json({ error: "segment_not_found" }, { status: 404 });
+
   const created = reportCondition(parsed.data.segmentId, parsed.data.reason, user.id, parsed.data.days);
-  if (!created) return NextResponse.json({ error: "segment_not_found" }, { status: 404 });
+  if (!created) return NextResponse.json({ error: "condition_limit_reached" }, { status: 409 });
 
   logActivity(user.id, "report_condition", "segment", parsed.data.segmentId, {
     reason: parsed.data.reason,

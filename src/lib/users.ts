@@ -92,6 +92,27 @@ export function createUser(
   return user;
 }
 
+/** First admin only — returns null if any user already exists (atomic). */
+export function tryCreateFirstAdmin(
+  username: string,
+  password: string,
+  displayName: string,
+  locale: string,
+): UserRow | null {
+  return db.transaction(() => {
+    const row = db.prepare("SELECT COUNT(*) AS c FROM users").get() as { c: number };
+    if (row.c > 0) return null;
+    db.prepare("INSERT INTO users (username, password_hash, display_name, locale, role) VALUES (?, ?, ?, ?, ?)").run(
+      username,
+      hashPassword(password),
+      displayName,
+      locale,
+      "admin",
+    );
+    return findUserByUsername(username);
+  })();
+}
+
 export function updateUserLocale(userId: number, locale: string): void {
   db.prepare("UPDATE users SET locale = ? WHERE id = ?").run(locale, userId);
 }

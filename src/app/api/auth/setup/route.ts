@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
-import { createUser } from "@/lib/users";
+import { tryCreateFirstAdmin } from "@/lib/users";
 import { createSession, userCount, type SessionUser } from "@/lib/session";
 import { checkLockout, recordFailure, clearAttempts } from "@/lib/loginRateLimit";
 import { verifyCaptcha } from "@/lib/captcha";
@@ -40,7 +40,8 @@ export async function POST(request: Request) {
   }
 
   const displayName = parsed.data.displayName?.trim() || parsed.data.username;
-  const user = createUser(parsed.data.username, parsed.data.password, displayName, parsed.data.locale, "admin");
+  const user = tryCreateFirstAdmin(parsed.data.username, parsed.data.password, displayName, parsed.data.locale);
+  if (!user) return NextResponse.json({ error: "already_setup" }, { status: 409 });
   clearAttempts("setup");
 
   const token = await createSession(user.id, { deviceName: parsed.data.deviceName ?? null, client: "app" });
