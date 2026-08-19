@@ -70,7 +70,7 @@ export default async function StatsPage() {
       </div>
 
       <div className="card">
-        <h2 style={{ fontSize: "1.1rem", marginBottom: "0.8rem" }}>{t(locale, "stats.yourStats")}</h2>
+        <h2>{t(locale, "stats.yourStats")}</h2>
         <div className="btn-row">
           <span className="chip">
             {t(locale, "stats.totalDistance")}: {(userStats.totalLengthM / 1000).toFixed(1)} {t(locale, "common.km")}
@@ -100,13 +100,13 @@ export default async function StatsPage() {
       </div>
 
       <div className="card">
-        <h2 style={{ fontSize: "1.1rem", marginBottom: "0.8rem" }}>{t(locale, "stats.pointsLeaderboardHeading")}</h2>
+        <h2>{t(locale, "stats.pointsLeaderboardHeading")}</h2>
         {pointsLeaderboard.length === 0 ? (
-          <p style={{ color: "var(--ink-soft)" }}>{t(locale, "stats.pointsLeaderboardEmpty")}</p>
+          <p className="hint-compact">{t(locale, "stats.pointsLeaderboardEmpty")}</p>
         ) : (
-          <ol style={{ margin: 0, paddingLeft: "1.3rem" }}>
+          <ol className="dense-list">
             {pointsLeaderboard.map((entry) => (
-              <li key={entry.userId} style={{ fontSize: "0.95rem", marginBottom: "0.3rem", fontWeight: entry.userId === user.id ? 700 : 400 }}>
+              <li key={entry.userId} style={{ fontWeight: entry.userId === user.id ? 700 : 400 }}>
                 {entry.displayName} — {entry.totalPoints} {t(locale, "achievements.units.points")}
               </li>
             ))}
@@ -115,13 +115,13 @@ export default async function StatsPage() {
       </div>
 
       <div className="card">
-        <h2 style={{ fontSize: "1.1rem", marginBottom: "0.8rem" }}>{t(locale, "stats.leaderboardHeading")}</h2>
+        <h2>{t(locale, "stats.leaderboardHeading")}</h2>
         {leaderboard.length === 0 ? (
-          <p style={{ color: "var(--ink-soft)" }}>{t(locale, "stats.leaderboardEmpty")}</p>
+          <p className="hint-compact">{t(locale, "stats.leaderboardEmpty")}</p>
         ) : (
-          <ol style={{ margin: 0, paddingLeft: "1.3rem" }}>
+          <ol className="dense-list">
             {leaderboard.map((entry) => (
-              <li key={entry.userId} style={{ fontSize: "0.95rem", marginBottom: "0.3rem", fontWeight: entry.userId === user.id ? 700 : 400 }}>
+              <li key={entry.userId} style={{ fontWeight: entry.userId === user.id ? 700 : 400 }}>
                 {entry.displayName} — {(entry.totalLengthM / 1000).toFixed(1)} {t(locale, "common.km")}{" "}
                 <span className="chip">{t(locale, "stats.totalWalks")}: {entry.walkCount}</span>
               </li>
@@ -131,27 +131,24 @@ export default async function StatsPage() {
       </div>
 
       <div className="card">
-        <h2 style={{ fontSize: "1.1rem", marginBottom: "0.8rem" }}>{t(locale, "achievements.title")}</h2>
+        <h2>{t(locale, "achievements.title")}</h2>
         <div className="grid-2-cols">
           {achievements.scalable.map((a) => {
             const key = tierKey(a.tierIndex);
             return (
-              <div key={a.category} style={{ display: "flex", alignItems: "center", gap: "0.6rem", marginBottom: "0.6rem" }}>
+              <div key={a.category} className="achievement-row">
                 <span
+                  className="achievement-tier-dot"
                   style={{
-                    width: "0.9rem",
-                    height: "0.9rem",
-                    borderRadius: "50%",
                     background: key ? TIER_COLORS[key] : "var(--ink-soft)",
                     opacity: key ? 1 : 0.3,
-                    flexShrink: 0,
                   }}
                 />
                 <div>
-                  <strong style={{ fontSize: "0.9rem" }}>
+                  <strong>
                     {a.categoryLabel} — {a.tierLabel ?? t(locale, "achievements.noTierYet")}
                   </strong>
-                  <p style={{ margin: 0, fontSize: "0.8rem", color: "var(--ink-soft)" }}>{a.progressLabel}</p>
+                  <p>{a.progressLabel}</p>
                 </div>
               </div>
             );
@@ -168,9 +165,9 @@ export default async function StatsPage() {
       </div>
 
       <div className="card">
-        <h2 style={{ fontSize: "1.1rem", marginBottom: "0.8rem" }}>{t(locale, "stats.recentWalks")}</h2>
+        <h2>{t(locale, "stats.recentWalks")}</h2>
         {recentWalks.length === 0 ? (
-          <p style={{ color: "var(--ink-soft)" }}>{t(locale, "stats.noWalksYet")}</p>
+          <p className="hint-compact">{t(locale, "stats.noWalksYet")}</p>
         ) : (
           <div className="table-wrap">
             <table>
@@ -225,16 +222,16 @@ export default async function StatsPage() {
       </div>
 
       <div className="card">
-        <h2 style={{ fontSize: "1.1rem", marginBottom: "0.8rem" }}>{t(locale, "stats.networkStats")}</h2>
+        <h2>{t(locale, "stats.networkStats")}</h2>
         {usageStats.length === 0 ? (
-          <p style={{ color: "var(--ink-soft)" }}>{t(locale, "stats.noSegments")}</p>
+          <p className="hint-compact">{t(locale, "stats.noSegments")}</p>
         ) : (
           <div className="grid-2-cols">
             <div>
-              <strong style={{ fontSize: "0.85rem", color: "var(--ink-soft)" }}>{t(locale, "stats.mostUsed")}</strong>
-              <ul style={{ margin: "0.5rem 0 0", paddingLeft: "1.1rem" }}>
+              <strong className="hint-compact">{t(locale, "stats.mostUsed")}</strong>
+              <ul className="dense-list">
                 {mostUsed.map((s) => (
-                  <li key={s.segmentId} style={{ fontSize: "0.9rem", marginBottom: "0.25rem" }}>
+                  <li key={s.segmentId}>
                     {nodeName(s.startNodeId)} — {nodeName(s.endNodeId)}{" "}
                     <span className="chip">{t(locale, "map.usageCount", { count: s.usageCount })}</span>
                   </li>
@@ -242,10 +239,10 @@ export default async function StatsPage() {
               </ul>
             </div>
             <div>
-              <strong style={{ fontSize: "0.85rem", color: "var(--ink-soft)" }}>{t(locale, "stats.leastUsed")}</strong>
-              <ul style={{ margin: "0.5rem 0 0", paddingLeft: "1.1rem" }}>
+              <strong className="hint-compact">{t(locale, "stats.leastUsed")}</strong>
+              <ul className="dense-list">
                 {leastUsed.map((s) => (
-                  <li key={s.segmentId} style={{ fontSize: "0.9rem", marginBottom: "0.25rem" }}>
+                  <li key={s.segmentId}>
                     {nodeName(s.startNodeId)} — {nodeName(s.endNodeId)}{" "}
                     <span className="chip">{t(locale, "map.usageCount", { count: s.usageCount })}</span>
                   </li>

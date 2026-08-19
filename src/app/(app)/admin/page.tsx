@@ -49,7 +49,7 @@ export default async function AdminPage({
       {error === "invalid" && <div className="alert alert-error">{t(locale, "common.error")}</div>}
 
       <div className="card">
-        <h2 style={{ fontSize: "1.1rem", marginBottom: "0.8rem" }}>{t(locale, "admin.usersHeading")}</h2>
+        <h2>{t(locale, "admin.usersHeading")}</h2>
         <div className="table-wrap">
           <table>
             <thead>
@@ -111,7 +111,7 @@ export default async function AdminPage({
       </div>
 
       <div className="card">
-        <h2 style={{ fontSize: "1.1rem", marginBottom: "0.3rem" }}>{t(locale, "admin.createUserHeading")}</h2>
+        <h2>{t(locale, "admin.createUserHeading")}</h2>
         <form action={createUserAction} className="stack">
           <div className="field">
             <label htmlFor="displayName">{t(locale, "profile.displayName")}</label>
@@ -135,16 +135,16 @@ export default async function AdminPage({
               ))}
             </select>
           </div>
-          <button type="submit" className="btn-primary">
+          <button type="submit" className="btn-primary btn-compact">
             {t(locale, "profile.submit")}
           </button>
         </form>
       </div>
 
       <div className="card">
-        <h2 style={{ fontSize: "1.1rem", marginBottom: "0.3rem" }}>{t(locale, "admin.backupHeading")}</h2>
-        <p style={{ marginBottom: "0.8rem" }}>{t(locale, "admin.backupDesc")}</p>
-        <a href="/api/admin/backup" className="btn-secondary">
+        <h2>{t(locale, "admin.backupHeading")}</h2>
+        <p>{t(locale, "admin.backupDesc")}</p>
+        <a href="/api/admin/backup" className="btn-secondary btn-compact">
           {t(locale, "admin.backupButton")}
         </a>
       </div>

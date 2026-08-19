@@ -59,10 +59,8 @@ export default async function SettingsPage({
 
       {user.role === "admin" && (
         <div className="card">
-          <h2 style={{ fontSize: "1.1rem", marginBottom: "0.3rem" }}>{t(locale, "settings.networkTitle")}</h2>
-          <p style={{ color: "var(--ink-soft)", fontSize: "0.9rem", marginBottom: "1rem" }}>
-            {t(locale, "settings.networkSubtitle")}
-          </p>
+          <h2>{t(locale, "settings.networkTitle")}</h2>
+          <p className="hint-compact">{t(locale, "settings.networkSubtitle")}</p>
           <form action={saveSettingsAction} className="stack">
             {SETTINGS_KEYS.map((key) => (
               <div className="field" key={key}>
@@ -78,7 +76,7 @@ export default async function SettingsPage({
                 <span className="hint">{t(locale, `settings.${key}_hint`)}</span>
               </div>
             ))}
-            <button type="submit" className="btn-primary">
+            <button type="submit" className="btn-primary btn-compact">
               {t(locale, "common.save")}
             </button>
           </form>
@@ -86,10 +84,8 @@ export default async function SettingsPage({
       )}
 
       <div className="card">
-        <h2 style={{ fontSize: "1.1rem", marginBottom: "0.3rem" }}>{t(locale, "settings.walkSpeedTitle")}</h2>
-        <p style={{ color: "var(--ink-soft)", fontSize: "0.9rem", marginBottom: "1rem" }}>
-          {t(locale, "settings.walkSpeedSubtitle")}
-        </p>
+        <h2>{t(locale, "settings.walkSpeedTitle")}</h2>
+        <p className="hint-compact">{t(locale, "settings.walkSpeedSubtitle")}</p>
         <form action={saveWalkSpeedAction} className="stack">
           <div className="field">
             <label htmlFor="walkSpeedKmh">{t(locale, "settings.walk_speed_kmh")}</label>
@@ -104,26 +100,26 @@ export default async function SettingsPage({
             />
             <span className="hint">{t(locale, "settings.walkSpeedHint", { default: settings.walk_speed_kmh })}</span>
           </div>
-          <button type="submit" className="btn-secondary">
+          <button type="submit" className="btn-secondary btn-compact">
             {t(locale, "common.save")}
           </button>
         </form>
       </div>
 
       <div className="card">
-        <h2 style={{ fontSize: "1.1rem", marginBottom: "0.3rem" }}>{t(locale, "settings.languageTitle")}</h2>
+        <h2>{t(locale, "settings.languageTitle")}</h2>
         <LocaleSelectForm currentLocale={locale} />
       </div>
 
       <div className="card">
-        <h2 style={{ fontSize: "1.1rem", marginBottom: "0.3rem" }}>{t(locale, "settings.themeTitle")}</h2>
+        <h2>{t(locale, "settings.themeTitle")}</h2>
         <ThemeSelectForm currentTheme={user.theme} locale={locale} />
       </div>
 
       <div className="card">
-        <h2 style={{ fontSize: "1.1rem", marginBottom: "0.3rem" }}>{t(locale, "settings.changePasswordTitle")}</h2>
-        {passwordSuccess && <div className="alert alert-success" style={{ marginBottom: "1rem" }}>{t(locale, "settings.passwordChanged")}</div>}
-        {passwordError && <div className="alert alert-error" style={{ marginBottom: "1rem" }}>{t(locale, "settings.passwordChangeError")}</div>}
+        <h2>{t(locale, "settings.changePasswordTitle")}</h2>
+        {passwordSuccess && <div className="alert alert-success">{t(locale, "settings.passwordChanged")}</div>}
+        {passwordError && <div className="alert alert-error">{t(locale, "settings.passwordChangeError")}</div>}
         <form action={changePasswordAction} className="stack">
           <div className="field">
             <label htmlFor="currentPassword">{t(locale, "settings.currentPassword")}</label>
@@ -133,25 +129,25 @@ export default async function SettingsPage({
             <label htmlFor="newPassword">{t(locale, "settings.newPassword")}</label>
             <input type="password" id="newPassword" name="newPassword" autoComplete="new-password" minLength={6} required />
           </div>
-          <button type="submit" className="btn-secondary">
+          <button type="submit" className="btn-secondary btn-compact">
             {t(locale, "common.save")}
           </button>
         </form>
       </div>
 
       <div className="card">
-        <h2 style={{ fontSize: "1.1rem", marginBottom: "0.3rem" }}>{t(locale, "settings.totpTitle")}</h2>
-        <p style={{ color: "var(--ink-soft)", fontSize: "0.9rem", marginBottom: "1rem" }}>{t(locale, "settings.totpSubtitle")}</p>
+        <h2>{t(locale, "settings.totpTitle")}</h2>
+        <p className="hint-compact">{t(locale, "settings.totpSubtitle")}</p>
 
         {pendingTotp?.totpSecret && totpQrCode ? (
           <>
             {totpError === "1" && (
-              <div className="alert alert-error" style={{ marginBottom: "1rem" }}>{t(locale, "settings.totpConfirmError")}</div>
+              <div className="alert alert-error">{t(locale, "settings.totpConfirmError")}</div>
             )}
-            <p style={{ marginBottom: "0.5rem" }}>{t(locale, "settings.totpScanHint")}</p>
+            <p>{t(locale, "settings.totpScanHint")}</p>
             {/* eslint-disable-next-line @next/next/no-img-element -- server-rendered data: URL, no optimization needed */}
-            <img src={totpQrCode} alt="" width={220} height={220} style={{ marginBottom: "0.5rem" }} />
-            <p className="hint" style={{ marginBottom: "1rem", wordBreak: "break-all" }}>
+            <img src={totpQrCode} alt="" width={160} height={160} className="totp-qr" />
+            <p className="hint" style={{ wordBreak: "break-all" }}>
               {t(locale, "settings.totpManualKey")}: {pendingTotp.totpSecret}
             </p>
             <form action={confirmEnableTotpAction} id="confirmTotpForm" className="stack">
@@ -161,11 +157,11 @@ export default async function SettingsPage({
               </div>
             </form>
             <div className="btn-row">
-              <button type="submit" form="confirmTotpForm" className="btn-primary">
+              <button type="submit" form="confirmTotpForm" className="btn-primary btn-compact">
                 {t(locale, "settings.totpConfirmButton")}
               </button>
               <form action={cancelEnableTotpAction}>
-                <button type="submit" className="btn-secondary">
+                <button type="submit" className="btn-secondary btn-compact">
                   {t(locale, "common.cancel")}
                 </button>
               </form>
@@ -174,18 +170,18 @@ export default async function SettingsPage({
         ) : user.totpEnabled ? (
           <>
             {totpEnabled === "1" && (
-              <div className="alert alert-success" style={{ marginBottom: "1rem" }}>{t(locale, "settings.totpEnabledMessage")}</div>
+              <div className="alert alert-success">{t(locale, "settings.totpEnabledMessage")}</div>
             )}
             {totpDisableError === "1" && (
-              <div className="alert alert-error" style={{ marginBottom: "1rem" }}>{t(locale, "settings.totpDisableError")}</div>
+              <div className="alert alert-error">{t(locale, "settings.totpDisableError")}</div>
             )}
-            <p style={{ marginBottom: "1rem" }}>{t(locale, "settings.totpEnabledStatus")}</p>
+            <p>{t(locale, "settings.totpEnabledStatus")}</p>
             <form action={disableTotpAction} className="stack">
               <div className="field">
                 <label htmlFor="totpCurrentPassword">{t(locale, "settings.currentPassword")}</label>
                 <input type="password" id="totpCurrentPassword" name="currentPassword" autoComplete="current-password" required />
               </div>
-              <button type="submit" className="btn-secondary">
+              <button type="submit" className="btn-secondary btn-compact">
                 {t(locale, "settings.totpDisableButton")}
               </button>
             </form>
@@ -193,10 +189,10 @@ export default async function SettingsPage({
         ) : (
           <>
             {totpDisabled === "1" && (
-              <div className="alert alert-success" style={{ marginBottom: "1rem" }}>{t(locale, "settings.totpDisabledMessage")}</div>
+              <div className="alert alert-success">{t(locale, "settings.totpDisabledMessage")}</div>
             )}
             <form action={startEnableTotpAction}>
-              <button type="submit" className="btn-secondary">
+              <button type="submit" className="btn-secondary btn-compact">
                 {t(locale, "settings.totpEnableButton")}
               </button>
             </form>
@@ -205,15 +201,13 @@ export default async function SettingsPage({
       </div>
 
       <div className="card">
-        <h2 style={{ fontSize: "1.1rem", marginBottom: "0.3rem" }}>{t(locale, "settings.logoutEverywhereTitle")}</h2>
-        <p style={{ color: "var(--ink-soft)", fontSize: "0.9rem", marginBottom: "1rem" }}>
-          {t(locale, "settings.logoutEverywhereSubtitle")}
-        </p>
+        <h2>{t(locale, "settings.logoutEverywhereTitle")}</h2>
+        <p className="hint-compact">{t(locale, "settings.logoutEverywhereSubtitle")}</p>
         {loggedOutEverywhere && (
-          <div className="alert alert-success" style={{ marginBottom: "1rem" }}>{t(locale, "settings.loggedOutEverywhere")}</div>
+          <div className="alert alert-success">{t(locale, "settings.loggedOutEverywhere")}</div>
         )}
         <form action={logoutEverywhereAction}>
-          <button type="submit" className="btn-secondary">
+          <button type="submit" className="btn-secondary btn-compact">
             {t(locale, "settings.logoutEverywhereButton")}
           </button>
         </form>
@@ -221,10 +215,8 @@ export default async function SettingsPage({
 
       {user.role !== "admin" && (
         <div className="card">
-          <h2 style={{ fontSize: "1.1rem", marginBottom: "0.3rem" }}>{t(locale, "settings.deleteAccountTitle")}</h2>
-          <p style={{ color: "var(--ink-soft)", fontSize: "0.9rem", marginBottom: "1rem" }}>
-            {t(locale, "settings.deleteAccountSubtitle")}
-          </p>
+          <h2>{t(locale, "settings.deleteAccountTitle")}</h2>
+          <p className="hint-compact">{t(locale, "settings.deleteAccountSubtitle")}</p>
           <ConfirmSubmitForm
             action={deleteOwnAccountAction}
             confirmMessage={t(locale, "settings.deleteAccountConfirm")}

@@ -661,6 +661,90 @@ th {
   margin-bottom: 0.45rem;
 }
 
+.page-dense .field {
+  margin-bottom: 0.45rem;
+}
+
+.page-dense .field label {
+  font-size: 0.78rem;
+}
+
+.page-dense input[type="text"],
+.page-dense input[type="password"],
+.page-dense input[type="number"],
+.page-dense select {
+  padding: 0.4rem 0.55rem;
+  font-size: 0.88rem;
+}
+
+.page-dense .alert {
+  padding: 0.45rem 0.65rem;
+  font-size: 0.82rem;
+  margin-bottom: 0.45rem;
+}
+
+.page-dense .btn-row .btn-primary,
+.page-dense .btn-row .btn-secondary,
+.page-dense .btn-row .btn-danger,
+.page-dense form > .btn-primary,
+.page-dense form > .btn-secondary,
+.page-dense form > .btn-danger,
+.page-dense .card > form > .btn-primary,
+.page-dense .card > form > .btn-secondary,
+.page-dense a.btn-secondary,
+.page-dense .btn-danger {
+  padding: 0.35rem 0.65rem;
+  font-size: 0.82rem;
+}
+
+.page-dense .grid-2-cols {
+  gap: 0.75rem;
+}
+
+.page-dense .card > p:not(.hint-compact):not(.hint) {
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  margin: 0 0 0.45rem;
+}
+
+.dense-list {
+  margin: 0;
+  padding-left: 1.2rem;
+}
+
+.dense-list li {
+  font-size: 0.88rem;
+  margin-bottom: 0.25rem;
+}
+
+.achievement-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.45rem;
+}
+
+.achievement-tier-dot {
+  width: 0.85rem;
+  height: 0.85rem;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.achievement-row strong {
+  font-size: 0.88rem;
+}
+
+.achievement-row p {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+
+.totp-qr {
+  margin-bottom: 0.45rem;
+}
+
 .page-dense details.card > summary {
   font-size: 0.9rem;
   font-weight: 600;

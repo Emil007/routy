@@ -57,10 +57,10 @@ export default async function EditUserPage({
             <span className="hint">{t(locale, "admin.newPasswordHint")}</span>
           </div>
           <div className="btn-row">
-            <button type="submit" className="btn-primary">
+            <button type="submit" className="btn-primary btn-compact">
               {t(locale, "common.save")}
             </button>
-            <Link href="/admin" className="btn-secondary">
+            <Link href="/admin" className="btn-secondary btn-compact">
               {t(locale, "common.back")}
             </Link>
           </div>
@@ -69,13 +69,11 @@ export default async function EditUserPage({
 
       {target.totpEnabled && (
         <div className="card">
-          <h2 style={{ fontSize: "1.1rem", marginBottom: "0.3rem" }}>{t(locale, "admin.resetTotpTitle")}</h2>
-          <p style={{ color: "var(--ink-soft)", fontSize: "0.9rem", marginBottom: "1rem" }}>
-            {t(locale, "admin.resetTotpSubtitle")}
-          </p>
+          <h2>{t(locale, "admin.resetTotpTitle")}</h2>
+          <p className="hint-compact">{t(locale, "admin.resetTotpSubtitle")}</p>
           <form action={resetTotpAction}>
             <input type="hidden" name="userId" value={target.id} />
-            <button type="submit" className="btn-secondary">
+            <button type="submit" className="btn-secondary btn-compact">
               {t(locale, "admin.resetTotpButton")}
             </button>
           </form>
