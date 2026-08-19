@@ -8,11 +8,22 @@ import { computeAchievements, TIERS } from "@/lib/achievements";
 import { ConfirmSubmitForm } from "@/components/ConfirmSubmitForm";
 import { deleteWalkAction } from "./actions";
 
+function normalizeServerIso(iso: string): string {
+  const normalized = iso.trim().replace(" ", "T");
+  if (normalized.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(normalized)) return normalized;
+  return `${normalized}Z`;
+}
+
 function formatDate(iso: string, locale: string): string {
-  return new Date(iso.replace(" ", "T") + "Z").toLocaleString(locale === "de" ? "de-DE" : "en-US", {
+  return new Date(normalizeServerIso(iso)).toLocaleString(locale === "de" ? "de-DE" : "en-US", {
     dateStyle: "medium",
     timeStyle: "short",
   });
+}
+
+function formatDurationHours(totalMinutes: number): string {
+  const hours = totalMinutes / 60;
+  return Number.isInteger(hours) ? String(hours) : hours.toFixed(1);
 }
 
 const TIER_COLORS: Record<string, string> = {
@@ -68,7 +79,7 @@ export default async function StatsPage() {
             {t(locale, "stats.totalWalks")}: {userStats.walkCount}
           </span>
           <span className="chip">
-            {t(locale, "stats.totalTime")}: {Math.round(userStats.totalDurationMin / 60)} {t(locale, "common.hours")}
+            {t(locale, "stats.totalTime")}: {formatDurationHours(userStats.totalDurationMin)} {t(locale, "common.hours")}
           </span>
           <span className="chip">
             {t(locale, "stats.segmentsExplored")}: {userStats.segmentsExplored} / {userStats.totalSegments}
