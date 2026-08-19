@@ -21,16 +21,18 @@ export function NavBar({
   greeting: string;
   logoutLabel: string;
   version: string;
-  /** True when this page is loaded in the native Android app's WebView tabs, which already has
-   *  its own brand header and bottom nav — showing this bar's brand/nav links too would just
-   *  duplicate them. Only the logout button stays, since it's still the app's only sign-out path. */
+  /** True when loaded in the native Android app's WebView tabs — the app shell already provides
+   *  brand, bottom nav, and (on non-settings tabs) native logout. Embedded pages hide redundant
+   *  chrome; logout stays available here only on Settings. */
   embedded?: boolean;
 }) {
   const pathname = usePathname();
+  const showHeaderChrome = !embedded;
+  const showUserbar = !embedded || pathname === "/settings";
 
   return (
     <header className="topnav">
-      {!embedded && (
+      {showHeaderChrome && (
         <>
           <Link href="/route" className="brand">
             <RoutyLogo size={30} />
@@ -46,14 +48,16 @@ export function NavBar({
           </nav>
         </>
       )}
-      <div className="userbar">
-        <span>{greeting}</span>
-        <form action={logoutAction}>
-          <button type="submit" className="btn-secondary" style={{ padding: "0.3rem 0.6rem", fontSize: "0.8rem" }}>
-            {logoutLabel}
-          </button>
-        </form>
-      </div>
+      {showUserbar && (
+        <div className="userbar">
+          <span>{greeting}</span>
+          <form action={logoutAction}>
+            <button type="submit" className="btn-secondary" style={{ padding: "0.3rem 0.6rem", fontSize: "0.8rem" }}>
+              {logoutLabel}
+            </button>
+          </form>
+        </div>
+      )}
     </header>
   );
 }

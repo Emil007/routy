@@ -8,6 +8,7 @@ import { loadGraphContext } from "@/lib/routeContext";
 import { findDirectRoutes, findWaypointRoutes, scoreRoutes, pickBest } from "@/lib/routing";
 import { createRouteSession } from "@/lib/routeSessions";
 import { buildRouteDisplay } from "@/lib/routeDisplay";
+import { checkGenerateRateLimit } from "@/lib/generateRateLimit";
 
 const bodySchema = z.object({
   startNodeId: z.number().int().positive().optional(),
@@ -21,6 +22,11 @@ const bodySchema = z.object({
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
+  const rate = checkGenerateRateLimit(user.id);
+  if (!rate.allowed) {
+    return NextResponse.json({ error: "rate_limited", retryAfterSeconds: rate.retryAfterSeconds }, { status: 429 });
+  }
 
   const json = await request.json().catch(() => null);
   const parsed = bodySchema.safeParse(json);

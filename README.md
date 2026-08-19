@@ -34,7 +34,9 @@ Assumes a reverse proxy terminating HTTPS in front. `COOKIE_SECURE=true` is the 
 - Sign out of every other device at once from Settings, or revoke a single device (e.g. a lost phone) individually.
 - Security headers and a nonce-based Content-Security-Policy on every response.
 - Container hardening: read-only root filesystem, all Linux capabilities dropped except the four the startup step needs, `no-new-privileges`, and a memory/CPU ceiling — all in `docker-compose.yml`.
-- `/api/health` for uptime checks (also wired into the container's own healthcheck).
+- `/api/health` for uptime checks (also wired into the container's own healthcheck) — returns version, DB status, node/segment counts, and last backup timestamp.
+- Activity log entries older than 180 days are purged automatically; expired auth sessions are swept daily.
+- See [RESTORE_FROM_BACKUP.md](RESTORE_FROM_BACKUP.md) for a tested restore runbook.
 
 ### Backups
 

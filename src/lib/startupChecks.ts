@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
+import { db } from "./db";
 import { log } from "./logger";
 
 /** Best-effort sanity checks — warn about likely misconfiguration, never block startup. */
@@ -20,6 +21,18 @@ export function runStartupChecks(): void {
         captchaProvider,
       });
     }
+  }
+
+  try {
+    const result = db.prepare("PRAGMA quick_check").all() as { quick_check: string }[];
+    const failed = result.filter((r) => r.quick_check !== "ok");
+    if (failed.length > 0) {
+      log.error("DATABASE INTEGRITY CHECK FAILED — PRAGMA quick_check reported errors", {
+        errors: failed.map((r) => r.quick_check),
+      });
+    }
+  } catch (err) {
+    log.error("DATABASE INTEGRITY CHECK FAILED — could not run PRAGMA quick_check", { error: String(err) });
   }
 
   log.info("startup checks complete");
