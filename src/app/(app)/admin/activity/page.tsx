@@ -1,8 +1,17 @@
 import Link from "next/link";
 import { requireAdmin } from "@/lib/session";
 import { resolveLocale } from "@/lib/locale";
-import { t } from "@/lib/i18n";
+import { t, type Locale } from "@/lib/i18n";
 import { listActivity } from "@/lib/activityLog";
+
+function activityActionLabel(locale: Locale, action: string): string {
+  return t(locale, `admin.activityActions.${action}`);
+}
+
+function activityEntityLabel(locale: Locale, entityType: string): string {
+  const label = t(locale, `admin.activityEntities.${entityType}`);
+  return label.startsWith("admin.activityEntities.") ? entityType : label;
+}
 
 export default async function AdminActivityPage() {
   const admin = await requireAdmin();
@@ -34,9 +43,9 @@ export default async function AdminActivityPage() {
                 <tr key={e.id}>
                   <td>{e.createdAt}</td>
                   <td>{e.userDisplayName ?? "—"}</td>
-                  <td>{e.action}</td>
+                  <td>{activityActionLabel(locale, e.action)}</td>
                   <td>
-                    {e.entityType}
+                    {activityEntityLabel(locale, e.entityType)}
                     {e.entityId !== null ? ` #${e.entityId}` : ""}
                     {e.details?.name ? ` — ${String(e.details.name)}` : ""}
                   </td>

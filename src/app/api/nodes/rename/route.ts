@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/session";
 import { getNode, renameNode } from "@/lib/nodes";
 import { resolveNamePartsInput } from "@/lib/nameParts";
 import { canEdit } from "@/lib/ownership";
+import { logActivity } from "@/lib/activityLog";
 
 const bodySchema = z.object({
   nodeId: z.number().int().positive(),
@@ -26,5 +27,6 @@ export async function POST(request: Request) {
   const { name, nameParts } = resolveNamePartsInput(parsed.data.part1, parsed.data.part2, "/", user.id);
   if (!name) return NextResponse.json({ error: "empty_name" }, { status: 400 });
   renameNode(node.id, name, nameParts);
+  logActivity(user.id, "rename", "node", node.id, { name });
   return NextResponse.json({ ok: true, name });
 }

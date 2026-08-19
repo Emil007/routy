@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { getNode, setHomeNode } from "@/lib/nodes";
+import { logActivity } from "@/lib/activityLog";
 
 const bodySchema = z.object({ nodeId: z.number().int().positive() });
 
@@ -18,5 +19,6 @@ export async function POST(request: Request) {
   if (!node) return NextResponse.json({ error: "not_found" }, { status: 404 });
 
   setHomeNode(node.id);
+  logActivity(user.id, "set_home", "node", node.id, { name: node.name });
   return NextResponse.json({ ok: true });
 }

@@ -2,11 +2,12 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { createNode, getNode, setHomeNode, findNodeCandidates, type NodeRow } from "@/lib/nodes";
-import { createSegmentWithReverse } from "@/lib/segments";
+import { createSegmentWithReverse, getSegment } from "@/lib/segments";
 import { resolveNamePartsInput } from "@/lib/nameParts";
 import { getSettings } from "@/lib/settings";
 import { elevationStats, type LatLng } from "@/lib/geo";
 import { attachElevation } from "@/lib/elevation";
+import { logActivity } from "@/lib/activityLog";
 
 const pointSchema = z.object({ lat: z.number(), lng: z.number(), ele: z.number().optional() });
 
@@ -68,6 +69,7 @@ export async function POST(request: Request) {
     const { name, nameParts } = resolveNamePartsInput(endpoint.part1, endpoint.part2, "/", userId);
     const created = createNode(name, point, false, userId, nameParts);
     createdThisBatch.push(created);
+    logActivity(userId, "create", "node", created.id, { name: created.name });
     return created.id;
   }
 
@@ -98,7 +100,7 @@ export async function POST(request: Request) {
       }
     }
 
-    createSegmentWithReverse({
+    const { forwardId } = createSegmentWithReverse({
       startNodeId,
       endNodeId,
       points,
@@ -107,6 +109,11 @@ export async function POST(request: Request) {
       elevation,
       source: track.source,
       submittedBy: user.id,
+    });
+    const created = getSegment(forwardId);
+    logActivity(user.id, track.source === "drawn" ? "create" : "gpx_commit", "segment", forwardId, {
+      name: created?.name ?? null,
+      source: track.source,
     });
     saved++;
   }

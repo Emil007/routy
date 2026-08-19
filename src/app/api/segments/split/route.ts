@@ -6,6 +6,7 @@ import { getSettings, effectiveWalkSpeedKmh } from "@/lib/settings";
 import { segmentUsedByActiveRoute } from "@/lib/activeRoute";
 import { canEdit } from "@/lib/ownership";
 import { resolveNamePartsInput } from "@/lib/nameParts";
+import { logActivity } from "@/lib/activityLog";
 
 const endpointSchema = z.union([
   z.object({ nodeId: z.number().int().positive() }),
@@ -59,5 +60,6 @@ export async function POST(request: Request) {
     effectiveWalkSpeedKmh(user.walkSpeedKmh, settings),
   );
   if ("error" in result) return NextResponse.json({ error: result.error }, { status: 400 });
+  logActivity(user.id, "split", "segment", segment.id, { name: segment.name, newNodeId: result.newNodeId });
   return NextResponse.json({ ok: true, newNodeId: result.newNodeId });
 }

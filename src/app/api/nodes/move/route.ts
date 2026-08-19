@@ -5,6 +5,7 @@ import { getNode } from "@/lib/nodes";
 import { moveNode } from "@/lib/segments";
 import { getSettings, effectiveWalkSpeedKmh } from "@/lib/settings";
 import { canEdit } from "@/lib/ownership";
+import { logActivity } from "@/lib/activityLog";
 
 const bodySchema = z.object({ nodeId: z.number().int().positive(), lat: z.number(), lng: z.number() });
 
@@ -26,5 +27,6 @@ export async function POST(request: Request) {
     { lat: parsed.data.lat, lng: parsed.data.lng },
     effectiveWalkSpeedKmh(user.walkSpeedKmh, settings),
   );
+  logActivity(user.id, "move", "node", node.id, { name: node.name, touchedSegments: result.touchedSegments });
   return NextResponse.json({ ok: true, touchedSegments: result.touchedSegments });
 }

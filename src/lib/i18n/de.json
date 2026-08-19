@@ -20,7 +20,7 @@
     "map": "Übersicht",
     "stats": "Statistik",
     "settings": "Einstellungen",
-    "admin": "Benutzer",
+    "admin": "Admin",
     "newProfile": "Neues Profil",
     "logout": "Abmelden",
     "greeting": "Hallo, {name}",
@@ -387,8 +387,8 @@
     }
   },
   "admin": {
-    "title": "Benutzerverwaltung",
-    "subtitle": "Accounts anlegen, sperren, bearbeiten oder löschen.",
+    "title": "Admin",
+    "subtitle": "Benutzerverwaltung, Backups und Aktivitätsprotokoll.",
     "usersHeading": "Benutzer",
     "roleHeading": "Rolle",
     "statusHeading": "Status",
@@ -415,12 +415,33 @@
     "backupDesc": "Lädt eine vollständige Kopie der Datenbank herunter.",
     "backupButton": "Backup herunterladen",
     "activityHeading": "Aktivitätsprotokoll",
-    "activityBackToUsers": "← Zurück zur Benutzerverwaltung",
+    "activityBackToUsers": "← Zurück zu Admin",
     "activityWhen": "Wann",
     "activityWho": "Wer",
     "activityAction": "Aktion",
     "activityEntity": "Betrifft",
     "activityEmpty": "Noch keine Einträge.",
+    "activityActions": {
+      "create": "Anlegen",
+      "rename": "Umbenennen",
+      "move": "Verschieben",
+      "set_home": "Startknoten setzen",
+      "edit_geometry": "Form bearbeiten",
+      "split": "Teilen",
+      "delete": "Löschen",
+      "restore": "Wiederherstellen",
+      "purge": "Endgültig löschen",
+      "lock": "Sperren",
+      "unlock": "Entsperren",
+      "gpx_commit": "GPX-Import",
+      "reset_totp": "2FA zurücksetzen",
+      "impersonate": "Einloggen als"
+    },
+    "activityEntities": {
+      "node": "Knoten",
+      "segment": "Weg",
+      "user": "Benutzer"
+    },
     "updateAvailable": "Neue Version verfügbar:",
     "updateDismiss": "Ausblenden"
   }

@@ -20,7 +20,7 @@
     "map": "Overview",
     "stats": "Stats",
     "settings": "Settings",
-    "admin": "Users",
+    "admin": "Admin",
     "newProfile": "New profile",
     "logout": "Log out",
     "greeting": "Hi, {name}",
@@ -387,8 +387,8 @@
     }
   },
   "admin": {
-    "title": "User management",
-    "subtitle": "Create, lock, edit, or delete accounts.",
+    "title": "Admin",
+    "subtitle": "User management, backups, and activity log.",
     "usersHeading": "Users",
     "roleHeading": "Role",
     "statusHeading": "Status",
@@ -415,12 +415,33 @@
     "backupDesc": "Download a full copy of the database.",
     "backupButton": "Download backup",
     "activityHeading": "Activity log",
-    "activityBackToUsers": "← Back to user management",
+    "activityBackToUsers": "← Back to admin",
     "activityWhen": "When",
     "activityWho": "Who",
     "activityAction": "Action",
     "activityEntity": "Entity",
     "activityEmpty": "No entries yet.",
+    "activityActions": {
+      "create": "Create",
+      "rename": "Rename",
+      "move": "Move",
+      "set_home": "Set home",
+      "edit_geometry": "Edit shape",
+      "split": "Split",
+      "delete": "Delete",
+      "restore": "Restore",
+      "purge": "Purge permanently",
+      "lock": "Lock",
+      "unlock": "Unlock",
+      "gpx_commit": "GPX import",
+      "reset_totp": "Reset 2FA",
+      "impersonate": "Impersonate"
+    },
+    "activityEntities": {
+      "node": "Node",
+      "segment": "Segment",
+      "user": "User"
+    },
     "updateAvailable": "New version available:",
     "updateDismiss": "Dismiss"
   }

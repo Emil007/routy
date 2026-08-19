@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { getSegment, renameSegment } from "@/lib/segments";
 import { canEdit } from "@/lib/ownership";
+import { logActivity } from "@/lib/activityLog";
 
 const bodySchema = z.object({
   segmentId: z.number().int().positive(),
@@ -22,5 +23,6 @@ export async function POST(request: Request) {
   if (!canEdit(user, segment.submittedBy)) return NextResponse.json({ error: "not_owner" }, { status: 403 });
 
   renameSegment(segment.id, parsed.data.name || null);
+  logActivity(user.id, "rename", "segment", segment.id, { name: parsed.data.name || segment.name });
   return NextResponse.json({ ok: true });
 }

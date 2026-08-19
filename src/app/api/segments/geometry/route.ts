@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/session";
 import { updateSegmentGeometry, getSegment } from "@/lib/segments";
 import { getSettings, effectiveWalkSpeedKmh } from "@/lib/settings";
 import { canEdit } from "@/lib/ownership";
+import { logActivity } from "@/lib/activityLog";
 
 const pointSchema = z.object({ lat: z.number(), lng: z.number(), ele: z.number().optional() });
 const bodySchema = z.object({ segmentId: z.number().int().positive(), points: z.array(pointSchema).min(2) });
@@ -27,5 +28,6 @@ export async function POST(request: Request) {
     effectiveWalkSpeedKmh(user.walkSpeedKmh, settings),
   );
   if ("error" in result) return NextResponse.json({ error: result.error }, { status: 400 });
+  logActivity(user.id, "edit_geometry", "segment", segment.id, { name: segment.name });
   return NextResponse.json({ ok: true });
 }
