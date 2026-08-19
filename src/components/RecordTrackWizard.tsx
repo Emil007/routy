@@ -182,104 +182,91 @@ export function RecordTrackWizard({
   }
 
   return (
-    <div className="stack">
-      <p style={{ color: "var(--ink-soft)", fontSize: "0.9rem" }}>{t(locale, "record.instructions")}</p>
-      <p style={{ color: "var(--ink-soft)", fontSize: "0.85rem" }}>{t(locale, "record.backgroundHint")}</p>
+    <div className="record-shell">
+      <p style={{ color: "var(--ink-soft)", fontSize: "0.82rem", margin: 0 }}>{t(locale, "record.instructions")}</p>
 
-      <div className="card stack">
-        <MapViewLazy
-          height={420}
-          autoFit={false}
-          lines={[...networkLines, ...trackLine]}
-          markers={[...nodeMarkers, ...liveMarkers]}
-          initialView={initialView}
-          onViewChange={onViewChange}
-        />
+      <MapViewLazy
+        height={420}
+        autoFit={false}
+        lines={[...networkLines, ...trackLine]}
+        markers={[...nodeMarkers, ...liveMarkers]}
+        initialView={initialView}
+        onViewChange={onViewChange}
+      />
 
-        <div className="btn-row">
-          <span className="chip">{t(locale, "draw.pointsSoFar", { count: points.length })}</span>
-          <span className="chip">
-            {t(locale, "draw.distanceSoFar")}: {(lengthM / 1000).toFixed(2)} {t(locale, "common.km")}
-          </span>
-        </div>
-
-        {locationError && <div className="alert alert-error">{t(locale, "record.locationError")}</div>}
+      <div className="record-map-bar">
+        <span className="chip">{t(locale, "draw.pointsSoFar", { count: points.length })}</span>
+        <span className="chip">
+          {t(locale, "draw.distanceSoFar")}: {(lengthM / 1000).toFixed(2)} {t(locale, "common.km")}
+        </span>
+        {locationError && <span className="chip" style={{ borderColor: "var(--danger)", color: "var(--danger)" }}>{t(locale, "record.locationError")}</span>}
 
         {phase === "idle" && (
-          <button type="button" className="btn-primary" onClick={start}>
+          <button type="button" className="btn-primary btn-compact" onClick={start}>
             {t(locale, "record.start")}
           </button>
         )}
         {phase === "recording" && (
-          <div className="btn-row">
-            <button type="button" className="btn-secondary" onClick={pause}>
-              {t(locale, "record.pause")}
-            </button>
-            <button type="button" className="btn-primary" onClick={stop}>
-              {t(locale, "record.stop")}
-            </button>
-          </div>
+          <>
+            <button type="button" className="btn-secondary btn-compact" onClick={pause}>{t(locale, "record.pause")}</button>
+            <button type="button" className="btn-primary btn-compact" onClick={stop}>{t(locale, "record.stop")}</button>
+          </>
         )}
         {phase === "paused" && (
-          <div className="btn-row">
-            <button type="button" className="btn-secondary" onClick={resume}>
-              {t(locale, "record.resume")}
-            </button>
-            <button type="button" className="btn-primary" onClick={stop}>
-              {t(locale, "record.stop")}
-            </button>
-            <button type="button" className="btn-danger" onClick={discard}>
-              {t(locale, "record.discard")}
-            </button>
-          </div>
+          <>
+            <button type="button" className="btn-secondary btn-compact" onClick={resume}>{t(locale, "record.resume")}</button>
+            <button type="button" className="btn-primary btn-compact" onClick={stop}>{t(locale, "record.stop")}</button>
+            <button type="button" className="btn-danger btn-compact" onClick={discard}>{t(locale, "record.discard")}</button>
+          </>
         )}
       </div>
 
-      {message && <div className={status === "error" ? "alert alert-error" : "alert alert-success"}>{message}</div>}
+      {message && <div className={status === "error" ? "alert alert-error" : "alert alert-success"} style={{ padding: "0.45rem 0.65rem", fontSize: "0.82rem" }}>{message}</div>}
 
       {phase === "confirm" && startDecision && endDecision && (
-        <div className="card stack">
-          <h3 style={{ fontSize: "1rem" }}>{t(locale, "draw.confirmTitle")}</h3>
-
-          <EndpointFields
-            locale={locale}
-            role="start"
-            point={points[0]}
-            candidates={findNodeCandidates(nodes, points[0], mergeRadiusM)}
-            nameConflict={null}
-            decisionChoice={startDecision.choice}
-            decisionNodeId={startDecision.nodeId}
-            decisionPart1={startDecision.part1}
-            decisionPart2={startDecision.part2}
-            onChoice={(v) => setStartDecision((d) => (d ? { ...d, choice: v } : d))}
-            onNodeId={(v) => setStartDecision((d) => (d ? { ...d, nodeId: v } : d))}
-            onPart1={(v) => setStartDecision((d) => (d ? { ...d, part1: v } : d))}
-            onPart2={(v) => setStartDecision((d) => (d ? { ...d, part2: v } : d))}
-          />
+        <div className="card route-panel-compact stack" style={{ gap: "0.45rem" }}>
+          <strong style={{ fontSize: "0.85rem" }}>{t(locale, "draw.confirmTitle")}</strong>
+          <div className="record-confirm-grid">
+            <EndpointFields
+              locale={locale}
+              role="start"
+              point={points[0]}
+              candidates={findNodeCandidates(nodes, points[0], mergeRadiusM)}
+              nameConflict={null}
+              decisionChoice={startDecision.choice}
+              decisionNodeId={startDecision.nodeId}
+              decisionPart1={startDecision.part1}
+              decisionPart2={startDecision.part2}
+              onChoice={(v) => setStartDecision((d) => (d ? { ...d, choice: v } : d))}
+              onNodeId={(v) => setStartDecision((d) => (d ? { ...d, nodeId: v } : d))}
+              onPart1={(v) => setStartDecision((d) => (d ? { ...d, part1: v } : d))}
+              onPart2={(v) => setStartDecision((d) => (d ? { ...d, part2: v } : d))}
+            />
+            <EndpointFields
+              locale={locale}
+              role="end"
+              point={points[points.length - 1]}
+              candidates={findNodeCandidates(nodes, points[points.length - 1], mergeRadiusM)}
+              nameConflict={null}
+              decisionChoice={endDecision.choice}
+              decisionNodeId={endDecision.nodeId}
+              decisionPart1={endDecision.part1}
+              decisionPart2={endDecision.part2}
+              onChoice={(v) => setEndDecision((d) => (d ? { ...d, choice: v } : d))}
+              onNodeId={(v) => setEndDecision((d) => (d ? { ...d, nodeId: v } : d))}
+              onPart1={(v) => setEndDecision((d) => (d ? { ...d, part1: v } : d))}
+              onPart2={(v) => setEndDecision((d) => (d ? { ...d, part2: v } : d))}
+            />
+          </div>
           <label className="checkbox">
             <input type="checkbox" checked={markStartAsHome} onChange={(e) => setMarkStartAsHome(e.target.checked)} />
             {t(locale, "import.markAsHome")}
           </label>
-
-          <EndpointFields
-            locale={locale}
-            role="end"
-            point={points[points.length - 1]}
-            candidates={findNodeCandidates(nodes, points[points.length - 1], mergeRadiusM)}
-            nameConflict={null}
-            decisionChoice={endDecision.choice}
-            decisionNodeId={endDecision.nodeId}
-            decisionPart1={endDecision.part1}
-            decisionPart2={endDecision.part2}
-            onChoice={(v) => setEndDecision((d) => (d ? { ...d, choice: v } : d))}
-            onNodeId={(v) => setEndDecision((d) => (d ? { ...d, nodeId: v } : d))}
-            onPart1={(v) => setEndDecision((d) => (d ? { ...d, part1: v } : d))}
-            onPart2={(v) => setEndDecision((d) => (d ? { ...d, part2: v } : d))}
-          />
-
-          <button type="button" className="btn-primary" onClick={save} disabled={status === "saving"}>
-            {status === "saving" ? t(locale, "draw.saving") : t(locale, "draw.save")}
-          </button>
+          <div className="route-action-bar">
+            <button type="button" className="btn-primary btn-compact" onClick={save} disabled={status === "saving"}>
+              {status === "saving" ? t(locale, "draw.saving") : t(locale, "draw.save")}
+            </button>
+          </div>
         </div>
       )}
     </div>
