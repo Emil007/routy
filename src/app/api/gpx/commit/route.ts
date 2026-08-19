@@ -84,7 +84,11 @@ export async function POST(request: Request) {
     const endNodeId = resolveEndpoint(track.end, endPoint);
     if (endNodeId === null) return NextResponse.json({ error: "unknown_end_node" }, { status: 400 });
 
-    if (track.markStartAsHome) setHomeNode(startNodeId);
+    if (track.markStartAsHome) {
+      setHomeNode(startNodeId);
+      const homeNode = getNode(startNodeId);
+      logActivity(user.id, "set_home", "node", startNodeId, { name: homeNode?.name ?? null });
+    }
 
     // GPX tracks usually carry recorded elevation already; drawn paths never do
     // (a map click has no altitude). Either way, if it's missing, look it up —

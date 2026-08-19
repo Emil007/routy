@@ -6,6 +6,7 @@ import { getUserStats, getRecentWalks, getSegmentUsageStats, getStreakStats, get
 import { computeUserPoints, getPointsLeaderboard } from "@/lib/points";
 import { computeAchievements, TIERS } from "@/lib/achievements";
 import { ConfirmSubmitForm } from "@/components/ConfirmSubmitForm";
+import { WalkPathThumbnail } from "@/components/WalkPathThumbnail";
 import { deleteWalkAction } from "./actions";
 
 function normalizeServerIso(iso: string): string {
@@ -54,6 +55,7 @@ export default async function StatsPage() {
   const pointsLeaderboard = getPointsLeaderboard();
   const nodes = listNodes();
   const nodesById = new Map(nodes.map((n) => [n.id, n]));
+  const walkCoords = new Map(nodes.map((n) => [n.id, { lat: n.lat, lng: n.lng }]));
 
   const mostUsed = [...usageStats].sort((a, b) => b.usageCount - a.usageCount).slice(0, 5);
   const leastUsed = [...usageStats].sort((a, b) => a.usageCount - b.usageCount).slice(0, 5);
@@ -174,6 +176,7 @@ export default async function StatsPage() {
               <thead>
                 <tr>
                   <th>{t(locale, "stats.date")}</th>
+                  <th></th>
                   <th>{t(locale, "route.stationList")}</th>
                   <th>{t(locale, "import.length")}</th>
                   <th>{t(locale, "import.duration")}</th>
@@ -184,6 +187,9 @@ export default async function StatsPage() {
                 {recentWalks.map((w) => (
                   <tr key={w.id}>
                     <td>{formatDate(w.acceptedAt, locale)}</td>
+                    <td>
+                      <WalkPathThumbnail nodeChain={w.nodeChain} coords={walkCoords} />
+                    </td>
                     <td>
                       {w.nickname ? (
                         <>

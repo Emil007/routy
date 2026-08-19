@@ -158,6 +158,11 @@ export function RouteGenerator({
     setWatchId(id);
   }
 
+  async function discover() {
+    setExplorerMode(true);
+    await suggest();
+  }
+
   async function suggest(preset?: "short" | "long") {
     if (!startNodeId) return;
     setStatus("loading");
@@ -552,6 +557,9 @@ export function RouteGenerator({
                 </button>
                 <button type="button" className="btn-secondary btn-compact" disabled={status === "loading" || !startNodeId} onClick={() => suggest("long")}>
                   {t(locale, "route.presetLong")}
+                </button>
+                <button type="button" className="btn-secondary btn-compact" disabled={status === "loading" || !startNodeId} onClick={() => discover()}>
+                  {t(locale, "route.presetDiscover")}
                 </button>
               </div>
             </form>

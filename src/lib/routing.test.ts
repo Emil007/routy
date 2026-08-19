@@ -160,6 +160,35 @@ describe("scoreRoutes + pickBest", () => {
     const best = pickBest(scored, new Set());
     expect(best?.route.segmentIds).toEqual([1, 2, 3, 4]);
   });
+
+  it("prefers more unexplored segments in explorer mode even when shape scores tie", () => {
+    const scored = [
+      {
+        key: "a",
+        route: { nodeChain: [1, 2, 3, 4, 1], segmentIds: [1, 2, 3, 4], lengthM: 400, durationMin: 8 },
+        backtrack: 0,
+        crossing: 0,
+        weightedUsage: 0,
+        overlap: 0,
+        delta: 0,
+        unexplored: 1,
+      },
+      {
+        key: "b",
+        route: { nodeChain: [1, 2, 1], segmentIds: [1, 5], lengthM: 200, durationMin: 4 },
+        backtrack: 0,
+        crossing: 0,
+        weightedUsage: 0,
+        overlap: 0,
+        delta: 0,
+        unexplored: 4,
+      },
+    ];
+    const normal = pickBest(scored, new Set(), false);
+    expect(normal?.key).toBe("a");
+    const explorer = pickBest(scored, new Set(), true);
+    expect(explorer?.key).toBe("b");
+  });
 });
 
 describe("toleranceRange", () => {

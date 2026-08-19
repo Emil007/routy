@@ -4,6 +4,19 @@ import { resolveLocale } from "@/lib/locale";
 import { t, type Locale } from "@/lib/i18n";
 import { listActivity } from "@/lib/activityLog";
 
+function normalizeServerIso(iso: string): string {
+  const normalized = iso.trim().replace(" ", "T");
+  if (normalized.endsWith("Z") || /[+-]\d{2}:\d{2}$/.test(normalized)) return normalized;
+  return `${normalized}Z`;
+}
+
+function formatActivityWhen(iso: string, locale: Locale): string {
+  return new Date(normalizeServerIso(iso)).toLocaleString(locale === "de" ? "de-DE" : "en-US", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
 function activityActionLabel(locale: Locale, action: string): string {
   return t(locale, `admin.activityActions.${action}`);
 }
@@ -41,7 +54,7 @@ export default async function AdminActivityPage() {
             <tbody>
               {entries.map((e) => (
                 <tr key={e.id}>
-                  <td>{e.createdAt}</td>
+                  <td>{formatActivityWhen(e.createdAt, locale)}</td>
                   <td>{e.userDisplayName ?? "—"}</td>
                   <td>{activityActionLabel(locale, e.action)}</td>
                   <td>
