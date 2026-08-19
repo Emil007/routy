@@ -1,5 +1,22 @@
-import { describe, expect, it } from "vitest";
-import { computeBasePoints } from "./points";
+import { beforeAll, describe, expect, it, vi } from "vitest";
+
+vi.mock("./db", () => ({
+  db: {
+    prepare: () => ({
+      all: () => [],
+    }),
+  },
+}));
+
+vi.mock("./segments", () => ({
+  listSegments: () => [],
+}));
+
+let computeBasePoints: typeof import("./points").computeBasePoints;
+
+beforeAll(async () => {
+  ({ computeBasePoints } = await import("./points"));
+});
 
 describe("computeBasePoints", () => {
   it("awards walk, distance, elevation, and exploration components", () => {
