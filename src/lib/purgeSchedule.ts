@@ -1,5 +1,6 @@
 import { db } from "./db";
 import { log } from "./logger";
+import { sweepExpiredRouteSessions } from "./routeSessions";
 
 const TRASH_RETENTION_DAYS = 30;
 const ACTIVITY_LOG_RETENTION_DAYS = 180;
@@ -33,10 +34,18 @@ function purgeExpiredSessions(): void {
   }
 }
 
+function purgeExpiredRouteSessions(): void {
+  const removed = sweepExpiredRouteSessions();
+  if (removed > 0) {
+    log.info("auto-purged expired route sessions", { sessions: removed });
+  }
+}
+
 function runDailyPurge(): void {
   purgeOldTrash();
   purgeOldActivityLog();
   purgeExpiredSessions();
+  purgeExpiredRouteSessions();
 }
 
 /** Runs once on startup, then daily — trash, activity log retention, and expired sessions. */

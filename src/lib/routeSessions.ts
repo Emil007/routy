@@ -58,3 +58,10 @@ export function updateRouteSession(token: string, patch: Partial<RouteSessionSta
 export function deleteRouteSession(token: string): void {
   store.delete(token);
 }
+
+/** Drop in-memory route suggestion tokens past TTL — also called from the daily purge job. */
+export function sweepExpiredRouteSessions(): number {
+  const before = store.size;
+  sweep();
+  return before - store.size;
+}

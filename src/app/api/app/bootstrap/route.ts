@@ -7,7 +7,9 @@ import { getActiveRoute } from "@/lib/activeRoute";
 import { listFavorites } from "@/lib/favorites";
 import { loadGraphContext } from "@/lib/routeContext";
 import { buildRouteDisplay } from "@/lib/routeDisplay";
+import { getBootstrapVersion } from "@/lib/bootstrapVersion";
 import { getNetworkVersion } from "@/lib/networkVersion";
+import { conditionalJson } from "@/lib/conditionalJson";
 
 function buildRouteState(userId: number) {
   const { nodesById, segmentsById } = loadGraphContext();
@@ -27,14 +29,15 @@ function buildRouteState(userId: number) {
 }
 
 /** Single launch payload: user profile, network data, and route state. */
-export async function GET() {
+export async function GET(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const locale = await resolveLocale(user.locale);
   const routeState = buildRouteState(user.id);
+  const etag = getBootstrapVersion(user.id);
 
-  return NextResponse.json({
+  return conditionalJson(request, etag, {
     user: { ...user, locale },
     networkVersion: getNetworkVersion(),
     nodes: listNodes(),
