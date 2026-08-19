@@ -1,5 +1,3 @@
-import { db } from "./db";
-
 declare global {
   var __routyGenerateCounts: Map<string, { count: number; windowStart: number }> | undefined;
 }

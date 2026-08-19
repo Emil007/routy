@@ -1,4 +1,4 @@
-import { APP_VERSION_DISPLAY } from "./version";
+import { APP_VERSION } from "./version";
 
 export interface UpdateInfo {
   latestVersion: string;
@@ -55,5 +55,5 @@ export function checkForUpdate(): Promise<UpdateInfo | null> {
 }
 
 export function isUpdateAvailable(latestVersion: string): boolean {
-  return isNewer(latestVersion, APP_VERSION_DISPLAY);
+  return isNewer(latestVersion, APP_VERSION);
 }

@@ -193,6 +193,25 @@ function runMigrations(db: Database.Database): void {
   addColumnIfMissing(db, "favorite_route", "share_token", "ALTER TABLE favorite_route ADD COLUMN share_token TEXT");
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_favorite_route_share_token ON favorite_route(share_token)");
 
+  addColumnIfMissing(db, "nodes", "updated_at", "ALTER TABLE nodes ADD COLUMN updated_at TEXT");
+  addColumnIfMissing(db, "segments", "updated_at", "ALTER TABLE segments ADD COLUMN updated_at TEXT");
+  db.exec("UPDATE nodes SET updated_at = created_at WHERE updated_at IS NULL");
+  db.exec("UPDATE segments SET updated_at = created_at WHERE updated_at IS NULL");
+  db.exec(`
+    CREATE TRIGGER IF NOT EXISTS trg_nodes_updated_at
+    AFTER UPDATE ON nodes
+    BEGIN
+      UPDATE nodes SET updated_at = datetime('now') WHERE id = NEW.id;
+    END;
+  `);
+  db.exec(`
+    CREATE TRIGGER IF NOT EXISTS trg_segments_updated_at
+    AFTER UPDATE ON segments
+    BEGIN
+      UPDATE segments SET updated_at = datetime('now') WHERE id = NEW.id;
+    END;
+  `);
+
   // session_id is a non-secret handle for the sessions list / revoke UI —
   // separate from token_hash, which stays internal since it's derived from
   // the actual bearer/cookie secret.
