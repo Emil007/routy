@@ -286,7 +286,11 @@
     "noSegments": "No path segments in the network yet.",
     "deleteWalkConfirm": "Delete this walk from your history? Stats adjusted accordingly.",
     "currentStreak": "Current streak",
-    "longestStreak": "Longest streak"
+    "longestStreak": "Longest streak",
+    "points": "Points",
+    "weeklyPoints": "Points this week",
+    "pointsLeaderboardHeading": "Points leaderboard",
+    "pointsLeaderboardEmpty": "No points recorded yet."
   },
   "draw": {
     "title": "Draw on the map",
@@ -399,6 +403,7 @@
     "deleteConfirm": "Permanently delete this account? Login credentials are removed; nodes/paths they created stay attributed to their name.",
     "createUserHeading": "Create a new user",
     "userUpdated": "User updated.",
+    "openMapEditor": "Edit path network on map",
     "editUserTitle": "Edit {name}",
     "newPasswordLabel": "New password",
     "newPasswordPlaceholder": "leave empty = unchanged",

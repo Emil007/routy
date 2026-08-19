@@ -166,7 +166,12 @@ export async function startImpersonation(targetUserId: number): Promise<void> {
   const store = await cookies();
   const adminToken = store.get(SESSION_COOKIE)?.value;
   if (!adminToken) return;
-  const newToken = await createSession(targetUserId);
+  const adminHash = hashToken(adminToken);
+  const row = db
+    .prepare("SELECT client FROM sessions WHERE token_hash = ?")
+    .get(adminHash) as { client: SessionClient } | undefined;
+  const client = row?.client ?? "web";
+  const newToken = await createSession(targetUserId, { client });
   const options = sessionCookieOptions();
   store.set(IMPERSONATOR_COOKIE, adminToken, options);
   store.set(SESSION_COOKIE, newToken, options);

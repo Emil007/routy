@@ -286,7 +286,11 @@
     "noSegments": "Noch keine Wegabschnitte im Netzwerk.",
     "deleteWalkConfirm": "Spaziergang aus dem Verlauf löschen? Statistik wird entsprechend angepasst.",
     "currentStreak": "Aktuelle Serie",
-    "longestStreak": "Längste Serie"
+    "longestStreak": "Längste Serie",
+    "points": "Punkte",
+    "weeklyPoints": "Punkte diese Woche",
+    "pointsLeaderboardHeading": "Punkte-Rangliste",
+    "pointsLeaderboardEmpty": "Noch keine Punkte erfasst."
   },
   "draw": {
     "title": "Auf der Karte zeichnen",
@@ -399,6 +403,7 @@
     "deleteConfirm": "Account unwiderruflich löschen? Login-Daten werden entfernt, angelegte Wege/Knoten bleiben mit dem Namen erhalten.",
     "createUserHeading": "Neuen Benutzer anlegen",
     "userUpdated": "Benutzer aktualisiert.",
+    "openMapEditor": "Wegnetz auf der Karte bearbeiten",
     "editUserTitle": "{name} bearbeiten",
     "newPasswordLabel": "Neues Passwort",
     "newPasswordPlaceholder": "leer lassen = unverändert",

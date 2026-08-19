@@ -3,6 +3,7 @@ import { resolveLocale } from "@/lib/locale";
 import { t } from "@/lib/i18n";
 import { listNodes } from "@/lib/nodes";
 import { getUserStats, getRecentWalks, getSegmentUsageStats, getStreakStats, getWeeklyLeaderboard } from "@/lib/stats";
+import { computeUserPoints, getPointsLeaderboard } from "@/lib/points";
 import { computeAchievements, TIERS } from "@/lib/achievements";
 import { ConfirmSubmitForm } from "@/components/ConfirmSubmitForm";
 import { deleteWalkAction } from "./actions";
@@ -38,6 +39,8 @@ export default async function StatsPage() {
   const recentWalks = getRecentWalks(user.id, 8);
   const usageStats = getSegmentUsageStats();
   const leaderboard = getWeeklyLeaderboard();
+  const userPoints = computeUserPoints(user.id);
+  const pointsLeaderboard = getPointsLeaderboard();
   const nodes = listNodes();
   const nodesById = new Map(nodes.map((n) => [n.id, n]));
 
@@ -76,7 +79,28 @@ export default async function StatsPage() {
           <span className="chip">
             {t(locale, "stats.longestStreak")}: {streakStats.longestStreak}
           </span>
+          <span className="chip">
+            {t(locale, "stats.points")}: {userPoints.totalPoints}
+          </span>
+          <span className="chip">
+            {t(locale, "stats.weeklyPoints")}: {userPoints.weeklyPoints}
+          </span>
         </div>
+      </div>
+
+      <div className="card">
+        <h2 style={{ fontSize: "1.1rem", marginBottom: "0.8rem" }}>{t(locale, "stats.pointsLeaderboardHeading")}</h2>
+        {pointsLeaderboard.length === 0 ? (
+          <p style={{ color: "var(--ink-soft)" }}>{t(locale, "stats.pointsLeaderboardEmpty")}</p>
+        ) : (
+          <ol style={{ margin: 0, paddingLeft: "1.3rem" }}>
+            {pointsLeaderboard.map((entry) => (
+              <li key={entry.userId} style={{ fontSize: "0.95rem", marginBottom: "0.3rem", fontWeight: entry.userId === user.id ? 700 : 400 }}>
+                {entry.displayName} — {entry.totalPoints} {t(locale, "achievements.units.points")}
+              </li>
+            ))}
+          </ol>
+        )}
       </div>
 
       <div className="card">

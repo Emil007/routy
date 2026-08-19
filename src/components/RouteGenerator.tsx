@@ -72,6 +72,7 @@ export function RouteGenerator({
   );
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [message, setMessage] = useState<string | null>(null);
+  const [messageIsError, setMessageIsError] = useState(false);
   const [favoriteName, setFavoriteName] = useState("");
   const [savingFavorite, setSavingFavorite] = useState(false);
 
@@ -82,6 +83,16 @@ export function RouteGenerator({
   const [watchId, setWatchId] = useState<number | null>(null);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const announcedStationIndexRef = useRef(0);
+
+  function flashMessage(text: string, isError = false) {
+    setMessage(text);
+    setMessageIsError(isError);
+  }
+
+  function clearMessage() {
+    setMessage(null);
+    setMessageIsError(false);
+  }
 
   useEffect(() => {
     if (!voiceEnabled || mode !== "active" || !myLocation || !result) return;
@@ -150,7 +161,7 @@ export function RouteGenerator({
   async function suggest(preset?: "short" | "long") {
     if (!startNodeId) return;
     setStatus("loading");
-    setMessage(null);
+    clearMessage();
     const res = await callApi("/api/route/generate", {
       startNodeId,
       destinationNodeId: isLoop ? startNodeId : destinationNodeId || startNodeId,
@@ -165,7 +176,7 @@ export function RouteGenerator({
     } else {
       setResult(null);
       setStatus("error");
-      setMessage(t(locale, "route.noRouteFound"));
+      flashMessage(t(locale, "route.noRouteFound"), true);
     }
   }
 
@@ -182,10 +193,10 @@ export function RouteGenerator({
       const data = (await res.json()) as GenerateResponse;
       setResult(data);
       setStatus("idle");
-      setMessage(null);
+      clearMessage();
     } else {
       setStatus("idle");
-      setMessage(t(locale, "route.noAlternative"));
+      flashMessage(t(locale, "route.noAlternative"), true);
     }
   }
 
@@ -197,10 +208,10 @@ export function RouteGenerator({
       const data = (await res.json()) as GenerateResponse;
       setResult(data);
       setStatus("idle");
-      setMessage(null);
+      clearMessage();
     } else {
       setStatus("idle");
-      setMessage(t(locale, "route.noAlternative"));
+      flashMessage(t(locale, "route.noAlternative"), true);
     }
   }
 
@@ -211,12 +222,12 @@ export function RouteGenerator({
     if (res.ok) {
       setMode("active");
       setStatus("idle");
-      setMessage(null);
+      clearMessage();
       setNickname("");
       announcedStationIndexRef.current = 0;
     } else {
       setStatus("idle");
-      setMessage(t(locale, "route.sessionExpired"));
+      flashMessage(t(locale, "route.sessionExpired"), true);
     }
   }
 
@@ -225,10 +236,10 @@ export function RouteGenerator({
     const res = await callApi("/api/route/nickname", { nickname });
     setNicknameStatus("idle");
     if (res.ok) {
-      setMessage(t(locale, "route.nicknameSaved"));
+      flashMessage(t(locale, "route.nicknameSaved"));
       router.refresh();
     } else {
-      setMessage(t(locale, "common.error"));
+      flashMessage(t(locale, "common.error"), true);
     }
   }
 
@@ -236,7 +247,7 @@ export function RouteGenerator({
     if (!result) return;
     await callApi("/api/route/cancel", { token: result.token });
     setResult(null);
-    setMessage(null);
+    clearMessage();
   }
 
   async function handleComplete() {
@@ -246,7 +257,7 @@ export function RouteGenerator({
       setResult(null);
       setMode("suggesting");
       setStatus("idle");
-      setMessage(t(locale, "route.completedMessage"));
+      flashMessage(t(locale, "route.completedMessage"));
       setNickname("");
       if (watchId !== null) {
         navigator.geolocation.clearWatch(watchId);
@@ -256,7 +267,7 @@ export function RouteGenerator({
       if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
     } else {
       setStatus("idle");
-      setMessage(t(locale, "common.error"));
+      flashMessage(t(locale, "common.error"), true);
     }
   }
 
@@ -273,7 +284,7 @@ export function RouteGenerator({
     setSavingFavorite(false);
     if (res.ok) {
       setFavoriteName("");
-      setMessage(t(locale, "route.favoriteSaved"));
+      flashMessage(t(locale, "route.favoriteSaved"));
       router.refresh();
     }
   }
@@ -285,13 +296,13 @@ export function RouteGenerator({
       setResult({ token: "", route: favorite.display });
       setMode("active");
       setStatus("idle");
-      setMessage(null);
+      clearMessage();
       setNickname("");
       announcedStationIndexRef.current = 0;
     } else {
       const body = (await res.json().catch(() => null)) as { error?: string } | null;
       setStatus("idle");
-      setMessage(body?.error === "favorite_stale" ? t(locale, "route.favoriteStale") : t(locale, "common.error"));
+      flashMessage(body?.error === "favorite_stale" ? t(locale, "route.favoriteStale") : t(locale, "common.error"), true);
     }
   }
 
@@ -304,7 +315,7 @@ export function RouteGenerator({
   async function handleCopyShareLink(fav: FavoriteEntry) {
     if (!fav.shareToken) return;
     await navigator.clipboard.writeText(`${window.location.origin}/share/${fav.shareToken}`);
-    setMessage(t(locale, "route.favoriteShareCopied"));
+    flashMessage(t(locale, "route.favoriteShareCopied"));
   }
 
   async function handleToggleShare(fav: FavoriteEntry) {
@@ -313,9 +324,9 @@ export function RouteGenerator({
     const data = (await res.json()) as { shareToken: string | null };
     if (data.shareToken) {
       await navigator.clipboard.writeText(`${window.location.origin}/share/${data.shareToken}`);
-      setMessage(t(locale, "route.favoriteShareCopied"));
+      flashMessage(t(locale, "route.favoriteShareCopied"));
     } else {
-      setMessage(t(locale, "route.favoriteUnshare"));
+      flashMessage(t(locale, "route.favoriteUnshare"));
     }
     router.refresh();
   }
@@ -327,7 +338,7 @@ export function RouteGenerator({
     setResult(null);
     setMode("suggesting");
     setStatus("idle");
-    setMessage(null);
+    clearMessage();
     setNickname("");
     if (watchId !== null) {
       navigator.geolocation.clearWatch(watchId);
@@ -556,7 +567,14 @@ export function RouteGenerator({
           <div className="alert alert-success" style={{ padding: "0.45rem 0.65rem", fontSize: "0.82rem" }}>{t(locale, "route.activeNotice")}</div>
         )}
 
-        {message && <div className="alert alert-success" style={{ padding: "0.45rem 0.65rem", fontSize: "0.82rem" }}>{message}</div>}
+        {message && (
+          <div
+            className={`alert ${messageIsError ? "alert-error" : "alert-success"}`}
+            style={{ padding: "0.45rem 0.65rem", fontSize: "0.82rem" }}
+          >
+            {message}
+          </div>
+        )}
 
         {actionBar && <div className="route-action-bar-sticky">{actionBar}</div>}
       </div>

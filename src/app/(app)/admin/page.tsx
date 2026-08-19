@@ -31,6 +31,8 @@ export default async function AdminPage({
         <h1>{t(locale, "admin.title")}</h1>
         <p>{t(locale, "admin.subtitle")}</p>
         <p>
+          <Link href="/map">{t(locale, "admin.openMapEditor")}</Link>
+          {" · "}
           <Link href="/admin/activity">{t(locale, "admin.activityHeading")}</Link>
         </p>
       </div>
