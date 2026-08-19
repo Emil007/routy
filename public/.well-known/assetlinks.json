@@ -4,15 +4,9 @@
     "target": {
       "namespace": "android_app",
       "package_name": "com.routy.app",
-      "sha256_cert_fingerprints": ["REPLACE_WITH_RELEASE_SHA256"]
-    }
-  },
-  {
-    "relation": ["delegate_permission/common.handle_all_urls"],
-    "target": {
-      "namespace": "android_app",
-      "package_name": "com.routy.app.debug",
-      "sha256_cert_fingerprints": ["REPLACE_WITH_DEBUG_SHA256"]
+      "sha256_cert_fingerprints": [
+        "FC:66:8E:DD:E2:21:AE:1E:79:6E:66:1B:D6:B1:FF:E3:32:9A:CD:01:23:6C:2C:8C:D6:91:D2:CB:BB:98:24:43"
+      ]
     }
   }
 ]
