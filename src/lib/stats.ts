@@ -110,6 +110,7 @@ export function getUserSegmentWalkCounts(userId: number): Map<number, number> {
 export interface WalkLogEntry {
   id: number;
   nodeChain: number[];
+  segmentIds: number[];
   lengthM: number;
   durationMin: number;
   nickname: string | null;
@@ -119,11 +120,12 @@ export interface WalkLogEntry {
 export function getRecentWalks(userId: number, limit = 10): WalkLogEntry[] {
   const rows = db
     .prepare(
-      "SELECT id, node_chain, length_m, duration_min, nickname, accepted_at FROM walk_log WHERE user_id = ? ORDER BY accepted_at DESC LIMIT ?",
+      "SELECT id, node_chain, segment_ids, length_m, duration_min, nickname, accepted_at FROM walk_log WHERE user_id = ? ORDER BY accepted_at DESC LIMIT ?",
     )
     .all(userId, limit) as {
     id: number;
     node_chain: string;
+    segment_ids: string;
     length_m: number;
     duration_min: number;
     nickname: string | null;
@@ -133,6 +135,7 @@ export function getRecentWalks(userId: number, limit = 10): WalkLogEntry[] {
   return rows.map((r) => ({
     id: r.id,
     nodeChain: JSON.parse(r.node_chain) as number[],
+    segmentIds: JSON.parse(r.segment_ids) as number[],
     lengthM: r.length_m,
     durationMin: r.duration_min,
     nickname: r.nickname,

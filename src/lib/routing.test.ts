@@ -153,12 +153,19 @@ describe("scoreRoutes + pickBest", () => {
       { nodeChain: [1, 2, 3, 4, 1], segmentIds: [1, 2, 3, 4], lengthM: 400, durationMin: 8 },
       { nodeChain: [1, 2, 3, 4, 1], segmentIds: [11, 12, 13, 14], lengthM: 400, durationMin: 8 },
     ];
-    // No reverse-pair relationships between these ids, so both candidates have
-    // an identical backtrack score of 0 — only the crossing score differs.
     const scored = scoreRoutes(candidates, new Map(), new Map(), new Map(), 1, new Set(), 400, "km", geometryOf);
     expect(scored[0].backtrack).toBe(scored[1].backtrack);
     const best = pickBest(scored, new Set());
     expect(best?.route.segmentIds).toEqual([1, 2, 3, 4]);
+  });
+
+  it("counts never-walked segments in unexplored score", () => {
+    const candidates = [
+      { nodeChain: [1, 2, 1], segmentIds: [1, 5], lengthM: 200, durationMin: 4 },
+    ];
+    const usage = new Map<number, number>([[1, 2]]);
+    const scored = scoreRoutes(candidates, new Map(), usage, new Map(), 1, new Set(), 200, "km");
+    expect(scored[0].unexplored).toBe(1);
   });
 
   it("prefers more unexplored segments in explorer mode even when shape scores tie", () => {

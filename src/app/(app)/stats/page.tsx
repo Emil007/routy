@@ -2,6 +2,8 @@ import { requireUser } from "@/lib/session";
 import { resolveLocale } from "@/lib/locale";
 import { t } from "@/lib/i18n";
 import { listNodes } from "@/lib/nodes";
+import { listSegments } from "@/lib/segments";
+import { walkPathPoints } from "@/lib/walkPathPoints";
 import { getUserStats, getRecentWalks, getSegmentUsageStats, getStreakStats, getWeeklyLeaderboard } from "@/lib/stats";
 import { computeUserPoints, getPointsLeaderboard } from "@/lib/points";
 import { computeAchievements, TIERS } from "@/lib/achievements";
@@ -54,8 +56,10 @@ export default async function StatsPage() {
   const userPoints = computeUserPoints(user.id);
   const pointsLeaderboard = getPointsLeaderboard();
   const nodes = listNodes();
+  const segments = listSegments();
   const nodesById = new Map(nodes.map((n) => [n.id, n]));
   const walkCoords = new Map(nodes.map((n) => [n.id, { lat: n.lat, lng: n.lng }]));
+  const segmentGeometry = new Map(segments.map((s) => [s.id, s.geometry]));
 
   const mostUsed = [...usageStats].sort((a, b) => b.usageCount - a.usageCount).slice(0, 5);
   const leastUsed = [...usageStats].sort((a, b) => a.usageCount - b.usageCount).slice(0, 5);
@@ -188,7 +192,12 @@ export default async function StatsPage() {
                   <tr key={w.id}>
                     <td>{formatDate(w.acceptedAt, locale)}</td>
                     <td>
-                      <WalkPathThumbnail nodeChain={w.nodeChain} coords={walkCoords} />
+                      <WalkPathThumbnail
+                        points={walkPathPoints(w.segmentIds, segmentGeometry, {
+                          nodeChain: w.nodeChain,
+                          coords: walkCoords,
+                        })}
+                      />
                     </td>
                     <td>
                       {w.nickname ? (

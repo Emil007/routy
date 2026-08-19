@@ -1,6 +1,6 @@
 {
   "name": "routy",
-    "version": "0.27s",
+    "version": "0.28s",
   "private": true,
   "scripts": {
     "dev": "next dev",

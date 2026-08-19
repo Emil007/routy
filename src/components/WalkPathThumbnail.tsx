@@ -1,14 +1,5 @@
-/** Tiny SVG preview of a walk's node chain for stats lists. */
-export function WalkPathThumbnail({
-  nodeChain,
-  coords,
-}: {
-  nodeChain: number[];
-  coords: Map<number, { lat: number; lng: number }>;
-}) {
-  const points = nodeChain
-    .map((id) => coords.get(id))
-    .filter((p): p is { lat: number; lng: number } => p != null);
+/** Tiny SVG preview of a walk path for stats lists. */
+export function WalkPathThumbnail({ points }: { points: { lat: number; lng: number }[] }) {
   if (points.length < 2) return null;
 
   const lats = points.map((p) => p.lat);
