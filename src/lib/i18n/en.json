@@ -122,7 +122,9 @@
   "share": {
     "subtitle": "Read-only, shared route.",
     "notFoundTitle": "Route not found",
-    "notFoundBody": "This link is invalid or is no longer shared."
+    "notFoundBody": "This link is invalid or is no longer shared.",
+    "openInApp": "Open in Routy app",
+    "openInAppHint": "Opens the native app if installed on this device."
   },
   "import": {
     "chooseFile": "Choose GPX file",

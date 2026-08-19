@@ -122,7 +122,9 @@
   "share": {
     "subtitle": "Schreibgeschützte, geteilte Route.",
     "notFoundTitle": "Route nicht gefunden",
-    "notFoundBody": "Dieser Link ist ungültig oder wurde nicht mehr geteilt."
+    "notFoundBody": "Dieser Link ist ungültig oder wurde nicht mehr geteilt.",
+    "openInApp": "In Routy-App öffnen",
+    "openInAppHint": "Öffnet die installierte App auf diesem Gerät."
   },
   "import": {
     "chooseFile": "GPX-Datei auswählen",

@@ -1,10 +1,23 @@
 import { resolveLocale } from "@/lib/locale";
-import { t } from "@/lib/i18n";
+import { t, type Locale } from "@/lib/i18n";
 import { getFavoriteByShareToken } from "@/lib/favorites";
 import { getSegment } from "@/lib/segments";
 import { loadGraphContext } from "@/lib/routeContext";
 import { buildRouteDisplay } from "@/lib/routeDisplay";
 import { MapViewLazy } from "@/components/MapViewLazy";
+
+function OpenInAppButton({ token, locale }: { token: string; locale: Locale }) {
+  return (
+    <div className="btn-row" style={{ marginTop: "0.75rem" }}>
+      <a className="btn btn-primary" href={`routy://share/${token}`}>
+        {t(locale, "share.openInApp")}
+      </a>
+      <span style={{ fontSize: "0.85rem", color: "var(--ink-soft)", alignSelf: "center" }}>
+        {t(locale, "share.openInAppHint")}
+      </span>
+    </div>
+  );
+}
 
 export default async function SharePage({ params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
@@ -42,6 +55,7 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
       <div className="page-heading">
         <h1>{favorite.name}</h1>
         <p>{t(locale, "share.subtitle")}</p>
+        <OpenInAppButton token={token} locale={locale} />
       </div>
 
       {!display ? (
