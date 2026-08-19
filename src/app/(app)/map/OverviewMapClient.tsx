@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { t, type Locale } from "@/lib/i18n";
 import { MapViewLazy } from "@/components/MapViewLazy";
@@ -16,6 +16,21 @@ import type { SegmentRow } from "@/lib/segments";
 import { canEdit } from "@/lib/ownership";
 
 type Mode = "view" | "draw" | "gpx" | "record" | "editShape";
+
+interface SegmentConditionEntry {
+  id: number;
+  segmentId: number;
+  reason: string;
+  expiresAt: string;
+}
+
+interface PathProposal {
+  id: number;
+  segmentId: number;
+  segmentName: string | null;
+  lat: number;
+  lng: number;
+}
 
 // Not imported from "@/lib/segments" — that module pulls in better-sqlite3,
 // which must never end up in a client bundle. Same one-line check, duplicated.
@@ -33,6 +48,7 @@ export function OverviewMapClient({
   userNames,
   mergeRadiusM,
   walkSpeedKmh,
+  segmentConditions,
 }: {
   locale: Locale;
   nodes: NodeRow[];
@@ -43,8 +59,58 @@ export function OverviewMapClient({
   userNames: Record<number, string>;
   mergeRadiusM: number;
   walkSpeedKmh: number;
+  segmentConditions: SegmentConditionEntry[];
 }) {
   const router = useRouter();
+  const [proposals, setProposals] = useState<PathProposal[]>([]);
+  const [proposalsLoading, setProposalsLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setProposalsLoading(true);
+      const res = await fetch("/api/app/proposals");
+      if (!cancelled && res.ok) {
+        const data = (await res.json()) as { proposals: PathProposal[] };
+        setProposals(data.proposals);
+      }
+      if (!cancelled) setProposalsLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  async function acceptProposal(id: number) {
+    const res = await fetch("/api/app/proposals/accept", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ proposalId: id }),
+    });
+    if (res.ok) {
+      setProposals((prev) => prev.filter((p) => p.id !== id));
+      router.refresh();
+    }
+  }
+
+  async function dismissProposal(id: number) {
+    const res = await fetch("/api/app/proposals/dismiss", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ proposalId: id }),
+    });
+    if (res.ok) setProposals((prev) => prev.filter((p) => p.id !== id));
+  }
+
+  const conditionsBySegment = useMemo(() => {
+    const map = new Map<number, SegmentConditionEntry[]>();
+    for (const c of segmentConditions) {
+      const list = map.get(c.segmentId) ?? [];
+      list.push(c);
+      map.set(c.segmentId, list);
+    }
+    return map;
+  }, [segmentConditions]);
   const [mode, setMode] = useState<Mode>("view");
   const [editingSegmentId, setEditingSegmentId] = useState<number | null>(null);
   const [moveNodeId, setMoveNodeId] = useState<number | null>(null);
@@ -122,6 +188,7 @@ export function OverviewMapClient({
             canEditSegment={canEdit(currentUser, s.submittedBy)}
             creatorName={creatorName(s.submittedBy)}
             usageCount={usage[s.id] ?? 0}
+            activeConditions={conditionsBySegment.get(s.id)}
             onEditShape={() => {
               setEditingSegmentId(s.id);
               setMode("editShape");
@@ -238,6 +305,27 @@ export function OverviewMapClient({
         </button>
       </div>
       <p className="hint-compact">{t(locale, "overview.interactionHint")}</p>
+      <details className="card" style={{ marginTop: "0.5rem" }}>
+        <summary>{t(locale, "map.proposalsTitle")} ({proposalsLoading ? "…" : proposals.length})</summary>
+        <div className="stack" style={{ marginTop: "0.45rem", gap: "0.35rem" }}>
+          {!proposalsLoading && proposals.length === 0 && (
+            <p className="hint" style={{ margin: 0 }}>{t(locale, "map.proposalsEmpty")}</p>
+          )}
+          {proposals.map((p) => (
+            <div key={p.id} className="btn-row" style={{ gap: "0.35rem", flexWrap: "wrap" }}>
+              <span className="chip">
+                {p.segmentName || t(locale, "map.proposalSegment", { id: p.segmentId })}
+              </span>
+              <button type="button" className="btn-primary btn-compact" onClick={() => acceptProposal(p.id)}>
+                {t(locale, "map.proposalAccept")}
+              </button>
+              <button type="button" className="btn-secondary btn-compact" onClick={() => dismissProposal(p.id)}>
+                {t(locale, "map.proposalDismiss")}
+              </button>
+            </div>
+          ))}
+        </div>
+      </details>
       {moveStatus === "error" && <div className="alert alert-error" style={{ padding: "0.45rem 0.65rem", fontSize: "0.82rem" }}>{t(locale, "common.error")}</div>}
     </div>
   );

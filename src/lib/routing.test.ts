@@ -8,6 +8,7 @@ import {
   scoreRoutes,
   pickBest,
   toleranceRange,
+  CONDITION_PENALTY_WEIGHT,
   type SegmentEdge,
 } from "./routing";
 import type { LatLng } from "./geo";
@@ -180,6 +181,8 @@ describe("scoreRoutes + pickBest", () => {
         delta: 0,
         unexplored: 1,
         avoidPenalty: 0,
+        conditionPenalty: 0,
+        staleCount: 0,
       },
       {
         key: "b",
@@ -191,6 +194,8 @@ describe("scoreRoutes + pickBest", () => {
         delta: 0,
         unexplored: 4,
         avoidPenalty: 0,
+        conditionPenalty: 0,
+        staleCount: 0,
       },
     ];
     const normal = pickBest(scored, new Set(), false);
@@ -208,6 +213,53 @@ describe("scoreRoutes + pickBest", () => {
     expect(scored[1].avoidPenalty).toBe(25);
     const best = pickBest(scored, new Set());
     expect(best?.route.segmentIds).toEqual([1, 2, 3, 4]);
+  });
+
+  it("prefers routes with lower condition penalty after avoid penalty ties", () => {
+    const candidates = [
+      { nodeChain: [1, 2, 3, 4, 1], segmentIds: [1, 2, 3, 4], lengthM: 400, durationMin: 8 },
+      { nodeChain: [1, 2, 1], segmentIds: [1, 5], lengthM: 200, durationMin: 4 },
+    ];
+    const conditionCounts = new Map<number, number>([[5, 1]]);
+    const scored = scoreRoutes(candidates, new Map(), new Map(), new Map(), 1, new Set(), 400, "km", new Map(), new Set(), conditionCounts);
+    expect(scored[1].conditionPenalty).toBe(CONDITION_PENALTY_WEIGHT);
+    const best = pickBest(scored, new Set());
+    expect(best?.route.segmentIds).toEqual([1, 2, 3, 4]);
+  });
+
+  it("prefers more stale segments in surprise mode", () => {
+    const scored = [
+      {
+        key: "a",
+        route: { nodeChain: [1, 2, 3, 4, 1], segmentIds: [1, 2, 3, 4], lengthM: 400, durationMin: 8 },
+        backtrack: 0,
+        crossing: 0,
+        weightedUsage: 0,
+        overlap: 0,
+        delta: 0,
+        unexplored: 0,
+        avoidPenalty: 0,
+        conditionPenalty: 0,
+        staleCount: 1,
+      },
+      {
+        key: "b",
+        route: { nodeChain: [1, 2, 1], segmentIds: [1, 5], lengthM: 200, durationMin: 4 },
+        backtrack: 0,
+        crossing: 0,
+        weightedUsage: 0,
+        overlap: 0,
+        delta: 0,
+        unexplored: 0,
+        avoidPenalty: 0,
+        conditionPenalty: 0,
+        staleCount: 3,
+      },
+    ];
+    const normal = pickBest(scored, new Set(), false, false);
+    expect(normal?.key).toBe("a");
+    const surprise = pickBest(scored, new Set(), false, true);
+    expect(surprise?.key).toBe("b");
   });
 });
 

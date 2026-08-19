@@ -8,6 +8,7 @@ import { getSettings } from "@/lib/settings";
 import { elevationStats, type LatLng } from "@/lib/geo";
 import { attachElevation } from "@/lib/elevation";
 import { logActivity } from "@/lib/activityLog";
+import { detectProposalsFromTrack } from "@/lib/discovery";
 
 const pointSchema = z.object({ lat: z.number(), lng: z.number(), ele: z.number().optional() });
 
@@ -119,6 +120,7 @@ export async function POST(request: Request) {
       name: created?.name ?? null,
       source: track.source,
     });
+    detectProposalsFromTrack(points, user.id);
     saved++;
   }
 

@@ -70,6 +70,7 @@
     "presetShort": "Short loop",
     "presetLong": "Long loop",
     "presetDiscover": "Discover",
+    "presetSurprise": "Surprise me",
     "newRoute": "Another route",
     "shorter": "Shorter",
     "longer": "Longer",
@@ -113,6 +114,7 @@
     "generating": "Searching for a matching route …",
     "explorerMode": "Explorer mode",
     "explorerModeHint": "Prefers path segments that have never been walked.",
+    "surpriseModeHint": "Prefers paths you have not walked in 30+ days.",
     "saveFavorite": "Save as favorite",
     "favoriteNamePlaceholder": "Route name",
     "favoriteSaved": "Favorite saved.",
@@ -186,7 +188,22 @@
     "purge": "Delete permanently",
     "purgeConfirm": "Delete permanently? Can't be undone.",
     "deletedAt": "Deleted at",
-    "autoPurgeNotice": "Trash items are permanently deleted automatically after 30 days."
+    "autoPurgeNotice": "Trash items are permanently deleted automatically after 30 days.",
+    "conditionReport": "Report condition",
+    "conditionReason": "Reason",
+    "conditionSubmit": "Report",
+    "conditionActive": "Active reports",
+    "conditionReason_muddy": "Muddy",
+    "conditionReason_flooded": "Flooded",
+    "conditionReason_construction": "Construction",
+    "conditionReason_dog": "Dogs",
+    "conditionReason_icy": "Icy",
+    "conditionReason_overgrown": "Overgrown",
+    "proposalsTitle": "Path proposals",
+    "proposalsEmpty": "No pending proposals from recent recordings.",
+    "proposalAccept": "Split here",
+    "proposalDismiss": "Dismiss",
+    "proposalSegment": "Segment #{id}"
   },
   "overview": {
     "backToView": "Back to view",
@@ -272,7 +289,10 @@
     "avoidTitle": "Paths to avoid",
     "avoidSubtitle": "Routes will prefer other paths when possible — not a hard ban.",
     "avoidEmpty": "You are not avoiding any paths.",
-    "avoidAdd": "Add path to avoid"
+    "avoidAdd": "Add path to avoid",
+    "accountSecurityTitle": "Account security",
+    "accountSecuritySubtitle": "Change password, enable two-factor auth, or deactivate your account in the browser settings page.",
+    "accountSecurityOpen": "Open account security"
   },
   "stats": {
     "title": "Stats",

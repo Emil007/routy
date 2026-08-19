@@ -5,7 +5,7 @@ Shared contract between the **web app**, **native Android app**, and any future 
 - **Base URL:** user-configured (e.g. `https://routy.example.com/`)
 - **Auth:** `Authorization: Bearer <token>` (Android) or session cookie (browser). Same token from `POST /api/auth/login`.
 - **Errors:** JSON `{ "error": "<code>" }` unless noted. Common: `unauthorized`, `invalid_json`.
-- **Version:** server display `0.28s` (`package.json` `"0.28s"`).
+- **Version:** server display `0.32s` (`package.json` `"0.32s"`).
 
 ## Auth & profile
 
@@ -19,18 +19,20 @@ Shared contract between the **web app**, **native Android app**, and any future 
 | POST | `/api/auth/sessions/revoke-others` | — | `{ revoked }` | |
 | PATCH | `/api/app/profile` | `{ locale?, theme?, walkSpeedKmh? \| null }` | `{ user }` | Send `"walkSpeedKmh": null` to clear override. |
 
+**Account security (password change, TOTP enable/disable, account deactivation):** browser-only at `/settings` — native Android opens this page in Custom Tabs (`{serverUrl}/settings`).
+
 ## Bootstrap & health
 
 | Method | Path | Response | Notes |
 |--------|------|----------|-------|
-| GET | `/api/app/bootstrap` | nodes, segments, user, settings, … | `If-None-Match` / `ETag` supported. |
+| GET | `/api/app/bootstrap` | nodes, segments, user, routeState, avoidSegmentIds, segmentConditions, … | `If-None-Match` / `ETag` supported. |
 | GET | `/api/health` | `{ ok: true }` | Onboarding connectivity check. |
 
 ## Route wizard
 
 | Method | Path | Body | Response |
 |--------|------|------|----------|
-| POST | `/api/route/generate` | `{ startNodeId, destinationNodeId, waypointNodeId?, explorerMode?, preset? }` | `{ token, route }` |
+| POST | `/api/route/generate` | `{ startNodeId, destinationNodeId, waypointNodeId?, explorerMode?, surpriseMode?, preset? }` | `{ token, route }` |
 | POST | `/api/route/widen` | `{ token }` | `{ token, route }` |
 | POST | `/api/route/adjust` | `{ token, direction }` | `{ token, route }` |
 | POST | `/api/route/accept` | `{ token }` | 204 | Active route stored server-side. |
@@ -39,6 +41,40 @@ Shared contract between the **web app**, **native Android app**, and any future 
 | POST | `/api/route/discard` | — | 204 | |
 | GET | `/api/route/state` | — | active route or empty | |
 | POST | `/api/route/nickname` | `{ nickname }` | 204 | Active route label. |
+
+**Presets:** `preset` may be `"short"`, `"long"`, or `"surprise"` (bias toward segments not walked in 30+ days). `surpriseMode: true` is equivalent to `preset: "surprise"`.
+
+## Per-user avoid list
+
+| Method | Path | Body | Response |
+|--------|------|------|----------|
+| GET | `/api/app/avoid` | — | `{ segmentIds[] }` |
+| POST | `/api/app/avoid` | `{ segmentId }` | `{ segmentIds[] }` |
+| DELETE | `/api/app/avoid` | `{ segmentId }` | `{ segmentIds[] }` |
+
+Soft routing penalty only — segments are not hard-excluded.
+
+## Segment conditions
+
+| Method | Path | Body | Response |
+|--------|------|------|----------|
+| POST | `/api/segments/condition` | `{ segmentId, reason, days? }` | `{ condition }` |
+
+**Reasons:** `muddy`, `flooded`, `construction`, `dog`, `icy`, `overgrown`. Reports expire (default 7 days). Active conditions are included in bootstrap as `segmentConditions[]` and add a stronger routing penalty than the avoid list.
+
+## Path discovery proposals
+
+| Method | Path | Body | Response |
+|--------|------|------|----------|
+| GET | `/api/app/proposals` | — | `{ proposals[] }` | Pending split proposals from GPX commits. |
+| POST | `/api/app/proposals/accept` | `{ proposalId, part1?, part2? }` | `{ ok, newNodeId }` | Splits segment at proposal point. |
+| POST | `/api/app/proposals/dismiss` | `{ proposalId }` | `{ ok }` | |
+
+## Crash reports (self-hosted)
+
+| Method | Path | Body | Response |
+|--------|------|------|----------|
+| POST | `/api/app/crash` | `{ message, stack?, appVersion? }` | `{ ok }` | Stored in `crash_report` table. Complements optional Sentry. |
 
 ## Favorites & share
 
@@ -57,7 +93,7 @@ Shared contract between the **web app**, **native Android app**, and any future 
 | Method | Path | Body | Response |
 |--------|------|------|----------|
 | GET | `/api/gpx/config` | — | `{ mergeRadiusM, walkSpeedKmh }` | |
-| POST | `/api/gpx/commit` | `{ tracks: GpxTrack[] }` | 204 | Each track: points, lengthM, durationMin, start/end endpoints, markStartAsHome?, source. |
+| POST | `/api/gpx/commit` | `{ tracks: GpxTrack[] }` | `{ saved }` | May create path split proposals when track points pass near existing segments. |
 | POST | `/api/gpx/parse` | GPX XML text | `{ tracks[] }` | Web import wizard. |
 
 **Endpoint union** (`start` / `end`): `{ nodeId }` **or** `{ part1, part2 }`.
@@ -97,4 +133,4 @@ Shared contract between the **web app**, **native Android app**, and any future 
 |--------|------|-------|
 | GET | `/api/admin/backup` | Admin-only DB download. |
 
-Browser-only flows (password change, TOTP, global settings) remain on `/settings` server actions — not REST in v1.
+Browser-only flows (password change, TOTP, global settings) remain on `/settings` server actions — native app uses Custom Tabs to `/settings` for account security (MVP).

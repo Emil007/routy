@@ -163,6 +163,29 @@ export function RouteGenerator({
     await suggest();
   }
 
+  async function surprise() {
+    setExplorerMode(false);
+    setStatus("loading");
+    clearMessage();
+    if (!startNodeId) return;
+    const res = await callApi("/api/route/generate", {
+      startNodeId,
+      destinationNodeId: isLoop ? startNodeId : destinationNodeId || startNodeId,
+      waypointNodeId: waypointNodeId || null,
+      explorerMode: false,
+      preset: "surprise",
+    });
+    if (res.ok) {
+      const data = (await res.json()) as GenerateResponse;
+      setResult(data);
+      setStatus("idle");
+    } else {
+      setResult(null);
+      setStatus("error");
+      flashMessage(t(locale, "route.noRouteFound"), true);
+    }
+  }
+
   async function suggest(preset?: "short" | "long") {
     if (!startNodeId) return;
     setStatus("loading");
@@ -560,6 +583,9 @@ export function RouteGenerator({
                 </button>
                 <button type="button" className="btn-secondary btn-compact" disabled={status === "loading" || !startNodeId} onClick={() => discover()}>
                   {t(locale, "route.presetDiscover")}
+                </button>
+                <button type="button" className="btn-secondary btn-compact" disabled={status === "loading" || !startNodeId} onClick={() => surprise()}>
+                  {t(locale, "route.presetSurprise")}
                 </button>
               </div>
             </form>

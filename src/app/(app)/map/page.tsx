@@ -5,6 +5,7 @@ import { listNodes, listDeletedNodes } from "@/lib/nodes";
 import { listSegments, listDeletedSegments, getUsageMap, isCanonicalSegment } from "@/lib/segments";
 import { listAllUsers } from "@/lib/users";
 import { getSettings, effectiveWalkSpeedKmh } from "@/lib/settings";
+import { listActiveConditions } from "@/lib/segmentConditions";
 import { OverviewMapClient } from "./OverviewMapClient";
 import { SegmentsTable } from "./SegmentsTable";
 import { TrashPanel } from "./TrashPanel";
@@ -56,6 +57,12 @@ export default async function MapPage({
         userNames={Object.fromEntries(userNames)}
         mergeRadiusM={settings.merge_radius_m}
         walkSpeedKmh={effectiveWalkSpeedKmh(user.walkSpeedKmh, settings)}
+        segmentConditions={listActiveConditions().map((c) => ({
+          id: c.id,
+          segmentId: c.segmentId,
+          reason: c.reason,
+          expiresAt: c.expiresAt,
+        }))}
       />
 
       <details className="card">

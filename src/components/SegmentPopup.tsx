@@ -22,6 +22,7 @@ export function SegmentPopup({
   canEditSegment,
   creatorName,
   usageCount,
+  activeConditions,
   onEditShape,
 }: {
   locale: Locale;
@@ -31,6 +32,7 @@ export function SegmentPopup({
   canEditSegment: boolean;
   creatorName: string;
   usageCount: number;
+  activeConditions?: { id: number; reason: string; expiresAt: string }[];
   onEditShape: () => void;
 }) {
   const router = useRouter();
@@ -41,6 +43,9 @@ export function SegmentPopup({
   const [lockDays, setLockDays] = useState(7);
   const [lockReason, setLockReason] = useState("");
   const [lockStatus, setLockStatus] = useState<"idle" | "saving" | "error">("idle");
+  const [reportingCondition, setReportingCondition] = useState(false);
+  const [conditionReason, setConditionReason] = useState("muddy");
+  const [conditionStatus, setConditionStatus] = useState<"idle" | "saving" | "error">("idle");
   const locked = isLocked(segment);
 
   async function saveRename() {
@@ -82,6 +87,24 @@ export function SegmentPopup({
       setLockStatus("error");
     }
   }
+
+  async function saveCondition() {
+    setConditionStatus("saving");
+    const res = await fetch("/api/segments/condition", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ segmentId: segment.id, reason: conditionReason }),
+    });
+    if (res.ok) {
+      setReportingCondition(false);
+      setConditionStatus("idle");
+      router.refresh();
+    } else {
+      setConditionStatus("error");
+    }
+  }
+
+  const conditionReasons = ["muddy", "flooded", "construction", "dog", "icy", "overgrown"] as const;
 
   async function handleUnlock() {
     setLockStatus("saving");
@@ -133,6 +156,47 @@ export function SegmentPopup({
       <p className="hint" style={{ margin: 0 }}>
         {t(locale, "map.createdBy")}: {creatorName}
       </p>
+
+      {activeConditions && activeConditions.length > 0 && (
+        <div className="stack" style={{ gap: "0.25rem" }}>
+          <span className="hint" style={{ margin: 0 }}>
+            {t(locale, "map.conditionActive")}:
+          </span>
+          <div className="btn-row" style={{ gap: "0.3rem", flexWrap: "wrap" }}>
+            {activeConditions.map((c) => (
+              <span key={c.id} className="chip">
+                {t(locale, `map.conditionReason_${c.reason}` as "map.conditionReason_muddy")}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {reportingCondition ? (
+        <div className="stack" style={{ gap: "0.4rem" }}>
+          <label htmlFor={`condition-reason-${segment.id}`}>{t(locale, "map.conditionReason")}</label>
+          <select id={`condition-reason-${segment.id}`} value={conditionReason} onChange={(e) => setConditionReason(e.target.value)}>
+            {conditionReasons.map((r) => (
+              <option key={r} value={r}>
+                {t(locale, `map.conditionReason_${r}`)}
+              </option>
+            ))}
+          </select>
+          <div className="btn-row">
+            <button type="button" className="btn-primary" onClick={saveCondition} disabled={conditionStatus === "saving"}>
+              {t(locale, "map.conditionSubmit")}
+            </button>
+            <button type="button" className="btn-secondary" onClick={() => setReportingCondition(false)}>
+              {t(locale, "common.cancel")}
+            </button>
+          </div>
+          {conditionStatus === "error" && <div className="alert alert-error">{t(locale, "common.error")}</div>}
+        </div>
+      ) : (
+        <button type="button" className="btn-secondary" onClick={() => setReportingCondition(true)}>
+          {t(locale, "map.conditionReport")}
+        </button>
+      )}
 
       {canEditSegment &&
         (renaming ? (

@@ -4,6 +4,7 @@ import { getActiveRoute } from "./activeRoute";
 import { getNetworkVersion } from "./networkVersion";
 import { getUser } from "./users";
 import { listAvoidSegmentIds } from "./avoidList";
+import { listActiveConditions } from "./segmentConditions";
 
 /** ETag for /api/app/bootstrap — bumps when network, profile, or per-user route state changes. */
 export function getBootstrapVersion(userId: number): string {
@@ -22,6 +23,9 @@ export function getBootstrapVersion(userId: number): string {
     favorites.length,
     favorites.map((f) => f.id).join(","),
     listAvoidSegmentIds(userId).join(","),
+    listActiveConditions()
+      .map((c) => `${c.id}:${c.segmentId}:${c.reason}`)
+      .join(","),
   ].join(":");
   return createHash("sha256").update(payload).digest("hex").slice(0, 16);
 }

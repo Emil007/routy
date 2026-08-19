@@ -4,7 +4,7 @@ import { getCurrentUser } from "@/lib/session";
 import { getSettings } from "@/lib/settings";
 import { getHomeNode } from "@/lib/nodes";
 import { getUsageMap, getDailyUsageMap } from "@/lib/segments";
-import { getAvoidSegmentSet } from "@/lib/avoidList";
+import { getRouteScoringContext } from "@/lib/routeScoring";
 import { loadGraphContext } from "@/lib/routeContext";
 import { findDirectRoutes, findWaypointRoutes, scoreRoutes, pickBest } from "@/lib/routing";
 import { createRouteSession } from "@/lib/routeSessions";
@@ -16,8 +16,9 @@ const bodySchema = z.object({
   destinationNodeId: z.number().int().positive().optional(),
   waypointNodeId: z.number().int().positive().nullable().optional(),
   explorerMode: z.boolean().default(false),
+  surpriseMode: z.boolean().default(false),
   /** Biases the search toward the lower/upper half of the configured suggest-length range. */
-  preset: z.enum(["short", "long"]).optional(),
+  preset: z.enum(["short", "long", "surprise"]).optional(),
 });
 
 export async function POST(request: Request) {
@@ -35,6 +36,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "invalid_body", issues: parsed.error.issues }, { status: 400 });
   }
   const { waypointNodeId, explorerMode, preset } = parsed.data;
+  const surpriseMode = parsed.data.surpriseMode || preset === "surprise";
 
   const home = getHomeNode();
   const startNodeId = parsed.data.startNodeId ?? home?.id;
@@ -68,7 +70,7 @@ export async function POST(request: Request) {
 
   const usageMap = getUsageMap();
   const dailyMap = getDailyUsageMap();
-  const avoidSegmentIds = getAvoidSegmentSet(user.id);
+  const { avoidSegmentIds, conditionCounts, staleSegmentIds } = getRouteScoringContext(user.id, surpriseMode);
   const geometryOf = new Map([...segmentsById].map(([id, s]) => [id, s.geometry]));
   const scored = scoreRoutes(
     candidates,
@@ -81,8 +83,10 @@ export async function POST(request: Request) {
     mode,
     geometryOf,
     avoidSegmentIds,
+    conditionCounts,
+    staleSegmentIds,
   );
-  const best = pickBest(scored, new Set(), explorerMode);
+  const best = pickBest(scored, new Set(), explorerMode, surpriseMode);
   if (!best) {
     return NextResponse.json({ error: "no_route" }, { status: 404 });
   }
@@ -95,6 +99,7 @@ export async function POST(request: Request) {
     destinationNodeId,
     waypointNodeId: waypointNodeId ?? null,
     explorerMode,
+    surpriseMode,
     current: {
       nodeChain: best.route.nodeChain,
       segmentIds: best.route.segmentIds,

@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { getSettings } from "@/lib/settings";
 import { getUsageMap, getDailyUsageMap } from "@/lib/segments";
-import { getAvoidSegmentSet } from "@/lib/avoidList";
+import { getRouteScoringContext } from "@/lib/routeScoring";
 import { loadGraphContext } from "@/lib/routeContext";
 import { findDirectRoutes, findWaypointRoutes, scoreRoutes, pickBest, toleranceRange } from "@/lib/routing";
 import { getRouteSession, updateRouteSession } from "@/lib/routeSessions";
@@ -29,7 +29,7 @@ export async function POST(request: Request) {
   if (effectiveTolerance > cap) effectiveTolerance = cap;
 
   const { graph, pairOf, nodesById, segmentsById } = loadGraphContext();
-  const avoidSegmentIds = getAvoidSegmentSet(user.id);
+  const { avoidSegmentIds, conditionCounts, staleSegmentIds } = getRouteScoringContext(user.id, session.surpriseMode);
   const { minValue, maxValue } = toleranceRange(session.targetValue, effectiveTolerance);
 
   const candidates =
@@ -70,8 +70,10 @@ export async function POST(request: Request) {
     session.mode,
     geometryOf,
     avoidSegmentIds,
+    conditionCounts,
+    staleSegmentIds,
   );
-  const best = pickBest(scored, session.seenKeys, session.explorerMode);
+  const best = pickBest(scored, session.seenKeys, session.explorerMode, session.surpriseMode);
 
   if (!best) {
     return NextResponse.json({ error: "no_alternative", tolerancePercent: effectiveTolerance }, { status: 404 });

@@ -1,6 +1,7 @@
 import { db } from "./db";
 import { log } from "./logger";
 import { sweepExpiredRouteSessions } from "./routeSessions";
+import { purgeExpiredConditions } from "./segmentConditions";
 
 const TRASH_RETENTION_DAYS = 30;
 const ACTIVITY_LOG_RETENTION_DAYS = 180;
@@ -41,11 +42,19 @@ function purgeExpiredRouteSessions(): void {
   }
 }
 
+function purgeExpiredConditionsJob(): void {
+  const removed = purgeExpiredConditions();
+  if (removed > 0) {
+    log.info("auto-purged expired segment conditions", { conditions: removed });
+  }
+}
+
 function runDailyPurge(): void {
   purgeOldTrash();
   purgeOldActivityLog();
   purgeExpiredSessions();
   purgeExpiredRouteSessions();
+  purgeExpiredConditionsJob();
 }
 
 /** Runs once on startup, then daily — trash, activity log retention, and expired sessions. */

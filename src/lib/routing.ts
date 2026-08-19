@@ -264,10 +264,16 @@ export interface ScoredRoute {
   unexplored: number;
   /** Soft penalty for user-avoided segments on this route (higher = worse). */
   avoidPenalty: number;
+  /** Soft penalty for segments with active condition reports (higher = worse). */
+  conditionPenalty: number;
+  /** Count of segments on the route not walked by this user in staleDays (surprise mode). */
+  staleCount: number;
 }
 
 /** Per avoided segment on a route — soft bias, not a hard ban. */
 export const AVOID_PENALTY_WEIGHT = 25;
+/** Per active condition report on a segment — stronger bias than avoid-list. */
+export const CONDITION_PENALTY_WEIGHT = 75;
 
 export function scoreRoutes(
   routes: RouteResult[],
@@ -280,6 +286,8 @@ export function scoreRoutes(
   mode: RouteMode,
   geometryOf: Map<number, LatLng[]> = new Map(),
   avoidSegmentIds: Set<number> = new Set(),
+  conditionCounts: Map<number, number> = new Map(),
+  staleSegmentIds: Set<number> = new Set(),
 ): ScoredRoute[] {
   return routes.map((route) => {
     const usageSum = route.segmentIds.reduce((s, id) => s + (usageMap.get(id) ?? 0), 0);
@@ -298,6 +306,11 @@ export function scoreRoutes(
       (s, id) => s + (avoidSegmentIds.has(id) ? AVOID_PENALTY_WEIGHT : 0),
       0,
     );
+    const conditionPenalty = route.segmentIds.reduce(
+      (s, id) => s + (conditionCounts.get(id) ?? 0) * CONDITION_PENALTY_WEIGHT,
+      0,
+    );
+    const staleCount = route.segmentIds.filter((id) => staleSegmentIds.has(id)).length;
     return {
       route,
       key: segmentSetKey(route.segmentIds),
@@ -308,6 +321,8 @@ export function scoreRoutes(
       delta: Math.abs(actual - targetValue),
       unexplored,
       avoidPenalty,
+      conditionPenalty,
+      staleCount,
     };
   });
 }
@@ -323,12 +338,21 @@ export function scoreRoutes(
  * repeat a physical path (out-and-back) or cross their own path score worse
  * here, which steers selection toward genuine loops.
  */
-export function pickBest(scored: ScoredRoute[], excludeKeys: Set<string>, explorerMode = false): ScoredRoute | null {
+export function pickBest(
+  scored: ScoredRoute[],
+  excludeKeys: Set<string>,
+  explorerMode = false,
+  surpriseMode = false,
+): ScoredRoute | null {
   let best: ScoredRoute | null = null;
   for (const s of scored) {
     if (excludeKeys.has(s.key)) continue;
     if (!best) {
       best = s;
+      continue;
+    }
+    if (surpriseMode && s.staleCount !== best.staleCount) {
+      if (s.staleCount > best.staleCount) best = s;
       continue;
     }
     if (explorerMode && s.unexplored !== best.unexplored) {
@@ -342,9 +366,11 @@ export function pickBest(scored: ScoredRoute[], excludeKeys: Set<string>, explor
       (sShape === bestShape &&
         (s.avoidPenalty < best.avoidPenalty ||
           (s.avoidPenalty === best.avoidPenalty &&
-            (s.weightedUsage < best.weightedUsage ||
-              (s.weightedUsage === best.weightedUsage &&
-                (s.overlap < best.overlap || (s.overlap === best.overlap && s.delta < best.delta)))))))
+            (s.conditionPenalty < best.conditionPenalty ||
+              (s.conditionPenalty === best.conditionPenalty &&
+                (s.weightedUsage < best.weightedUsage ||
+                  (s.weightedUsage === best.weightedUsage &&
+                    (s.overlap < best.overlap || (s.overlap === best.overlap && s.delta < best.delta)))))))))
     ) {
       best = s;
     }

@@ -10,6 +10,7 @@ import { buildRouteDisplay } from "@/lib/routeDisplay";
 import { getBootstrapVersion } from "@/lib/bootstrapVersion";
 import { getNetworkVersion } from "@/lib/networkVersion";
 import { listAvoidSegmentIds } from "@/lib/avoidList";
+import { listActiveConditions } from "@/lib/segmentConditions";
 import { conditionalJson } from "@/lib/conditionalJson";
 
 function buildRouteState(userId: number) {
@@ -44,6 +45,13 @@ export async function GET(request: Request) {
     nodes: listNodes(),
     segments: listSegments(),
     avoidSegmentIds: listAvoidSegmentIds(user.id),
+    segmentConditions: listActiveConditions().map((c) => ({
+      id: c.id,
+      segmentId: c.segmentId,
+      reason: c.reason,
+      reportedBy: c.reportedBy,
+      expiresAt: c.expiresAt,
+    })),
     routeState,
   });
 }

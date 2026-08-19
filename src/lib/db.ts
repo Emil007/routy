@@ -139,6 +139,39 @@ CREATE TABLE IF NOT EXISTS user_avoid_segment (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   PRIMARY KEY (user_id, segment_id)
 );
+
+CREATE TABLE IF NOT EXISTS segment_condition (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  segment_id INTEGER NOT NULL REFERENCES segments(id) ON DELETE CASCADE,
+  reason TEXT NOT NULL,
+  reported_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_segment_condition_segment ON segment_condition(segment_id);
+CREATE INDEX IF NOT EXISTS idx_segment_condition_expires ON segment_condition(expires_at);
+
+CREATE TABLE IF NOT EXISTS segment_proposal (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  segment_id INTEGER NOT NULL REFERENCES segments(id) ON DELETE CASCADE,
+  lat REAL NOT NULL,
+  lng REAL NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending',
+  created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_segment_proposal_status ON segment_proposal(status);
+
+CREATE TABLE IF NOT EXISTS crash_report (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+  message TEXT NOT NULL,
+  stack TEXT,
+  app_version TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `;
 
 /**
@@ -206,6 +239,43 @@ function runMigrations(db: Database.Database): void {
       segment_id INTEGER NOT NULL REFERENCES segments(id) ON DELETE CASCADE,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       PRIMARY KEY (user_id, segment_id)
+    );
+  `);
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS segment_condition (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      segment_id INTEGER NOT NULL REFERENCES segments(id) ON DELETE CASCADE,
+      reason TEXT NOT NULL,
+      reported_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      expires_at TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `);
+  db.exec("CREATE INDEX IF NOT EXISTS idx_segment_condition_segment ON segment_condition(segment_id)");
+  db.exec("CREATE INDEX IF NOT EXISTS idx_segment_condition_expires ON segment_condition(expires_at)");
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS segment_proposal (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      segment_id INTEGER NOT NULL REFERENCES segments(id) ON DELETE CASCADE,
+      lat REAL NOT NULL,
+      lng REAL NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `);
+  db.exec("CREATE INDEX IF NOT EXISTS idx_segment_proposal_status ON segment_proposal(status)");
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS crash_report (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      message TEXT NOT NULL,
+      stack TEXT,
+      app_version TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
     );
   `);
 

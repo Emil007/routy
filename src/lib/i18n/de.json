@@ -70,6 +70,7 @@
     "presetShort": "Kurze Runde",
     "presetLong": "Lange Runde",
     "presetDiscover": "Entdecken",
+    "presetSurprise": "Überrasch mich",
     "newRoute": "Andere Route",
     "shorter": "Kürzer",
     "longer": "Länger",
@@ -113,6 +114,7 @@
     "generating": "Suche passende Route …",
     "explorerMode": "Explorer-Modus",
     "explorerModeHint": "Bevorzugt Wegabschnitte, die noch nie gegangen wurden.",
+    "surpriseModeHint": "Bevorzugt Wege, die du seit 30+ Tagen nicht mehr gegangen bist.",
     "saveFavorite": "Als Favorit speichern",
     "favoriteNamePlaceholder": "Name der Route",
     "favoriteSaved": "Favorit gespeichert.",
@@ -186,7 +188,22 @@
     "purge": "Endgültig löschen",
     "purgeConfirm": "Endgültig löschen? Kann nicht rückgängig gemacht werden.",
     "deletedAt": "Gelöscht am",
-    "autoPurgeNotice": "Einträge werden nach 30 Tagen automatisch endgültig gelöscht."
+    "autoPurgeNotice": "Einträge werden nach 30 Tagen automatisch endgültig gelöscht.",
+    "conditionReport": "Zustand melden",
+    "conditionReason": "Grund",
+    "conditionSubmit": "Melden",
+    "conditionActive": "Aktive Meldungen",
+    "conditionReason_muddy": "Schlammig",
+    "conditionReason_flooded": "Überflutet",
+    "conditionReason_construction": "Baustelle",
+    "conditionReason_dog": "Hunde",
+    "conditionReason_icy": "Eisglätte",
+    "conditionReason_overgrown": "Zugewachsen",
+    "proposalsTitle": "Weg-Vorschläge",
+    "proposalsEmpty": "Keine offenen Vorschläge aus Aufzeichnungen.",
+    "proposalAccept": "Hier teilen",
+    "proposalDismiss": "Verwerfen",
+    "proposalSegment": "Weg #{id}"
   },
   "overview": {
     "backToView": "Zurück zur Ansicht",
@@ -272,7 +289,10 @@
     "avoidTitle": "Wege meiden",
     "avoidSubtitle": "Routen bevorzugen andere Wege wenn möglich — kein hartes Verbot.",
     "avoidEmpty": "Du meidest derzeit keine Wege.",
-    "avoidAdd": "Weg zur Meideliste hinzufügen"
+    "avoidAdd": "Weg zur Meideliste hinzufügen",
+    "accountSecurityTitle": "Kontosicherheit",
+    "accountSecuritySubtitle": "Passwort ändern, Zwei-Faktor-Auth aktivieren oder Konto deaktivieren — in den Browser-Einstellungen.",
+    "accountSecurityOpen": "Kontosicherheit öffnen"
   },
   "stats": {
     "title": "Statistik",
