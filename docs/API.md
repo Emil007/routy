@@ -5,13 +5,14 @@ Shared contract between the **web app**, **native Android app**, and any future 
 - **Base URL:** user-configured (e.g. `https://routy.example.com/`)
 - **Auth:** `Authorization: Bearer <token>` (Android) or session cookie (browser). Same token from `POST /api/auth/login`.
 - **Errors:** JSON `{ "error": "<code>" }` unless noted. Common: `unauthorized`, `invalid_json`.
-- **Version:** server display `0.32s` (`package.json` `"0.32s"`).
+- **Version:** server display `0.33s` (`package.json` `"0.33s"`).
 
 ## Auth & profile
 
 | Method | Path | Body / params | Response | Notes |
 |--------|------|---------------|----------|-------|
-| POST | `/api/auth/login` | `{ username, password, deviceName?, totpCode? }` | `{ token, user }` | Sets cookie for web; Android stores `token`. |
+| POST | `/api/auth/login` | `{ username, password, deviceName?, totpCode?, captchaToken? }` | `{ token, user }` | Sets cookie for web; Android stores `token`. |
+| POST | `/api/auth/setup` | `{ setupToken, username, password, displayName?, locale?, deviceName?, captchaToken? }` | `{ token, user }` | First-user registration (native onboarding). `409 already_setup` if users exist. |
 | POST | `/api/auth/logout` | — | 204 | |
 | GET | `/api/auth/me` | — | `{ user }` | |
 | GET | `/api/auth/sessions` | — | `{ sessions[] }` | |
@@ -26,7 +27,7 @@ Shared contract between the **web app**, **native Android app**, and any future 
 | Method | Path | Response | Notes |
 |--------|------|----------|-------|
 | GET | `/api/app/bootstrap` | nodes, segments, user, routeState, avoidSegmentIds, segmentConditions, … | `If-None-Match` / `ETag` supported. |
-| GET | `/api/health` | `{ ok: true }` | Onboarding connectivity check. |
+| GET | `/api/health` | `{ status, version, versionDisplay, dbReachable, nodeCount, segmentCount, lastBackupAt, needsSetup, captcha }` | Onboarding connectivity check. `needsSetup: true` when no users exist. `captcha` describes the configured widget (`provider`, `siteKey`, …) or `{ provider: "none" }`. |
 
 ## Route wizard
 
@@ -118,6 +119,7 @@ Soft routing penalty only — segments are not hard-excluded.
 | POST | `/api/segments/delete` | Soft delete. |
 | POST | `/api/segments/restore` | |
 | POST | `/api/segments/purge` | Admin permanent delete. |
+| GET | `/api/app/map/trash` | — | `{ deletedNodes[], deletedSegments[] }` | Soft-deleted items visible to owner (admin sees all). |
 
 ## Stats (native)
 
