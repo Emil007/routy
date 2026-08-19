@@ -434,13 +434,15 @@
       "lock": "Sperren",
       "unlock": "Entsperren",
       "gpx_commit": "GPX-Import",
+      "walk_complete": "Runde abgeschlossen",
       "reset_totp": "2FA zurücksetzen",
       "impersonate": "Einloggen als"
     },
     "activityEntities": {
       "node": "Knoten",
       "segment": "Weg",
-      "user": "Benutzer"
+      "user": "Benutzer",
+      "walk": "Runde"
     },
     "updateAvailable": "Neue Version verfügbar:",
     "updateDismiss": "Ausblenden"

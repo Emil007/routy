@@ -4,6 +4,7 @@ import { getActiveRoute, clearActiveRoute } from "@/lib/activeRoute";
 import { computeBasePoints, streakMultiplier } from "@/lib/points";
 import { recordWalk } from "@/lib/segments";
 import { getStreakStats } from "@/lib/stats";
+import { logActivity } from "@/lib/activityLog";
 
 export async function POST() {
   const user = await getCurrentUser();
@@ -13,6 +14,11 @@ export async function POST() {
   if (!active) return NextResponse.json({ error: "no_active_route" }, { status: 404 });
 
   recordWalk(user.id, active.nodeChain, active.segmentIds, active.lengthM, active.durationMin, active.nickname);
+  logActivity(user.id, "walk_complete", "walk", null, {
+    nickname: active.nickname,
+    lengthM: active.lengthM,
+    durationMin: active.durationMin,
+  });
   clearActiveRoute(user.id);
   const streak = getStreakStats(user.id);
   const multiplier = streakMultiplier(streak.currentStreak);

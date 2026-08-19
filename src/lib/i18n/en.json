@@ -434,13 +434,15 @@
       "lock": "Lock",
       "unlock": "Unlock",
       "gpx_commit": "GPX import",
+      "walk_complete": "Walk completed",
       "reset_totp": "Reset 2FA",
       "impersonate": "Impersonate"
     },
     "activityEntities": {
       "node": "Node",
       "segment": "Segment",
-      "user": "User"
+      "user": "User",
+      "walk": "Walk"
     },
     "updateAvailable": "New version available:",
     "updateDismiss": "Dismiss"

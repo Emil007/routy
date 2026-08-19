@@ -60,7 +60,13 @@ export default async function AdminActivityPage() {
                   <td>
                     {activityEntityLabel(locale, e.entityType)}
                     {e.entityId !== null ? ` #${e.entityId}` : ""}
-                    {e.details?.name ? ` — ${String(e.details.name)}` : ""}
+                    {e.details?.nickname
+                      ? ` — ${String(e.details.nickname)}`
+                      : e.details?.name
+                        ? ` — ${String(e.details.name)}`
+                        : e.details?.lengthM
+                          ? ` — ${((e.details.lengthM as number) / 1000).toFixed(1)} km`
+                          : ""}
                   </td>
                 </tr>
               ))}
