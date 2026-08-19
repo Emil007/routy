@@ -179,6 +179,7 @@ describe("scoreRoutes + pickBest", () => {
         overlap: 0,
         delta: 0,
         unexplored: 1,
+        avoidPenalty: 0,
       },
       {
         key: "b",
@@ -189,12 +190,24 @@ describe("scoreRoutes + pickBest", () => {
         overlap: 0,
         delta: 0,
         unexplored: 4,
+        avoidPenalty: 0,
       },
     ];
     const normal = pickBest(scored, new Set(), false);
     expect(normal?.key).toBe("a");
     const explorer = pickBest(scored, new Set(), true);
     expect(explorer?.key).toBe("b");
+  });
+
+  it("prefers routes with fewer avoided segments when shape scores tie", () => {
+    const candidates = [
+      { nodeChain: [1, 2, 3, 4, 1], segmentIds: [1, 2, 3, 4], lengthM: 400, durationMin: 8 },
+      { nodeChain: [1, 2, 1], segmentIds: [1, 5], lengthM: 200, durationMin: 4 },
+    ];
+    const scored = scoreRoutes(candidates, new Map(), new Map(), new Map(), 1, new Set(), 400, "km", new Map(), new Set([5]));
+    expect(scored[1].avoidPenalty).toBe(25);
+    const best = pickBest(scored, new Set());
+    expect(best?.route.segmentIds).toEqual([1, 2, 3, 4]);
   });
 });
 

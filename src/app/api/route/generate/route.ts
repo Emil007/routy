@@ -4,6 +4,7 @@ import { getCurrentUser } from "@/lib/session";
 import { getSettings } from "@/lib/settings";
 import { getHomeNode } from "@/lib/nodes";
 import { getUsageMap, getDailyUsageMap } from "@/lib/segments";
+import { getAvoidSegmentSet } from "@/lib/avoidList";
 import { loadGraphContext } from "@/lib/routeContext";
 import { findDirectRoutes, findWaypointRoutes, scoreRoutes, pickBest } from "@/lib/routing";
 import { createRouteSession } from "@/lib/routeSessions";
@@ -67,6 +68,7 @@ export async function POST(request: Request) {
 
   const usageMap = getUsageMap();
   const dailyMap = getDailyUsageMap();
+  const avoidSegmentIds = getAvoidSegmentSet(user.id);
   const geometryOf = new Map([...segmentsById].map(([id, s]) => [id, s.geometry]));
   const scored = scoreRoutes(
     candidates,
@@ -78,6 +80,7 @@ export async function POST(request: Request) {
     (minValue + maxValue) / 2,
     mode,
     geometryOf,
+    avoidSegmentIds,
   );
   const best = pickBest(scored, new Set(), explorerMode);
   if (!best) {

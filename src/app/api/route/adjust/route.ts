@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { getSettings } from "@/lib/settings";
 import { getUsageMap, getDailyUsageMap } from "@/lib/segments";
+import { getAvoidSegmentSet } from "@/lib/avoidList";
 import { loadGraphContext } from "@/lib/routeContext";
 import { findDirectRoutes, findWaypointRoutes, scoreRoutes, pickBest } from "@/lib/routing";
 import { getRouteSession, updateRouteSession } from "@/lib/routeSessions";
@@ -24,6 +25,7 @@ export async function POST(request: Request) {
 
   const settings = getSettings();
   const { graph, pairOf, nodesById, segmentsById } = loadGraphContext();
+  const avoidSegmentIds = getAvoidSegmentSet(user.id);
   const currentValue = session.mode === "km" ? session.current.lengthM : session.current.durationMin;
 
   // Search a band strictly above/below the current route's length rather than a
@@ -57,6 +59,7 @@ export async function POST(request: Request) {
       (minValue + maxValue) / 2,
       state.mode,
       geometryOf,
+      avoidSegmentIds,
     );
     return pickBest(scored, state.seenKeys, state.explorerMode);
   }

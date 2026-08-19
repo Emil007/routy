@@ -13,7 +13,9 @@
     "yes": "Ja",
     "no": "Nein",
     "optional": "optional",
-    "hours": "Std."
+    "hours": "Std.",
+    "add": "Hinzufügen",
+    "remove": "Entfernen"
   },
   "nav": {
     "route": "Route",
@@ -266,7 +268,11 @@
     "deleteAccountTitle": "Account löschen",
     "deleteAccountSubtitle": "Account wird deaktiviert — nur der Admin kann ihn reaktivieren.",
     "deleteAccountConfirm": "Account löschen?",
-    "deleteAccountButton": "Account löschen"
+    "deleteAccountButton": "Account löschen",
+    "avoidTitle": "Wege meiden",
+    "avoidSubtitle": "Routen bevorzugen andere Wege wenn möglich — kein hartes Verbot.",
+    "avoidEmpty": "Du meidest derzeit keine Wege.",
+    "avoidAdd": "Weg zur Meideliste hinzufügen"
   },
   "stats": {
     "title": "Statistik",

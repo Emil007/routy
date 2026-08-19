@@ -13,7 +13,9 @@
     "yes": "Yes",
     "no": "No",
     "optional": "optional",
-    "hours": "h"
+    "hours": "h",
+    "add": "Add",
+    "remove": "Remove"
   },
   "nav": {
     "route": "Route",
@@ -266,7 +268,11 @@
     "deleteAccountTitle": "Delete account",
     "deleteAccountSubtitle": "Account will be deactivated — only the admin can reactivate it.",
     "deleteAccountConfirm": "Delete your account?",
-    "deleteAccountButton": "Delete account"
+    "deleteAccountButton": "Delete account",
+    "avoidTitle": "Paths to avoid",
+    "avoidSubtitle": "Routes will prefer other paths when possible — not a hard ban.",
+    "avoidEmpty": "You are not avoiding any paths.",
+    "avoidAdd": "Add path to avoid"
   },
   "stats": {
     "title": "Stats",

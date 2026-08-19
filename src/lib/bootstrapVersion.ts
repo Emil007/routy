@@ -3,6 +3,7 @@ import { listFavorites } from "./favorites";
 import { getActiveRoute } from "./activeRoute";
 import { getNetworkVersion } from "./networkVersion";
 import { getUser } from "./users";
+import { listAvoidSegmentIds } from "./avoidList";
 
 /** ETag for /api/app/bootstrap — bumps when network, profile, or per-user route state changes. */
 export function getBootstrapVersion(userId: number): string {
@@ -20,6 +21,7 @@ export function getBootstrapVersion(userId: number): string {
     active?.nodeChain.join(",") ?? "",
     favorites.length,
     favorites.map((f) => f.id).join(","),
+    listAvoidSegmentIds(userId).join(","),
   ].join(":");
   return createHash("sha256").update(payload).digest("hex").slice(0, 16);
 }

@@ -262,7 +262,12 @@ export interface ScoredRoute {
   delta: number;
   /** Count of segments in the route that have never been walked by anyone (usage count 0). */
   unexplored: number;
+  /** Soft penalty for user-avoided segments on this route (higher = worse). */
+  avoidPenalty: number;
 }
+
+/** Per avoided segment on a route — soft bias, not a hard ban. */
+export const AVOID_PENALTY_WEIGHT = 25;
 
 export function scoreRoutes(
   routes: RouteResult[],
@@ -274,6 +279,7 @@ export function scoreRoutes(
   targetValue: number,
   mode: RouteMode,
   geometryOf: Map<number, LatLng[]> = new Map(),
+  avoidSegmentIds: Set<number> = new Set(),
 ): ScoredRoute[] {
   return routes.map((route) => {
     const usageSum = route.segmentIds.reduce((s, id) => s + (usageMap.get(id) ?? 0), 0);
@@ -288,6 +294,10 @@ export function scoreRoutes(
     }
     const actual = mode === "km" ? route.lengthM : route.durationMin;
     const unexplored = route.segmentIds.filter((id) => (usageMap.get(id) ?? 0) === 0).length;
+    const avoidPenalty = route.segmentIds.reduce(
+      (s, id) => s + (avoidSegmentIds.has(id) ? AVOID_PENALTY_WEIGHT : 0),
+      0,
+    );
     return {
       route,
       key: segmentSetKey(route.segmentIds),
@@ -297,6 +307,7 @@ export function scoreRoutes(
       overlap,
       delta: Math.abs(actual - targetValue),
       unexplored,
+      avoidPenalty,
     };
   });
 }
@@ -329,9 +340,11 @@ export function pickBest(scored: ScoredRoute[], excludeKeys: Set<string>, explor
     if (
       sShape < bestShape ||
       (sShape === bestShape &&
-        (s.weightedUsage < best.weightedUsage ||
-          (s.weightedUsage === best.weightedUsage &&
-            (s.overlap < best.overlap || (s.overlap === best.overlap && s.delta < best.delta)))))
+        (s.avoidPenalty < best.avoidPenalty ||
+          (s.avoidPenalty === best.avoidPenalty &&
+            (s.weightedUsage < best.weightedUsage ||
+              (s.weightedUsage === best.weightedUsage &&
+                (s.overlap < best.overlap || (s.overlap === best.overlap && s.delta < best.delta)))))))
     ) {
       best = s;
     }

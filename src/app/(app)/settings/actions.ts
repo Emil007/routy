@@ -15,6 +15,7 @@ import {
   disableTotp,
 } from "@/lib/users";
 import { generateTotpSecret, verifyTotpCode } from "@/lib/twoFactor";
+import { addAvoidSegment, removeAvoidSegment } from "@/lib/avoidList";
 
 export async function saveSettingsAction(formData: FormData) {
   await requireAdmin();
@@ -101,4 +102,18 @@ export async function deleteOwnAccountAction() {
   setUserActive(user.id, false);
   await destroyCurrentSession();
   redirect("/login");
+}
+
+export async function addAvoidSegmentAction(formData: FormData) {
+  const user = await requireUser();
+  const segmentId = Number(formData.get("segmentId"));
+  if (Number.isInteger(segmentId) && segmentId > 0) addAvoidSegment(user.id, segmentId);
+  revalidatePath("/settings");
+}
+
+export async function removeAvoidSegmentAction(formData: FormData) {
+  const user = await requireUser();
+  const segmentId = Number(formData.get("segmentId"));
+  if (Number.isInteger(segmentId) && segmentId > 0) removeAvoidSegment(user.id, segmentId);
+  revalidatePath("/settings");
 }

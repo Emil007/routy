@@ -17,7 +17,11 @@ import {
   confirmEnableTotpAction,
   cancelEnableTotpAction,
   disableTotpAction,
+  addAvoidSegmentAction,
+  removeAvoidSegmentAction,
 } from "./actions";
+import { listAvoidSegmentIds } from "@/lib/avoidList";
+import { listSegments } from "@/lib/segments";
 
 const STEP: Partial<Record<keyof Settings, number>> = {
   daily_diversity_weight: 0.5,
@@ -49,6 +53,9 @@ export default async function SettingsPage({
 
   const pendingTotp = totpSetup === "1" ? getUser(user.id) : null;
   const totpQrCode = pendingTotp?.totpSecret ? await totpQrCodeDataUrl(pendingTotp.totpSecret, user.username) : null;
+  const avoidIds = new Set(listAvoidSegmentIds(user.id));
+  const avoidSegments = listSegments().filter((s) => avoidIds.has(s.id));
+  const addableSegments = listSegments().filter((s) => !avoidIds.has(s.id) && (s.reverseOf === null || s.id < s.reverseOf));
 
   return (
     <>
@@ -104,6 +111,46 @@ export default async function SettingsPage({
             {t(locale, "common.save")}
           </button>
         </form>
+      </div>
+
+      <div className="card">
+        <h2>{t(locale, "settings.avoidTitle")}</h2>
+        <p className="hint-compact">{t(locale, "settings.avoidSubtitle")}</p>
+        {avoidSegments.length === 0 ? (
+          <p className="hint-compact">{t(locale, "settings.avoidEmpty")}</p>
+        ) : (
+          <ul className="dense-list">
+            {avoidSegments.map((s) => (
+              <li key={s.id}>
+                {s.name || `#${s.id}`}
+                <form action={removeAvoidSegmentAction} style={{ display: "inline", marginLeft: "0.5rem" }}>
+                  <input type="hidden" name="segmentId" value={s.id} />
+                  <button type="submit" className="btn-secondary btn-compact">
+                    {t(locale, "common.remove")}
+                  </button>
+                </form>
+              </li>
+            ))}
+          </ul>
+        )}
+        {addableSegments.length > 0 && (
+          <form action={addAvoidSegmentAction} className="stack" style={{ marginTop: "0.75rem" }}>
+            <div className="field">
+              <label htmlFor="avoidSegmentId">{t(locale, "settings.avoidAdd")}</label>
+              <select id="avoidSegmentId" name="segmentId" required>
+                <option value="">…</option>
+                {addableSegments.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name || `#${s.id}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button type="submit" className="btn-secondary btn-compact">
+              {t(locale, "common.add")}
+            </button>
+          </form>
+        )}
       </div>
 
       <div className="card">

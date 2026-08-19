@@ -9,6 +9,7 @@ import { loadGraphContext } from "@/lib/routeContext";
 import { buildRouteDisplay } from "@/lib/routeDisplay";
 import { getBootstrapVersion } from "@/lib/bootstrapVersion";
 import { getNetworkVersion } from "@/lib/networkVersion";
+import { listAvoidSegmentIds } from "@/lib/avoidList";
 import { conditionalJson } from "@/lib/conditionalJson";
 
 function buildRouteState(userId: number) {
@@ -42,6 +43,7 @@ export async function GET(request: Request) {
     networkVersion: getNetworkVersion(),
     nodes: listNodes(),
     segments: listSegments(),
+    avoidSegmentIds: listAvoidSegmentIds(user.id),
     routeState,
   });
 }

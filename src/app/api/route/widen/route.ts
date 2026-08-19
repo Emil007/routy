@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { getSettings } from "@/lib/settings";
 import { getUsageMap, getDailyUsageMap } from "@/lib/segments";
+import { getAvoidSegmentSet } from "@/lib/avoidList";
 import { loadGraphContext } from "@/lib/routeContext";
 import { findDirectRoutes, findWaypointRoutes, scoreRoutes, pickBest, toleranceRange } from "@/lib/routing";
 import { getRouteSession, updateRouteSession } from "@/lib/routeSessions";
@@ -28,6 +29,7 @@ export async function POST(request: Request) {
   if (effectiveTolerance > cap) effectiveTolerance = cap;
 
   const { graph, pairOf, nodesById, segmentsById } = loadGraphContext();
+  const avoidSegmentIds = getAvoidSegmentSet(user.id);
   const { minValue, maxValue } = toleranceRange(session.targetValue, effectiveTolerance);
 
   const candidates =
@@ -67,6 +69,7 @@ export async function POST(request: Request) {
     session.targetValue,
     session.mode,
     geometryOf,
+    avoidSegmentIds,
   );
   const best = pickBest(scored, session.seenKeys, session.explorerMode);
 

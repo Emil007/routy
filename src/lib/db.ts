@@ -132,6 +132,13 @@ CREATE TABLE IF NOT EXISTS activity_log (
 );
 
 CREATE INDEX IF NOT EXISTS idx_activity_log_created_at ON activity_log(created_at);
+
+CREATE TABLE IF NOT EXISTS user_avoid_segment (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  segment_id INTEGER NOT NULL REFERENCES segments(id) ON DELETE CASCADE,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (user_id, segment_id)
+);
 `;
 
 /**
@@ -192,6 +199,15 @@ function runMigrations(db: Database.Database): void {
 
   addColumnIfMissing(db, "favorite_route", "share_token", "ALTER TABLE favorite_route ADD COLUMN share_token TEXT");
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_favorite_route_share_token ON favorite_route(share_token)");
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS user_avoid_segment (
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      segment_id INTEGER NOT NULL REFERENCES segments(id) ON DELETE CASCADE,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (user_id, segment_id)
+    );
+  `);
 
   addColumnIfMissing(db, "nodes", "updated_at", "ALTER TABLE nodes ADD COLUMN updated_at TEXT");
   addColumnIfMissing(db, "segments", "updated_at", "ALTER TABLE segments ADD COLUMN updated_at TEXT");
