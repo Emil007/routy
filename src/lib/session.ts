@@ -80,6 +80,10 @@ export interface SessionUser {
   active: boolean;
   theme: string;
   totpEnabled: boolean;
+  /** Which client created this session — "app" covers both the native app itself and its
+   *  WebView tabs, since they share the same session cookie. Lets pages served into a WebView
+   *  tab hide chrome (e.g. NavBar's own nav links) that's redundant with the app's native UI. */
+  client: SessionClient;
 }
 
 interface SessionRow {
@@ -93,6 +97,7 @@ interface SessionRow {
   theme: string;
   totpEnabled: number;
   expiresAt: string;
+  client: SessionClient;
 }
 
 export async function getCurrentUser(): Promise<SessionUser | null> {
@@ -105,7 +110,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     .prepare(
       `SELECT u.id as id, u.username as username, u.display_name as displayName, u.locale as locale,
               u.walk_speed_kmh as walkSpeedKmh, u.role as role, u.active as active, u.theme as theme,
-              u.totp_enabled as totpEnabled, s.expires_at as expiresAt
+              u.totp_enabled as totpEnabled, s.expires_at as expiresAt, s.client as client
        FROM sessions s JOIN users u ON u.id = s.user_id
        WHERE s.token_hash = ?`,
     )
@@ -131,6 +136,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     active: row.active === 1,
     theme: row.theme,
     totpEnabled: row.totpEnabled === 1,
+    client: row.client,
   };
 }
 

@@ -25,6 +25,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         greeting={t(locale, "nav.greeting", { name: user.displayName })}
         logoutLabel={t(locale, "nav.logout")}
         version={APP_VERSION_DISPLAY}
+        embedded={user.client === "app"}
       />
       {impersonating && (
         <div className="alert alert-error" style={{ margin: "0 0 0", borderRadius: 0 }}>
