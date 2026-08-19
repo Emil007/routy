@@ -10,7 +10,7 @@ export function getBootstrapVersion(userId: number): string {
   const payload = [
     getNetworkVersion(),
     userId,
-    active?.accepted_at ?? "",
+    active?.acceptedAt ?? "",
     active?.nodeChain.join(",") ?? "",
     favorites.length,
     favorites.map((f) => f.id).join(","),

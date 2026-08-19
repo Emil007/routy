@@ -43,3 +43,6 @@ next-env.d.ts
 # local sqlite database + uploaded data
 /data
 
+# agent review notes (local only)
+/review_feedback.md
+

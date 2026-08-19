@@ -22,6 +22,10 @@ function canonicalSegmentId(s: Pick<SegmentRow, "id" | "reverseOf">): number {
   return s.reverseOf !== null ? Math.min(s.id, s.reverseOf) : s.id;
 }
 
+function buildCanonicalMap(segments: SegmentRow[]): Map<number, number> {
+  return new Map(segments.map((s) => [s.id, canonicalSegmentId(s)]));
+}
+
 function elevationBonusForWalks(rows: WalkRow[]): number {
   let elevationBonus = 0;
   for (const row of rows) {
@@ -36,9 +40,7 @@ function elevationBonusForWalks(rows: WalkRow[]): number {
   return elevationBonus;
 }
 
-function segmentsExploredFromWalks(rows: WalkRow[]): number {
-  const segments = listSegments();
-  const canonicalOf = new Map<number, number>(segments.map((s) => [s.id, canonicalSegmentId(s)]));
+function segmentsExploredFromWalks(rows: WalkRow[], canonicalOf: Map<number, number>): number {
   const explored = new Set<number>();
   for (const row of rows) {
     for (const id of JSON.parse(row.segment_ids) as number[]) {
@@ -50,11 +52,12 @@ function segmentsExploredFromWalks(rows: WalkRow[]): number {
 }
 
 /** Shared base formula: walks + distance + elevation + exploration, before streak multiplier. */
-export function computeBasePoints(rows: WalkRow[]): number {
+export function computeBasePoints(rows: WalkRow[], canonicalOf?: Map<number, number>): number {
   const walkCount = rows.length;
   const totalLengthM = rows.reduce((sum, row) => sum + row.length_m, 0);
   const elevationBonus = elevationBonusForWalks(rows);
-  const segmentsExplored = segmentsExploredFromWalks(rows);
+  const segmentMap = canonicalOf ?? buildCanonicalMap(listSegments());
+  const segmentsExplored = segmentsExploredFromWalks(rows, segmentMap);
   return walkCount * 50 + Math.round(totalLengthM / 100) + Math.round(elevationBonus / 10) + segmentsExplored * 5;
 }
 
@@ -105,6 +108,8 @@ export function getPointsLeaderboard(limit = 20): PointsLeaderboardEntry[] {
     walksByUser.set(row.user_id, list);
   }
 
+  const canonicalOf = buildCanonicalMap(listSegments());
+
   return users
     .map((u) => {
       const streak = getStreakStats(u.id);
@@ -113,7 +118,7 @@ export function getPointsLeaderboard(limit = 20): PointsLeaderboardEntry[] {
       return {
         userId: u.id,
         displayName: u.display_name,
-        totalPoints: Math.round(computeBasePoints(rows) * multiplier),
+        totalPoints: Math.round(computeBasePoints(rows, canonicalOf) * multiplier),
       };
     })
     .sort((a, b) => b.totalPoints - a.totalPoints)
