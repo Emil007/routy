@@ -338,12 +338,14 @@
       "walks": "Walks",
       "distance": "Distance",
       "streak": "Streak",
-      "exploration": "Exploration"
+      "exploration": "Exploration",
+      "points": "Points"
     },
     "units": {
       "walks": "walks",
       "distance": "km",
-      "streak": "days"
+      "streak": "days",
+      "points": "points"
     },
     "tiers": {
       "stein": "Stone",
@@ -368,7 +370,11 @@
       "earlyBird": "Early bird",
       "earlyBirdDesc": "Confirmed a walk before 7am",
       "nightOwl": "Night owl",
-      "nightOwlDesc": "Confirmed a walk after 10pm"
+      "nightOwlDesc": "Confirmed a walk after 10pm",
+      "longHaul": "Long haul",
+      "longHaulDesc": "Completed a walk of at least 10 km",
+      "weekWarrior": "Week warrior",
+      "weekWarriorDesc": "Earned at least 200 points this week"
     }
   },
   "admin": {

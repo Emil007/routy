@@ -338,12 +338,14 @@
       "walks": "Spaziergänge",
       "distance": "Strecke",
       "streak": "Serie",
-      "exploration": "Erkundung"
+      "exploration": "Erkundung",
+      "points": "Punkte"
     },
     "units": {
       "walks": "Spaziergänge",
       "distance": "km",
-      "streak": "Tage"
+      "streak": "Tage",
+      "points": "Punkte"
     },
     "tiers": {
       "stein": "Stein",
@@ -368,7 +370,11 @@
       "earlyBird": "Frühaufsteher",
       "earlyBirdDesc": "Einen Spaziergang vor 7 Uhr bestätigt",
       "nightOwl": "Nachteule",
-      "nightOwlDesc": "Einen Spaziergang nach 22 Uhr bestätigt"
+      "nightOwlDesc": "Einen Spaziergang nach 22 Uhr bestätigt",
+      "longHaul": "Langstrecke",
+      "longHaulDesc": "Einen Spaziergang mit mindestens 10 km absolviert",
+      "weekWarrior": "Wochenkämpfer",
+      "weekWarriorDesc": "Diese Woche mindestens 200 Punkte verdient"
     }
   },
   "admin": {

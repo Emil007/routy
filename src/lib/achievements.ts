@@ -2,13 +2,14 @@ import { db } from "./db";
 import { getUserStats, getStreakStats, getUserSegmentWalkCounts } from "./stats";
 import { listSegments, isCanonicalSegment } from "./segments";
 import { favoriteCount } from "./favorites";
+import { computeUserPoints } from "./points";
 import { t, type Locale } from "./i18n";
 
 export const TIERS = ["stein", "blech", "bronze", "silber", "gold", "platin", "diamant"] as const;
 export type Tier = (typeof TIERS)[number];
 
 export interface ScalableAchievement {
-  category: "walks" | "distance" | "streak" | "exploration";
+  category: "walks" | "distance" | "streak" | "exploration" | "points";
   categoryLabel: string;
   tierIndex: number; // -1 = no tier reached yet
   tierLabel: string | null;
@@ -16,7 +17,7 @@ export interface ScalableAchievement {
 }
 
 export interface SpecialAchievement {
-  id: "trailblazer" | "collector" | "earlyBird" | "nightOwl";
+  id: "trailblazer" | "collector" | "earlyBird" | "nightOwl" | "longHaul" | "weekWarrior";
   label: string;
   description: string;
   earned: boolean;
@@ -30,6 +31,7 @@ export interface Achievements {
 const WALK_THRESHOLDS = [1, 5, 15, 50, 100, 250, 500];
 const DISTANCE_KM_THRESHOLDS = [5, 25, 100, 250, 500, 1000, 2500];
 const STREAK_DAY_THRESHOLDS = [2, 3, 7, 14, 30, 60, 100];
+const POINTS_THRESHOLDS = [100, 500, 1000, 2500, 5000, 10000, 25000];
 const EXPLORATION_PERCENT_THRESHOLDS = [10, 25, 50, 75, 100];
 
 function tierIndexFor(value: number, thresholds: number[]): number {
@@ -43,7 +45,7 @@ function tierIndexFor(value: number, thresholds: number[]): number {
 
 function numericAchievement(
   locale: Locale,
-  category: "walks" | "distance" | "streak",
+  category: "walks" | "distance" | "streak" | "points",
   categoryLabel: string,
   value: number,
   thresholds: number[],
@@ -109,6 +111,7 @@ function minSegmentVisits(userId: number): number {
 export function computeAchievements(userId: number, locale: Locale): Achievements {
   const stats = getUserStats(userId);
   const streak = getStreakStats(userId);
+  const userPoints = computeUserPoints(userId);
   const percentExplored = stats.totalSegments > 0 ? (stats.segmentsExplored / stats.totalSegments) * 100 : 0;
 
   const trailblazer =
@@ -125,6 +128,13 @@ export function computeAchievements(userId: number, locale: Locale): Achievement
         .prepare("SELECT COUNT(*) c FROM walk_log WHERE user_id = ? AND CAST(strftime('%H', accepted_at) AS INTEGER) >= 22")
         .get(userId) as { c: number }
     ).c > 0;
+  const longHaul =
+    (
+      db
+        .prepare("SELECT COUNT(*) c FROM walk_log WHERE user_id = ? AND length_m >= 10000")
+        .get(userId) as { c: number }
+    ).c > 0;
+  const weekWarrior = userPoints.weeklyPoints >= 200;
 
   return {
     scalable: [
@@ -144,6 +154,14 @@ export function computeAchievements(userId: number, locale: Locale): Achievement
         streak.longestStreak,
         STREAK_DAY_THRESHOLDS,
         t(locale, "achievements.units.streak"),
+      ),
+      numericAchievement(
+        locale,
+        "points",
+        t(locale, "achievements.categories.points"),
+        userPoints.totalPoints,
+        POINTS_THRESHOLDS,
+        t(locale, "achievements.units.points"),
       ),
       explorationAchievement(locale, percentExplored, stats.totalSegments > 0 ? minSegmentVisits(userId) : 0),
     ],
@@ -171,6 +189,18 @@ export function computeAchievements(userId: number, locale: Locale): Achievement
         label: t(locale, "achievements.special.nightOwl"),
         description: t(locale, "achievements.special.nightOwlDesc"),
         earned: nightOwl,
+      },
+      {
+        id: "longHaul",
+        label: t(locale, "achievements.special.longHaul"),
+        description: t(locale, "achievements.special.longHaulDesc"),
+        earned: longHaul,
+      },
+      {
+        id: "weekWarrior",
+        label: t(locale, "achievements.special.weekWarrior"),
+        description: t(locale, "achievements.special.weekWarriorDesc"),
+        earned: weekWarrior,
       },
     ],
   };
