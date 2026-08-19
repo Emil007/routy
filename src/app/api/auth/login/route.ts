@@ -68,6 +68,7 @@ export async function POST(request: Request) {
     active: user.active,
     theme: user.theme,
     totpEnabled: user.totpEnabled,
+    client: "app",
   };
 
   return NextResponse.json({ token, user: sessionUser });
