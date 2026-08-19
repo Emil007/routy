@@ -629,3 +629,69 @@ th {
     grid-template-columns: 1fr 1fr;
   }
 }
+
+/* Dense app shell — Phase I defaults for all logged-in pages */
+.page-dense .page-heading {
+  margin-bottom: 0.55rem;
+}
+
+.page-dense .page-heading h1 {
+  font-size: 1.25rem;
+}
+
+.page-dense .page-heading p {
+  font-size: 0.82rem;
+  margin: 0;
+}
+
+.page-dense .card {
+  padding: 0.65rem 0.75rem;
+}
+
+.page-dense .card + .card {
+  margin-top: 0.55rem;
+}
+
+.page-dense .stack {
+  gap: 0.55rem;
+}
+
+.page-dense h2 {
+  font-size: 0.95rem;
+  margin-bottom: 0.45rem;
+}
+
+.page-dense details.card > summary {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.map-overview-shell {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.map-overview-shell .map-box {
+  height: min(52vh, 560px);
+  min-height: 240px;
+}
+
+.hint-compact {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+}
+
+.endpoint-compact .field {
+  margin-bottom: 0.35rem;
+}
+
+.endpoint-compact .field label {
+  font-size: 0.78rem;
+}
+
+.gpx-track-compact .map-box {
+  height: 160px;
+  min-height: 120px;
+}

@@ -137,7 +137,7 @@ export function OverviewMapClient({
     return (
       <div className="stack">
         <div className="btn-row">
-          <button type="button" className="btn-secondary" onClick={() => setMode("view")}>
+          <button type="button" className="btn-secondary btn-compact" onClick={() => setMode("view")}>
             {t(locale, "overview.backToView")}
           </button>
         </div>
@@ -158,7 +158,7 @@ export function OverviewMapClient({
     return (
       <div className="stack">
         <div className="btn-row">
-          <button type="button" className="btn-secondary" onClick={() => setMode("view")}>
+          <button type="button" className="btn-secondary btn-compact" onClick={() => setMode("view")}>
             {t(locale, "overview.backToView")}
           </button>
         </div>
@@ -171,7 +171,7 @@ export function OverviewMapClient({
     return (
       <div className="stack">
         <div className="btn-row">
-          <button type="button" className="btn-secondary" onClick={() => setMode("view")}>
+          <button type="button" className="btn-secondary btn-compact" onClick={() => setMode("view")}>
             {t(locale, "overview.backToView")}
           </button>
         </div>
@@ -216,31 +216,29 @@ export function OverviewMapClient({
   }
 
   return (
-    <div className="stack">
-      <div className="card stack">
-        <MapViewLazy
-          height={560}
-          markers={markers}
-          lines={lines}
-          onMarkerDragEnd={handleMarkerDragEnd}
-          className="map-box-large"
-          initialView={lastView}
-          onViewChange={setLastView}
-        />
-        <div className="btn-row">
-          <button type="button" className="btn-secondary" onClick={() => setMode("draw")}>
-            {t(locale, "overview.drawMode")}
-          </button>
-          <button type="button" className="btn-secondary" onClick={() => setMode("gpx")}>
-            {t(locale, "overview.gpxMode")}
-          </button>
-          <button type="button" className="btn-secondary" onClick={() => setMode("record")}>
-            {t(locale, "overview.recordMode")}
-          </button>
-        </div>
-        <p style={{ color: "var(--ink-soft)", fontSize: "0.85rem" }}>{t(locale, "overview.interactionHint")}</p>
-        {moveStatus === "error" && <div className="alert alert-error">{t(locale, "common.error")}</div>}
+    <div className="map-overview-shell">
+      <MapViewLazy
+        height={560}
+        markers={markers}
+        lines={lines}
+        onMarkerDragEnd={handleMarkerDragEnd}
+        className="map-box-large"
+        initialView={lastView}
+        onViewChange={setLastView}
+      />
+      <div className="record-map-bar">
+        <button type="button" className="btn-secondary btn-compact" onClick={() => setMode("draw")}>
+          {t(locale, "overview.drawMode")}
+        </button>
+        <button type="button" className="btn-secondary btn-compact" onClick={() => setMode("gpx")}>
+          {t(locale, "overview.gpxMode")}
+        </button>
+        <button type="button" className="btn-secondary btn-compact" onClick={() => setMode("record")}>
+          {t(locale, "overview.recordMode")}
+        </button>
       </div>
+      <p className="hint-compact">{t(locale, "overview.interactionHint")}</p>
+      {moveStatus === "error" && <div className="alert alert-error" style={{ padding: "0.45rem 0.65rem", fontSize: "0.82rem" }}>{t(locale, "common.error")}</div>}
     </div>
   );
 }

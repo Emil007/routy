@@ -35,20 +35,20 @@ export function EndpointFields({
   onPart2: (v: string) => void;
 }) {
   return (
-    <div className="field">
+    <div className="field endpoint-compact">
       <label>
         {t(locale, role === "start" ? "import.startNode" : role === "end" ? "import.endNode" : "edit.splitPointLabel")}
       </label>
-      <div className="btn-row" style={{ marginBottom: "0.4rem" }}>
+      <div className="route-action-bar" style={{ marginBottom: "0.25rem" }}>
         <button
           type="button"
-          className={decisionChoice === "existing" ? "btn-primary" : "btn-secondary"}
+          className={decisionChoice === "existing" ? "btn-primary btn-compact" : "btn-secondary btn-compact"}
           disabled={candidates.length === 0}
           onClick={() => onChoice("existing")}
         >
           {t(locale, "import.useExisting")}
         </button>
-        <button type="button" className={decisionChoice === "new" ? "btn-primary" : "btn-secondary"} onClick={() => onChoice("new")}>
+        <button type="button" className={decisionChoice === "new" ? "btn-primary btn-compact" : "btn-secondary btn-compact"} onClick={() => onChoice("new")}>
           {t(locale, "import.createNew")}
         </button>
       </div>

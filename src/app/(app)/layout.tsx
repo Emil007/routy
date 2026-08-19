@@ -37,7 +37,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
           </form>
         </div>
       )}
-      <main className="container">{children}</main>
+      <main className="container page-dense">{children}</main>
     </>
   );
 }
