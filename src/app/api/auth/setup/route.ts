@@ -40,15 +40,15 @@ export async function POST(request: Request) {
   }
 
   const displayName = parsed.data.displayName?.trim() || parsed.data.username;
-  const userId = createUser(parsed.data.username, parsed.data.password, displayName, parsed.data.locale, "admin");
+  const user = createUser(parsed.data.username, parsed.data.password, displayName, parsed.data.locale, "admin");
   clearAttempts("setup");
 
-  const token = await createSession(userId, { deviceName: parsed.data.deviceName ?? null, client: "app" });
+  const token = await createSession(user.id, { deviceName: parsed.data.deviceName ?? null, client: "app" });
   const sessionUser: SessionUser = {
-    id: userId,
-    username: parsed.data.username,
-    displayName,
-    locale: parsed.data.locale,
+    id: user.id,
+    username: user.username,
+    displayName: user.displayName,
+    locale: user.locale,
     walkSpeedKmh: null,
     role: "admin",
     active: true,
