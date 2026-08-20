@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { listSegments } from "./segments";
+import { directedPairIds, listSegments } from "./segments";
 import { canonicalSegmentId } from "./points";
 
 const GOLDEN_MULTIPLIER = 3;
@@ -102,9 +102,9 @@ export function getTodayGoldenSegmentIds(): number[] {
 export function getGoldenMultiplierMap(): Map<number, number> {
   const map = new Map<number, number>();
   for (const g of ensureTodayGoldenSegments()) {
-    map.set(g.segmentId, g.multiplier);
-    const seg = listSegments().find((s) => s.id === g.segmentId);
-    if (seg?.reverseOf) map.set(seg.reverseOf, g.multiplier);
+    for (const id of directedPairIds(g.segmentId)) {
+      map.set(id, g.multiplier);
+    }
   }
   return map;
 }

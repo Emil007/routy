@@ -78,6 +78,7 @@
     "accept": "Diese nehmen",
     "cancel": "Abbrechen",
     "noRouteFound": "Im eingestellten Längenbereich wurde keine Route gefunden.",
+    "noGoldenRoute": "Keine Route mit einem der heutigen goldenen Wege im Längenbereich gefunden.",
     "noAlternative": "Keine Alternative gefunden.",
     "distanceLabel": "Strecke",
     "durationLabel": "Dauer",
@@ -142,13 +143,14 @@
     "celebrationStreak": "Serien-Bonus!",
     "celebrationAchievement": "Erfolg freigeschaltet!",
     "goldenToday": "Heute golden",
+    "goldenOnRoute": "Golden auf der Route",
     "presetShortHint": "Kurze Route — weniger Punkte, schneller fertig",
     "presetLongHint": "Lange Route — mehr Basis-Punkte",
     "presetDiscoverHint": "Neue Wege — Explorations-Bonus",
     "presetSurpriseHint": "Selten genutzte Wege — Diversitäts-Bonus",
     "moreOptions": "Weitere Optionen",
-    "forceGolden": "Einen goldenen Weg heute einbauen",
-    "forceGoldenHint": "Bevorzugt eine Route, die wenn möglich durch einen der heutigen goldenen Wege führt."
+    "forceGolden": "Goldene Route",
+    "forceGoldenHint": "Nur Routen vorschlagen, die mindestens einen der heutigen goldenen Wege nutzen."
   },
   "share": {
     "subtitle": "Schreibgeschützte, geteilte Route.",

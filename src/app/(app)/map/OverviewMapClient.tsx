@@ -62,6 +62,7 @@ export function OverviewMapClient({
   walkSpeedKmh,
   segmentConditions,
   personalAvoidSegmentIds,
+  goldenSegmentIds = [],
 }: {
   locale: Locale;
   nodes: NodeRow[];
@@ -74,6 +75,7 @@ export function OverviewMapClient({
   walkSpeedKmh: number;
   segmentConditions: SegmentConditionEntry[];
   personalAvoidSegmentIds: number[];
+  goldenSegmentIds?: number[];
 }) {
   const router = useRouter();
   const [proposals, setProposals] = useState<PathProposal[]>([]);
@@ -81,6 +83,7 @@ export function OverviewMapClient({
   const [lockProposals, setLockProposals] = useState<LockProposal[]>([]);
   const [lockProposalsLoading, setLockProposalsLoading] = useState(true);
   const personalAvoidSet = useMemo(() => new Set(personalAvoidSegmentIds), [personalAvoidSegmentIds]);
+  const goldenSet = useMemo(() => new Set(goldenSegmentIds), [goldenSegmentIds]);
 
   useEffect(() => {
     let cancelled = false;
@@ -181,8 +184,18 @@ export function OverviewMapClient({
   }
 
   const networkLines: MapLine[] = useMemo(
-    () => segments.map((s) => ({ id: s.id, points: s.geometry.map((p): [number, number] => [p.lat, p.lng]) })),
-    [segments],
+    () =>
+      segments.map((s) => {
+        const golden = goldenSet.has(s.id);
+        return {
+          id: s.id,
+          points: s.geometry.map((p): [number, number] => [p.lat, p.lng]),
+          color: golden ? "#c99a2e" : undefined,
+          weight: golden ? 6 : undefined,
+          dashed: golden || isLocked(s),
+        };
+      }),
+    [segments, goldenSet],
   );
 
   async function handleMarkerDragEnd(id: number | string, lat: number, lng: number) {
@@ -229,30 +242,35 @@ export function OverviewMapClient({
 
   const lines: MapLine[] = useMemo(
     () =>
-      segments.map((s) => ({
-        id: s.id,
-        points: s.geometry.map((p): [number, number] => [p.lat, p.lng]),
-        dashed: isLocked(s),
-        popup: (
-          <SegmentPopup
-            locale={locale}
-            segment={s}
-            startName={nodesById.get(s.startNodeId)?.name || `#${s.startNodeId}`}
-            endName={nodesById.get(s.endNodeId)?.name || `#${s.endNodeId}`}
-            canEditSegment={canEdit(currentUser, s.submittedBy)}
-            creatorName={creatorName(s.submittedBy)}
-            usageCount={usage[s.id] ?? 0}
-            activeConditions={conditionsBySegment.get(s.id)}
-            personalAvoided={personalAvoidSet.has(s.id)}
-            onEditShape={() => {
-              setEditingSegmentId(s.id);
-              setMode("editShape");
-            }}
-          />
-        ),
-      })),
+      segments.map((s) => {
+        const golden = goldenSet.has(s.id);
+        return {
+          id: s.id,
+          points: s.geometry.map((p): [number, number] => [p.lat, p.lng]),
+          color: golden ? "#c99a2e" : undefined,
+          weight: golden ? 6 : undefined,
+          dashed: golden || isLocked(s),
+          popup: (
+            <SegmentPopup
+              locale={locale}
+              segment={s}
+              startName={nodesById.get(s.startNodeId)?.name || `#${s.startNodeId}`}
+              endName={nodesById.get(s.endNodeId)?.name || `#${s.endNodeId}`}
+              canEditSegment={canEdit(currentUser, s.submittedBy)}
+              creatorName={creatorName(s.submittedBy)}
+              usageCount={usage[s.id] ?? 0}
+              activeConditions={conditionsBySegment.get(s.id)}
+              personalAvoided={personalAvoidSet.has(s.id)}
+              onEditShape={() => {
+                setEditingSegmentId(s.id);
+                setMode("editShape");
+              }}
+            />
+          ),
+        };
+      }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [segments, locale, currentUser, usage, userNames, nodesById],
+    [segments, locale, currentUser, usage, userNames, nodesById, goldenSet, personalAvoidSet],
   );
 
   if (mode === "draw") {

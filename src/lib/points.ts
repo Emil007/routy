@@ -225,13 +225,22 @@ export function celebrationTierForWalk(
 }
 
 export function countGoldenHits(segmentIds: number[], goldenMap: Map<number, number>, canonicalOf: Map<number, number>): number {
+  return goldenHitCanonicalIds(segmentIds, goldenMap, canonicalOf).length;
+}
+
+/** Canonical golden segment ids that appear on the route (direction-aware). */
+export function goldenHitCanonicalIds(
+  segmentIds: number[],
+  goldenMap: Map<number, number>,
+  canonicalOf: Map<number, number>,
+): number[] {
   const seen = new Set<number>();
-  let hits = 0;
+  const hits: number[] = [];
   for (const id of segmentIds) {
     const canon = canonicalOf.get(id) ?? id;
     if (seen.has(canon)) continue;
     seen.add(canon);
-    if (goldenMap.has(canon) || goldenMap.has(id)) hits++;
+    if (goldenMap.has(canon) || goldenMap.has(id)) hits.push(canon);
   }
   return hits;
 }

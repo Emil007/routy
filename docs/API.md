@@ -5,7 +5,7 @@ Shared contract between the **web app**, **native Android app**, and any future 
 - **Base URL:** user-configured (e.g. `https://routy.example.com/`)
 - **Auth:** `Authorization: Bearer <token>` (Android) or session cookie (browser). Same token from `POST /api/auth/login`.
 - **Errors:** JSON `{ "error": "<code>" }` unless noted. Common: `unauthorized`, `invalid_json`.
-- **Version:** server display `0.36s` (`package.json` `"0.36s"`).
+- **Version:** server display `0.37s` (`package.json` `"0.37s"`).
 
 ## Auth & profile
 
@@ -33,9 +33,9 @@ Shared contract between the **web app**, **native Android app**, and any future 
 
 | Method | Path | Body | Response |
 |--------|------|------|----------|
-| POST | `/api/route/generate` | `{ startNodeId, destinationNodeId, waypointNodeId?, explorerMode?, surpriseMode?, preset?, forceGolden? }` | `{ token, route, pointPreview? }` |
-| POST | `/api/route/widen` | `{ token }` | `{ token, route }` |
-| POST | `/api/route/adjust` | `{ token, direction }` | `{ token, route }` |
+| POST | `/api/route/generate` | `{ startNodeId, destinationNodeId, waypointNodeId?, explorerMode?, surpriseMode?, preset?, forceGolden? }` | `{ token, route, pointPreview?, goldenHits?, goldenHitIds? }` |
+| POST | `/api/route/widen` | `{ token }` | `{ token, route, pointPreview?, goldenHits?, goldenHitIds?, tolerancePercent? }` |
+| POST | `/api/route/adjust` | `{ token, direction }` | `{ token, route, pointPreview?, goldenHits?, goldenHitIds? }` |
 | POST | `/api/route/accept` | `{ token }` | `{ success: true }` | Active route stored server-side. |
 | POST | `/api/route/cancel` | `{ token }` | `{ success: true }` | |
 | POST | `/api/route/complete` | — | `{ pointsEarned, streakMultiplier, currentStreak, pointBreakdown, goldenHits?, celebrationTier?, … }` | `pointsEarned = round(pointBreakdown.total × streakMultiplier)` using pre-walk usage (matches generate preview). Logs walk, clears active route. |
@@ -43,9 +43,9 @@ Shared contract between the **web app**, **native Android app**, and any future 
 | GET | `/api/route/state` | — | active route or empty | |
 | POST | `/api/route/nickname` | `{ nickname }` | `{ ok: true }` | Active route label. |
 
-**Presets:** `preset` may be `"short"`, `"long"`, or `"surprise"` (bias toward segments not walked in 30+ days). `surpriseMode: true` is equivalent to `preset: "surprise"`.
+**Presets:** `preset` may be `"short"`, `"long"`, or `"surprise"` (bias toward segments not walked in 30+ days). `surpriseMode: true` is equivalent to `preset: "surprise"`. `forceGolden: true` requires the returned route to use at least one of today's golden segments (`404 no_golden_route` if none fit). `goldenHitIds` are canonical segment ids on the route that are golden today.
 
-## Per-user avoid list
+`pointPreview` on generate/adjust/widen responses: `{ base, golden, exploration, diversity, total }`.
 
 | Method | Path | Body | Response |
 |--------|------|------|----------|
@@ -78,8 +78,6 @@ Distinct from GPX split proposals (`/api/app/proposals`).
 | Method | Path | Response |
 |--------|------|----------|
 | GET | `/api/app/game/daily` | `{ pointBalance, streakMultiplier, goldenSegments[], dailyChallenge }` |
-
-`pointPreview` on generate responses: `{ base, golden, exploration, diversity, total }`.
 
 ## Segment conditions
 

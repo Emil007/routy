@@ -2,12 +2,14 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { getSettings } from "@/lib/settings";
-import { getUsageMap, getDailyUsageMap } from "@/lib/segments";
+import { getUsageMap, getDailyUsageMap, listSegments } from "@/lib/segments";
 import { getRouteScoringContext } from "@/lib/routeScoring";
 import { loadGraphContext } from "@/lib/routeContext";
 import { findDirectRoutes, findWaypointRoutes, scoreRoutes, pickBest } from "@/lib/routing";
 import { updateRouteSession, assertRouteSessionOwner } from "@/lib/routeSessions";
 import { buildRouteDisplay } from "@/lib/routeDisplay";
+import { getGoldenMultiplierMap } from "@/lib/goldenSegments";
+import { computeRoutePointPreview, canonicalSegmentId, goldenHitCanonicalIds } from "@/lib/points";
 
 const bodySchema = z.object({ token: z.string().min(1), direction: z.enum(["longer", "shorter"]) });
 
@@ -29,6 +31,8 @@ export async function POST(request: Request) {
   const { graph, pairOf, nodesById, segmentsById } = loadGraphContext();
   const { avoidSegmentIds, conditionCounts, staleSegmentIds } = getRouteScoringContext(user.id, session.surpriseMode);
   const currentValue = session.mode === "km" ? session.current.lengthM : session.current.durationMin;
+  const goldenMap = getGoldenMultiplierMap();
+  const canonicalOf = new Map(listSegments().map((s) => [s.id, canonicalSegmentId(s)]));
 
   // Search a band strictly above/below the current route's length rather than a
   // single new target, so the scorer still has room to prefer the nicest
@@ -64,6 +68,7 @@ export async function POST(request: Request) {
       avoidSegmentIds,
       conditionCounts,
       staleSegmentIds,
+      goldenMap,
     );
     return pickBest(scored, state.seenKeys, state.explorerMode, state.surpriseMode);
   }
@@ -101,5 +106,21 @@ export async function POST(request: Request) {
     segmentsById,
   );
 
-  return NextResponse.json({ token, route: display });
+  const usageMap = getUsageMap();
+  const pointPreview = computeRoutePointPreview(
+    best.route.segmentIds,
+    best.route.lengthM,
+    usageMap,
+    goldenMap,
+    canonicalOf,
+  );
+  const goldenHitIds = goldenHitCanonicalIds(best.route.segmentIds, goldenMap, canonicalOf);
+
+  return NextResponse.json({
+    token,
+    route: display,
+    pointPreview,
+    goldenHits: goldenHitIds.length,
+    goldenHitIds,
+  });
 }
