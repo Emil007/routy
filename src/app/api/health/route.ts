@@ -3,8 +3,7 @@ import fs from "node:fs/promises";
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { APP_VERSION, APP_VERSION_DISPLAY } from "@/lib/version";
-import { userCount } from "@/lib/session";
-import { getCaptchaConfig } from "@/lib/captcha";
+import { getCurrentUser } from "@/lib/session";
 
 async function lastBackupTimestamp(): Promise<string | null> {
   const dbPath = process.env.DATABASE_PATH || path.join(process.cwd(), "data", "routy.db");
@@ -23,12 +22,31 @@ async function lastBackupTimestamp(): Promise<string | null> {
   }
 }
 
+/** Public liveness only — no setup/captcha/network fingerprinting (SEC-7). */
 export async function GET() {
+  try {
+    db.prepare("SELECT 1").get();
+    return NextResponse.json({
+      status: "ok",
+      version: APP_VERSION,
+      versionDisplay: APP_VERSION_DISPLAY,
+      dbReachable: true,
+    });
+  } catch {
+    return NextResponse.json({ status: "error", version: APP_VERSION, dbReachable: false }, { status: 500 });
+  }
+}
+
+/** Admin-only detailed health (counts, last backup). */
+export async function POST() {
+  const user = await getCurrentUser();
+  if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  if (user.role !== "admin") return NextResponse.json({ error: "forbidden" }, { status: 403 });
+
   try {
     const nodeRow = db.prepare("SELECT COUNT(*) AS c FROM nodes WHERE active = 1").get() as { c: number };
     const segmentRow = db.prepare("SELECT COUNT(*) AS c FROM segments WHERE active = 1").get() as { c: number };
     db.prepare("SELECT 1").get();
-
     return NextResponse.json({
       status: "ok",
       version: APP_VERSION,
@@ -37,8 +55,6 @@ export async function GET() {
       nodeCount: nodeRow.c,
       segmentCount: segmentRow.c,
       lastBackupAt: await lastBackupTimestamp(),
-      needsSetup: userCount() === 0,
-      captcha: getCaptchaConfig(),
     });
   } catch {
     return NextResponse.json({ status: "error", version: APP_VERSION, dbReachable: false }, { status: 500 });

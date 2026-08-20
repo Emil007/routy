@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
-import { createNode, getNode, setHomeNode, findNodeCandidates, type NodeRow } from "@/lib/nodes";
+import { createNode, getNode, setUserHomeNode, findNodeCandidates, type NodeRow } from "@/lib/nodes";
 import { createSegmentWithReverse, getSegment } from "@/lib/segments";
 import { resolveNamePartsInput } from "@/lib/nameParts";
 import { getSettings } from "@/lib/settings";
@@ -10,6 +10,8 @@ import { attachElevation } from "@/lib/elevation";
 import { logActivity } from "@/lib/activityLog";
 import { detectProposalsFromTrack } from "@/lib/discovery";
 import { db } from "@/lib/db";
+import { checkApiRateLimit, rateLimitResponse } from "@/lib/apiRateLimit";
+import { getClientIp } from "@/lib/loginRateLimit";
 
 const pointSchema = z.object({ lat: z.number(), lng: z.number(), ele: z.number().optional() });
 
@@ -26,7 +28,7 @@ const elevationSchema = z
   .nullable();
 
 const trackSchema = z.object({
-  points: z.array(pointSchema).min(2),
+  points: z.array(pointSchema).min(2).max(20_000),
   lengthM: z.number().int().nonnegative(),
   durationMin: z.number().int().nonnegative(),
   elevation: elevationSchema,
@@ -51,10 +53,21 @@ export async function POST(request: Request) {
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   const userId = user.id;
 
+  const rate = checkApiRateLimit("gpx_commit", { userId, ip: await getClientIp() });
+  if (!rate.allowed) return rateLimitResponse(rate.retryAfterSeconds);
+
   const json = await request.json().catch(() => null);
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) {
     return NextResponse.json({ error: "invalid_body", issues: parsed.error.issues }, { status: 400 });
+  }
+
+  let totalPoints = 0;
+  for (const track of parsed.data.tracks) {
+    totalPoints += track.points.length;
+  }
+  if (totalPoints > 50_000) {
+    return NextResponse.json({ error: "too_many_points", maxTotal: 50_000 }, { status: 400 });
   }
 
   const settings = getSettings();
@@ -111,7 +124,7 @@ export async function POST(request: Request) {
         if (endNodeId === null) throw new Error("unknown_end_node");
 
         if (track.markStartAsHome) {
-          setHomeNode(startNodeId);
+          setUserHomeNode(user.id, startNodeId);
           const homeNode = getNode(startNodeId);
           logActivity(user.id, "set_home", "node", startNodeId, { name: homeNode?.name ?? null });
         }

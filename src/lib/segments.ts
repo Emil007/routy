@@ -273,17 +273,80 @@ export function recordWalk(
   durationMin: number,
   nickname: string | null = null,
 ): void {
-  const tx = db.transaction(() => {
-    db.prepare(
-      "INSERT INTO walk_log (user_id, node_chain, segment_ids, length_m, duration_min, nickname) VALUES (?, ?, ?, ?, ?, ?)",
-    ).run(userId, JSON.stringify(nodeChain), JSON.stringify(segmentIds), lengthM, durationMin, nickname);
+  recordWalkWithPoints(userId, nodeChain, segmentIds, lengthM, durationMin, nickname, null);
+}
+
+export interface WalkPointsLedger {
+  pointsEarned: number;
+  pointsBase: number;
+  pointsGolden: number;
+  pointsExploration: number;
+  pointsDiversity: number;
+  streakMultiplier: number;
+  celebrationTier: string;
+  goldenHits: number;
+}
+
+/**
+ * Inserts a walk (optionally with ledger points) and bumps usage.
+ * When `claimActiveRoute` is true, deletes the user's active_route first;
+ * returns null if no active route (double-complete safety).
+ */
+export function recordWalkWithPoints(
+  userId: number,
+  nodeChain: number[],
+  segmentIds: number[],
+  lengthM: number,
+  durationMin: number,
+  nickname: string | null,
+  points: WalkPointsLedger | null,
+  options: { claimActiveRoute?: boolean } = {},
+): number | null {
+  const claim = options.claimActiveRoute === true;
+  return db.transaction(() => {
+    if (claim) {
+      const deleted = db.prepare("DELETE FROM active_route WHERE user_id = ?").run(userId);
+      if (deleted.changes === 0) return null;
+    }
+
+    const info = points
+      ? db
+          .prepare(
+            `INSERT INTO walk_log (
+              user_id, node_chain, segment_ids, length_m, duration_min, nickname,
+              points_earned, points_base, points_golden, points_exploration, points_diversity,
+              streak_multiplier, celebration_tier, golden_hits
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          )
+          .run(
+            userId,
+            JSON.stringify(nodeChain),
+            JSON.stringify(segmentIds),
+            lengthM,
+            durationMin,
+            nickname,
+            points.pointsEarned,
+            points.pointsBase,
+            points.pointsGolden,
+            points.pointsExploration,
+            points.pointsDiversity,
+            points.streakMultiplier,
+            points.celebrationTier,
+            points.goldenHits,
+          )
+      : db
+          .prepare(
+            "INSERT INTO walk_log (user_id, node_chain, segment_ids, length_m, duration_min, nickname) VALUES (?, ?, ?, ?, ?, ?)",
+          )
+          .run(userId, JSON.stringify(nodeChain), JSON.stringify(segmentIds), lengthM, durationMin, nickname);
 
     const bump = db.prepare(
       "UPDATE segment_usage SET usage_count = usage_count + 1, last_used_at = datetime('now') WHERE segment_id = ?",
     );
     for (const id of segmentIds) bump.run(id);
-  });
-  tx();
+
+    return Number(info.lastInsertRowid);
+  })();
 }
 
 /** Soft-deletes a segment and its reverse counterpart together — reversible via `restoreSegment`. */

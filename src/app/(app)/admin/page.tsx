@@ -4,6 +4,7 @@ import { resolveLocale } from "@/lib/locale";
 import { t, LOCALES, LOCALE_LABELS } from "@/lib/i18n";
 import { listAllUsers } from "@/lib/users";
 import { AdminUserActionsMenu } from "@/components/AdminUserActionsMenu";
+import { AdminBackupButton } from "@/components/AdminBackupButton";
 import { UpdateBanner } from "@/components/UpdateBanner";
 import { checkForUpdate, isUpdateAvailable } from "@/lib/updateCheck";
 import { createUserAction, toggleActiveAction, deleteUserAction, impersonateAction } from "./actions";
@@ -32,6 +33,8 @@ export default async function AdminPage({
         <p>{t(locale, "admin.subtitle")}</p>
         <p>
           <Link href="/admin/activity">{t(locale, "admin.activityHeading")}</Link>
+          {" · "}
+          <Link href="/admin/insights">{t(locale, "admin.insightsHeading")}</Link>
         </p>
       </div>
 
@@ -130,9 +133,7 @@ export default async function AdminPage({
       <div className="card">
         <h2>{t(locale, "admin.backupHeading")}</h2>
         <p>{t(locale, "admin.backupDesc")}</p>
-        <a href="/api/admin/backup" className="btn-secondary btn-compact">
-          {t(locale, "admin.backupButton")}
-        </a>
+        <AdminBackupButton label={t(locale, "admin.backupButton")} />
       </div>
     </>
   );

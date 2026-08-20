@@ -69,7 +69,7 @@ export function OverviewMapClient({
   segments: SegmentRow[];
   usage: Record<number, number>;
   segmentCounts: Record<number, number>;
-  currentUser: { id: number; role: "admin" | "user" };
+  currentUser: { id: number; role: "admin" | "user"; homeNodeId: number | null };
   userNames: Record<number, string>;
   mergeRadiusM: number;
   walkSpeedKmh: number;
@@ -222,12 +222,13 @@ export function OverviewMapClient({
         lat: n.lat,
         lng: n.lng,
         label: n.name || t(locale, "map.unnamedNode"),
-        color: n.isHome ? "#a5711c" : n.id === moveNodeId ? "#1e4a32" : "#2e6b49",
+        color: n.id === currentUser.homeNodeId ? "#a5711c" : n.id === moveNodeId ? "#1e4a32" : "#2e6b49",
         draggable: n.id === moveNodeId,
         popup: (
           <NodePopup
             locale={locale}
             node={n}
+            isUserHome={n.id === currentUser.homeNodeId}
             canEditNode={canEdit(currentUser, n.createdBy)}
             creatorName={creatorName(n.createdBy)}
             segmentCount={segmentCounts[n.id] ?? 0}

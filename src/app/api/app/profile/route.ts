@@ -48,6 +48,7 @@ export async function PATCH(request: Request) {
       active: updated.active,
       theme: updated.theme,
       totpEnabled: updated.totpEnabled,
+      homeNodeId: updated.homeNodeId,
       client: user.client ?? "web",
     },
   });

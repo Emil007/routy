@@ -613,7 +613,7 @@ export function RouteGenerator({
                   {sortedNodes.map((n) => (
                     <option key={n.id} value={n.id}>
                       {n.name || `#${n.id}`}
-                      {n.isHome ? ` (${t(locale, "map.home")})` : ""}
+                      {n.id === homeNodeId ? ` (${t(locale, "map.home")})` : ""}
                     </option>
                   ))}
                 </select>
@@ -636,7 +636,10 @@ export function RouteGenerator({
                   <select id="destinationNode" value={destinationNodeId} onChange={(e) => setDestinationNodeId(Number(e.target.value))}>
                     <option value="" disabled>…</option>
                     {sortedNodes.map((n) => (
-                      <option key={n.id} value={n.id}>{n.name || `#${n.id}`}</option>
+                      <option key={n.id} value={n.id}>
+                        {n.name || `#${n.id}`}
+                        {n.id === homeNodeId ? ` (${t(locale, "map.home")})` : ""}
+                      </option>
                     ))}
                   </select>
                 </div>

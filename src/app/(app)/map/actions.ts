@@ -3,18 +3,22 @@
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
 import { requireUser } from "@/lib/session";
-import { setHomeNode, deleteNode, getNode, restoreNode, purgeNode } from "@/lib/nodes";
+import { setUserHomeNode, deleteNode, getNode, restoreNode, purgeNode } from "@/lib/nodes";
 import { deleteSegment, getSegment, restoreSegment, purgeSegment } from "@/lib/segments";
 import { nodeUsedByActiveRoute, segmentUsedByActiveRoute } from "@/lib/activeRoute";
 import { canEdit } from "@/lib/ownership";
 import { logActivity } from "@/lib/activityLog";
 
 export async function setHomeNodeAction(formData: FormData) {
-  await requireUser();
+  const user = await requireUser();
   const id = Number(formData.get("nodeId"));
   if (!id) return;
-  setHomeNode(id);
+  const node = getNode(id);
+  if (!node || node.deletedAt) return;
+  setUserHomeNode(user.id, id);
+  logActivity(user.id, "set_home", "node", id, { name: node.name });
   revalidatePath("/map");
+  revalidatePath("/route");
 }
 
 export async function deleteSegmentAction(formData: FormData) {

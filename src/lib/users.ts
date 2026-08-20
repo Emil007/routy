@@ -18,6 +18,7 @@ export interface UserRow {
   /** Set as soon as 2FA setup starts, kept even before totpEnabled flips on so the same QR code can be re-confirmed. */
   totpSecret: string | null;
   totpEnabled: boolean;
+  homeNodeId: number | null;
 }
 
 interface UserDbRow {
@@ -33,6 +34,7 @@ interface UserDbRow {
   theme: string;
   totp_secret: string | null;
   totp_enabled: number;
+  home_node_id: number | null;
 }
 
 function mapUser(row: UserDbRow): UserRow {
@@ -49,6 +51,7 @@ function mapUser(row: UserDbRow): UserRow {
     theme: row.theme,
     totpSecret: row.totp_secret,
     totpEnabled: row.totp_enabled === 1,
+    homeNodeId: row.home_node_id ?? null,
   };
 }
 

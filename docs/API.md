@@ -5,7 +5,7 @@ Shared contract between the **web app**, **native Android app**, and any future 
 - **Base URL:** user-configured (e.g. `https://routy.example.com/`)
 - **Auth:** `Authorization: Bearer <token>` (Android) or session cookie (browser). Same token from `POST /api/auth/login`.
 - **Errors:** JSON `{ "error": "<code>" }` unless noted. Common: `unauthorized`, `invalid_json`.
-- **Version:** server display `0.37s` (`package.json` `"0.37s"`).
+- **Version:** server display `0.38s` (`package.json` `"0.38s"`).
 
 ## Auth & profile
 
@@ -26,8 +26,10 @@ Shared contract between the **web app**, **native Android app**, and any future 
 
 | Method | Path | Response | Notes |
 |--------|------|----------|-------|
-| GET | `/api/app/bootstrap` | nodes, segments, user, routeState, avoidSegmentIds, segmentConditions, lockProposals, todayGoldenSegmentIds, game, … | `If-None-Match` / `ETag` supported. |
-| GET | `/api/health` | `{ status, version, versionDisplay, dbReachable, nodeCount, segmentCount, lastBackupAt, needsSetup, captcha }` | Onboarding connectivity check. `needsSetup: true` when no users exist. `captcha` describes the configured widget (`provider`, `siteKey`, …) or `{ provider: "none" }`. |
+| GET | `/api/app/bootstrap` | nodes, segments, `user` (incl. `homeNodeId`), routeState, avoidSegmentIds, segmentConditions, lockProposals, todayGoldenSegmentIds, game, … | `If-None-Match` / `ETag` supported. |
+| GET | `/api/health` | `{ status, version, versionDisplay, dbReachable }` | Public liveness only — no setup/captcha/network fingerprinting. |
+| POST | `/api/health` | `{ status, version, …, nodeCount, segmentCount, lastBackupAt }` | Admin-only detailed health. |
+| GET | `/api/auth/public-config` | `{ needsSetup, captcha }` | Login/onboarding bootstrap (not health). |
 
 ## Route wizard
 
@@ -38,14 +40,16 @@ Shared contract between the **web app**, **native Android app**, and any future 
 | POST | `/api/route/adjust` | `{ token, direction }` | `{ token, route, pointPreview?, goldenHits?, goldenHitIds? }` |
 | POST | `/api/route/accept` | `{ token }` | `{ success: true }` | Active route stored server-side. |
 | POST | `/api/route/cancel` | `{ token }` | `{ success: true }` | |
-| POST | `/api/route/complete` | — | `{ pointsEarned, streakMultiplier, currentStreak, pointBreakdown, goldenHits?, celebrationTier?, … }` | `pointsEarned = round(pointBreakdown.total × streakMultiplier)` using pre-walk usage (matches generate preview). Logs walk, clears active route. |
+| POST | `/api/route/complete` | — | `{ walkId, pointsEarned, streakMultiplier, currentStreak, pointBreakdown, goldenHits?, celebrationTier?, … }` | Points ledger: stores breakdown + multiplier on `walk_log` once. First walk of the day uses streak+1 for the multiplier. Clears active route in the same transaction (double-complete → `no_active_route`). |
 | POST | `/api/route/discard` | — | `{ ok: true }` | |
 | GET | `/api/route/state` | — | active route or empty | |
 | POST | `/api/route/nickname` | `{ nickname }` | `{ ok: true }` | Active route label. |
 
 **Presets:** `preset` may be `"short"`, `"long"`, or `"surprise"` (bias toward segments not walked in 30+ days). `surpriseMode: true` is equivalent to `preset: "surprise"`. `forceGolden: true` requires the returned route to use at least one of today's golden segments (`404 no_golden_route` if none fit). `goldenHitIds` are canonical segment ids on the route that are golden today.
 
-`pointPreview` on generate/adjust/widen responses: `{ base, golden, exploration, diversity, total }`.
+`pointPreview` on generate/adjust/widen responses: `{ base, golden, exploration, diversity, total }` (preview only; balances use the ledger).
+
+**Default start:** if `startNodeId` omitted, uses the current user's `homeNodeId` (`400 no_home_node` when unset).
 
 | Method | Path | Body | Response |
 |--------|------|------|----------|
@@ -117,8 +121,10 @@ Distinct from GPX split proposals (`/api/app/proposals`).
 | Method | Path | Body | Response |
 |--------|------|------|----------|
 | GET | `/api/gpx/config` | — | `{ mergeRadiusM, walkSpeedKmh }` | |
-| POST | `/api/gpx/commit` | `{ tracks: GpxTrack[] }` | `{ saved }` | May create path split proposals when track points pass near existing segments. |
-| POST | `/api/gpx/parse` | GPX XML text | `{ tracks[] }` | Web import wizard. |
+| POST | `/api/gpx/commit` | `{ tracks: GpxTrack[] }` | `{ saved }` | Max 50 tracks; ≤20 000 points/track; ≤50 000 points total. `markStartAsHome` sets **current user’s** home only. Rate-limited. |
+| POST | `/api/gpx/parse` | multipart `file` | `{ tracks[] }` | Max file **5 MB**; same point caps as commit. Rate-limited. Oversize → `413 file_too_large` / `400 too_many_points`. |
+
+**Rate limits (429 + `retryAfterSeconds` / `Retry-After`):** login lockout, route generate (20/min/user), plus per-user and per-IP caps on `gpx/parse`, `gpx/commit`, `app/crash`, `route/complete`, `segments/condition`, `segments/restrict`.
 
 **Endpoint union** (`start` / `end`): `{ nodeId }` **or** `{ part1, part2 }`.
 
@@ -129,7 +135,7 @@ Distinct from GPX split proposals (`/api/app/proposals`).
 | GET | `/api/nodes` | All nodes. |
 | POST | `/api/nodes/move` | Reposition node + update segments. |
 | POST | `/api/nodes/rename` | |
-| POST | `/api/nodes/home` | Set home node. |
+| POST | `/api/nodes/home` | Sets **current user’s** `homeNodeId` only (`{ ok, homeNodeId }`). Does not change other users or legacy `nodes.is_home`. |
 | POST | `/api/nodes/delete` | Soft delete. |
 | POST | `/api/nodes/restore` | |
 | POST | `/api/nodes/purge` | Admin permanent delete. |
@@ -148,15 +154,17 @@ Distinct from GPX split proposals (`/api/app/proposals`).
 
 | Method | Path | Body | Response |
 |--------|------|------|----------|
-| GET | `/api/app/stats/me` | — | stats, streak, achievements, recentWalks, points, networkUsage |
+| GET | `/api/app/stats/me` | — | stats, streak, achievements, recentWalks (incl. `pointsEarned` + optional breakdown), points (`SUM(walk_log.points_earned)`), networkUsage |
 | GET | `/api/app/stats/leaderboard/weekly` | — | `{ leaderboard[], userId }` |
-| GET | `/api/app/stats/leaderboard/points` | — | `{ leaderboard[], userId }` |
+| GET | `/api/app/stats/leaderboard/points` | — | `{ leaderboard[], userId }` — ledger totals |
 | POST | `/api/app/stats/walks/delete` | `{ walkId }` | `{ ok: true }` — removes walk; adjusts segment usage |
+
+**Points ledger:** balances and leaderboards are `SUM(points_earned)` stored at complete time. Weekly = sum where `accepted_at` in last 7 days. No “replay × current streak”.
 
 ## Admin
 
 | Method | Path | Notes |
 |--------|------|-------|
-| GET | `/api/admin/backup` | Admin-only DB download. |
+| POST | `/api/admin/backup` | Admin-only DB download (POST only — not CSRF-friendly GET). |
 
 Browser-only flows (password change, TOTP) live on `/settings/account` — native app opens that page in an authenticated in-app WebView sheet. Locale/theme/network remain on `/settings`.
