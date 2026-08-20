@@ -183,6 +183,7 @@ describe("scoreRoutes + pickBest", () => {
         avoidPenalty: 0,
         conditionPenalty: 0,
         staleCount: 0,
+        pointPreview: 0,
       },
       {
         key: "b",
@@ -196,6 +197,7 @@ describe("scoreRoutes + pickBest", () => {
         avoidPenalty: 0,
         conditionPenalty: 0,
         staleCount: 0,
+        pointPreview: 0,
       },
     ];
     const normal = pickBest(scored, new Set(), false);
@@ -267,6 +269,7 @@ describe("scoreRoutes + pickBest", () => {
         avoidPenalty: 0,
         conditionPenalty: 0,
         staleCount: 1,
+        pointPreview: 0,
       },
       {
         key: "b",
@@ -280,6 +283,7 @@ describe("scoreRoutes + pickBest", () => {
         avoidPenalty: 0,
         conditionPenalty: 0,
         staleCount: 3,
+        pointPreview: 0,
       },
     ];
     const normal = pickBest(scored, new Set(), false, false);

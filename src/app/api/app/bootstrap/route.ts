@@ -11,6 +11,9 @@ import { getBootstrapVersion } from "@/lib/bootstrapVersion";
 import { getNetworkVersion } from "@/lib/networkVersion";
 import { listAvoidSegmentIds } from "@/lib/avoidList";
 import { listActiveConditions } from "@/lib/segmentConditions";
+import { listPendingLockProposalsForReviewer } from "@/lib/lockProposals";
+import { getTodayGoldenSegmentIds } from "@/lib/goldenSegments";
+import { computeUserPoints } from "@/lib/points";
 import { conditionalJson } from "@/lib/conditionalJson";
 
 function buildRouteState(userId: number) {
@@ -52,6 +55,16 @@ export async function GET(request: Request) {
       reportedBy: c.reportedBy,
       expiresAt: c.expiresAt,
     })),
+    lockProposals: listPendingLockProposalsForReviewer(user.id, user.role === "admin").map((p) => ({
+      id: p.id,
+      segmentId: p.segmentId,
+      requestedBy: p.requestedBy,
+      reason: p.reason,
+      days: p.days,
+      createdAt: p.createdAt,
+    })),
+    todayGoldenSegmentIds: getTodayGoldenSegmentIds(),
+    game: computeUserPoints(user.id),
     routeState,
   });
 }

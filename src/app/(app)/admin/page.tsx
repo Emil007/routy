@@ -3,7 +3,7 @@ import { requireAdmin } from "@/lib/session";
 import { resolveLocale } from "@/lib/locale";
 import { t, LOCALES, LOCALE_LABELS } from "@/lib/i18n";
 import { listAllUsers } from "@/lib/users";
-import { ConfirmSubmitForm } from "@/components/ConfirmSubmitForm";
+import { AdminUserActionsMenu } from "@/components/AdminUserActionsMenu";
 import { UpdateBanner } from "@/components/UpdateBanner";
 import { checkForUpdate, isUpdateAvailable } from "@/lib/updateCheck";
 import { createUserAction, toggleActiveAction, deleteUserAction, impersonateAction } from "./actions";
@@ -69,39 +69,25 @@ export default async function AdminPage({
                   <td>{u.role === "admin" ? t(locale, "admin.roleAdmin") : t(locale, "admin.roleUser")}</td>
                   <td>{statusLabel(u)}</td>
                   <td>
-                    <div className="btn-row">
-                      {!u.deletedAt && (
-                        <>
-                          <Link href={`/admin/${u.id}`} className="btn-secondary">
-                            {t(locale, "map.edit")}
-                          </Link>
-                          {u.id !== admin.id && (
-                            <>
-                              <form action={toggleActiveAction}>
-                                <input type="hidden" name="userId" value={u.id} />
-                                <input type="hidden" name="active" value={u.active ? "0" : "1"} />
-                                <button type="submit" className="btn-secondary">
-                                  {u.active ? t(locale, "admin.lock") : t(locale, "admin.unlock")}
-                                </button>
-                              </form>
-                              <form action={impersonateAction}>
-                                <input type="hidden" name="userId" value={u.id} />
-                                <button type="submit" className="btn-secondary">
-                                  {t(locale, "admin.impersonate")}
-                                </button>
-                              </form>
-                              <ConfirmSubmitForm
-                                action={deleteUserAction}
-                                confirmMessage={t(locale, "admin.deleteConfirm")}
-                                hiddenName="userId"
-                                hiddenValue={u.id}
-                                buttonLabel={t(locale, "map.delete")}
-                              />
-                            </>
-                          )}
-                        </>
-                      )}
-                    </div>
+                    {!u.deletedAt && (
+                      <AdminUserActionsMenu
+                        userId={u.id}
+                        isSelf={u.id === admin.id}
+                        isActive={u.active}
+                        labels={{
+                          edit: t(locale, "map.edit"),
+                          lock: t(locale, "admin.lock"),
+                          unlock: t(locale, "admin.unlock"),
+                          impersonate: t(locale, "admin.impersonate"),
+                          delete: t(locale, "map.delete"),
+                          deleteConfirm: t(locale, "admin.deleteConfirm"),
+                          menu: t(locale, "admin.actionsMenu"),
+                        }}
+                        toggleActiveAction={toggleActiveAction}
+                        impersonateAction={impersonateAction}
+                        deleteUserAction={deleteUserAction}
+                      />
+                    )}
                   </td>
                 </tr>
               ))}

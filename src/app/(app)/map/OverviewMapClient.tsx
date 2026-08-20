@@ -33,6 +33,17 @@ interface PathProposal {
   createdBy: number;
 }
 
+interface LockProposal {
+  id: number;
+  segmentId: number;
+  segmentName: string | null;
+  requestedBy: number;
+  requesterName: string;
+  reason: string | null;
+  days: number;
+  createdAt: string;
+}
+
 // Not imported from "@/lib/segments" — that module pulls in better-sqlite3,
 // which must never end up in a client bundle. Same one-line check, duplicated.
 function isLocked(segment: Pick<SegmentRow, "lockedUntil">): boolean {
@@ -50,6 +61,7 @@ export function OverviewMapClient({
   mergeRadiusM,
   walkSpeedKmh,
   segmentConditions,
+  personalAvoidSegmentIds,
 }: {
   locale: Locale;
   nodes: NodeRow[];
@@ -61,10 +73,14 @@ export function OverviewMapClient({
   mergeRadiusM: number;
   walkSpeedKmh: number;
   segmentConditions: SegmentConditionEntry[];
+  personalAvoidSegmentIds: number[];
 }) {
   const router = useRouter();
   const [proposals, setProposals] = useState<PathProposal[]>([]);
   const [proposalsLoading, setProposalsLoading] = useState(true);
+  const [lockProposals, setLockProposals] = useState<LockProposal[]>([]);
+  const [lockProposalsLoading, setLockProposalsLoading] = useState(true);
+  const personalAvoidSet = useMemo(() => new Set(personalAvoidSegmentIds), [personalAvoidSegmentIds]);
 
   useEffect(() => {
     let cancelled = false;
@@ -76,6 +92,22 @@ export function OverviewMapClient({
         setProposals(data.proposals);
       }
       if (!cancelled) setProposalsLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLockProposalsLoading(true);
+      const res = await fetch("/api/app/lock-proposals");
+      if (!cancelled && res.ok) {
+        const data = (await res.json()) as { proposals: LockProposal[] };
+        setLockProposals(data.proposals);
+      }
+      if (!cancelled) setLockProposalsLoading(false);
     })();
     return () => {
       cancelled = true;
@@ -101,6 +133,27 @@ export function OverviewMapClient({
       body: JSON.stringify({ proposalId: id }),
     });
     if (res.ok) setProposals((prev) => prev.filter((p) => p.id !== id));
+  }
+
+  async function approveLockProposal(id: number) {
+    const res = await fetch("/api/app/lock-proposals/approve", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ proposalId: id }),
+    });
+    if (res.ok) {
+      setLockProposals((prev) => prev.filter((p) => p.id !== id));
+      router.refresh();
+    }
+  }
+
+  async function dismissLockProposal(id: number) {
+    const res = await fetch("/api/app/lock-proposals/dismiss", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ proposalId: id }),
+    });
+    if (res.ok) setLockProposals((prev) => prev.filter((p) => p.id !== id));
   }
 
   const conditionsBySegment = useMemo(() => {
@@ -190,6 +243,7 @@ export function OverviewMapClient({
             creatorName={creatorName(s.submittedBy)}
             usageCount={usage[s.id] ?? 0}
             activeConditions={conditionsBySegment.get(s.id)}
+            personalAvoided={personalAvoidSet.has(s.id)}
             onEditShape={() => {
               setEditingSegmentId(s.id);
               setMode("editShape");
@@ -306,6 +360,29 @@ export function OverviewMapClient({
         </button>
       </div>
       <p className="hint-compact">{t(locale, "overview.interactionHint")}</p>
+      <details className="card" style={{ marginTop: "0.5rem" }}>
+        <summary>{t(locale, "map.lockProposalsTitle")} ({lockProposalsLoading ? "…" : lockProposals.length})</summary>
+        <div className="stack" style={{ marginTop: "0.45rem", gap: "0.35rem" }}>
+          {!lockProposalsLoading && lockProposals.length === 0 && (
+            <p className="hint" style={{ margin: 0 }}>{t(locale, "map.lockProposalsEmpty")}</p>
+          )}
+          {lockProposals.map((p) => (
+            <div key={p.id} className="btn-row" style={{ gap: "0.35rem", flexWrap: "wrap" }}>
+              <span className="chip">
+                {p.segmentName || t(locale, "map.proposalSegment", { id: p.segmentId })}
+                {" · "}
+                {t(locale, "map.lockProposalFrom", { name: p.requesterName })}
+              </span>
+              <button type="button" className="btn-primary btn-compact" onClick={() => approveLockProposal(p.id)}>
+                {t(locale, "map.lockProposalApprove")}
+              </button>
+              <button type="button" className="btn-secondary btn-compact" onClick={() => dismissLockProposal(p.id)}>
+                {t(locale, "map.lockProposalDismiss")}
+              </button>
+            </div>
+          ))}
+        </div>
+      </details>
       <details className="card" style={{ marginTop: "0.5rem" }}>
         <summary>{t(locale, "map.proposalsTitle")} ({proposalsLoading ? "…" : proposals.length})</summary>
         <div className="stack" style={{ marginTop: "0.45rem", gap: "0.35rem" }}>

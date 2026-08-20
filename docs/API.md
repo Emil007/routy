@@ -5,7 +5,7 @@ Shared contract between the **web app**, **native Android app**, and any future 
 - **Base URL:** user-configured (e.g. `https://routy.example.com/`)
 - **Auth:** `Authorization: Bearer <token>` (Android) or session cookie (browser). Same token from `POST /api/auth/login`.
 - **Errors:** JSON `{ "error": "<code>" }` unless noted. Common: `unauthorized`, `invalid_json`.
-- **Version:** server display `0.33s` (`package.json` `"0.33s"`).
+- **Version:** server display `0.35s` (`package.json` `"0.35s"`).
 
 ## Auth & profile
 
@@ -20,25 +20,25 @@ Shared contract between the **web app**, **native Android app**, and any future 
 | POST | `/api/auth/sessions/revoke-others` | — | `{ revoked }` | |
 | PATCH | `/api/app/profile` | `{ locale?, theme?, walkSpeedKmh? \| null }` | `{ user }` | Send `"walkSpeedKmh": null` to clear override. |
 
-**Account security (password change, TOTP enable/disable, account deactivation):** browser-only at `/settings` — native Android opens this page in Custom Tabs (`{serverUrl}/settings`).
+**Account security (password change, TOTP enable/disable, account deactivation):** browser at `/settings#account` — native Android opens this page in an authenticated in-app WebView sheet (`{serverUrl}/settings#account`).
 
 ## Bootstrap & health
 
 | Method | Path | Response | Notes |
 |--------|------|----------|-------|
-| GET | `/api/app/bootstrap` | nodes, segments, user, routeState, avoidSegmentIds, segmentConditions, … | `If-None-Match` / `ETag` supported. |
+| GET | `/api/app/bootstrap` | nodes, segments, user, routeState, avoidSegmentIds, segmentConditions, lockProposals, todayGoldenSegmentIds, game, … | `If-None-Match` / `ETag` supported. |
 | GET | `/api/health` | `{ status, version, versionDisplay, dbReachable, nodeCount, segmentCount, lastBackupAt, needsSetup, captcha }` | Onboarding connectivity check. `needsSetup: true` when no users exist. `captcha` describes the configured widget (`provider`, `siteKey`, …) or `{ provider: "none" }`. |
 
 ## Route wizard
 
 | Method | Path | Body | Response |
 |--------|------|------|----------|
-| POST | `/api/route/generate` | `{ startNodeId, destinationNodeId, waypointNodeId?, explorerMode?, surpriseMode?, preset? }` | `{ token, route }` |
+| POST | `/api/route/generate` | `{ startNodeId, destinationNodeId, waypointNodeId?, explorerMode?, surpriseMode?, preset? }` | `{ token, route, pointPreview? }` |
 | POST | `/api/route/widen` | `{ token }` | `{ token, route }` |
 | POST | `/api/route/adjust` | `{ token, direction }` | `{ token, route }` |
 | POST | `/api/route/accept` | `{ token }` | `{ success: true }` | Active route stored server-side. |
 | POST | `/api/route/cancel` | `{ token }` | `{ success: true }` | |
-| POST | `/api/route/complete` | — | `{ … }` | Logs walk, clears active route. |
+| POST | `/api/route/complete` | — | `{ pointsEarned, streakMultiplier, currentStreak, pointBreakdown, goldenHits?, celebrationTier?, … }` | `pointsEarned = round(pointBreakdown.total × streakMultiplier)` using pre-walk usage (matches generate preview). Logs walk, clears active route. |
 | POST | `/api/route/discard` | — | `{ ok: true }` | |
 | GET | `/api/route/state` | — | active route or empty | |
 | POST | `/api/route/nickname` | `{ nickname }` | `{ ok: true }` | Active route label. |
@@ -53,7 +53,33 @@ Shared contract between the **web app**, **native Android app**, and any future 
 | POST | `/api/app/avoid` | `{ segmentId }` | `{ segmentIds[] }` |
 | DELETE | `/api/app/avoid` | `{ segmentId }` | `{ segmentIds[] }` |
 
-Soft routing penalty only — segments are not hard-excluded.
+Soft routing penalty only — segments are not hard-excluded. Prefer `POST /api/segments/restrict` for new clients.
+
+## Unified segment restriction
+
+| Method | Path | Body | Response |
+|--------|------|------|----------|
+| POST | `/api/segments/restrict` | `{ segmentId, scope: "personal" \| "global", reason?, days?, clear? }` | `{ ok, proposalId? }` | Personal scope upserts `user_avoid_segment` (with optional `expires_at`, `reason`). Global scope locks immediately for owner/admin; others create a pending lock proposal. |
+
+Legacy endpoints `/api/segments/lock`, `/api/segments/condition`, and `/api/app/avoid` remain for compatibility.
+
+## Lock proposals (global restrict approval)
+
+| Method | Path | Body | Response |
+|--------|------|------|----------|
+| GET | `/api/app/lock-proposals` | — | `{ proposals[] }` | Pending global-lock requests visible to segment owner/admin. |
+| POST | `/api/app/lock-proposals/approve` | `{ proposalId }` | `{ ok }` | Applies segment lock. |
+| POST | `/api/app/lock-proposals/dismiss` | `{ proposalId }` | `{ ok }` | |
+
+Distinct from GPX split proposals (`/api/app/proposals`).
+
+## Gamification
+
+| Method | Path | Response |
+|--------|------|----------|
+| GET | `/api/app/game/daily` | `{ pointBalance, streakMultiplier, goldenSegments[], dailyChallenge }` |
+
+`pointPreview` on generate responses: `{ base, golden, exploration, diversity, total }`.
 
 ## Segment conditions
 
@@ -135,4 +161,4 @@ Soft routing penalty only — segments are not hard-excluded.
 |--------|------|-------|
 | GET | `/api/admin/backup` | Admin-only DB download. |
 
-Browser-only flows (password change, TOTP, global settings) remain on `/settings` server actions — native app uses Custom Tabs to `/settings` for account security (MVP).
+Browser-only flows (password change, TOTP, global settings) remain on `/settings` server actions — native app opens `/settings#account` in an authenticated in-app WebView sheet for account security.

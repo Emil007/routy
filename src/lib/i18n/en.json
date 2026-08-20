@@ -15,7 +15,8 @@
     "optional": "optional",
     "hours": "h",
     "add": "Add",
-    "remove": "Remove"
+    "remove": "Remove",
+    "ok": "OK"
   },
   "nav": {
     "route": "Route",
@@ -125,7 +126,26 @@
     "favoriteShare": "Share",
     "favoriteCopyLink": "Copy link",
     "favoriteUnshare": "Stop sharing",
-    "favoriteShareCopied": "Link copied!"
+    "favoriteShareCopied": "Link copied!",
+    "pointPreview": "~{points} points",
+    "pointPreviewBase": "Base {points}",
+    "pointPreviewGolden": "Golden +{points}",
+    "pointPreviewExploration": "New +{points}",
+    "pointPreviewDiversity": "Diversity +{points}",
+    "pointBalance": "Points: {points}",
+    "streakMultiplier": "Streak ×{multiplier}",
+    "completedPoints": "+{points} points (×{multiplier}, streak {streak})",
+    "completedGolden": "{count} golden paths on this route!",
+    "celebration": "Great walk!",
+    "completionTitle": "Walk confirmed",
+    "celebrationGolden": "Golden route!",
+    "celebrationStreak": "Streak bonus!",
+    "celebrationAchievement": "Achievement unlocked!",
+    "goldenToday": "Golden today",
+    "presetShortHint": "Short route — fewer points, quicker finish",
+    "presetLongHint": "Long route — more base points",
+    "presetDiscoverHint": "New paths — exploration bonus",
+    "presetSurpriseHint": "Rarely used paths — diversity bonus"
   },
   "share": {
     "subtitle": "Read-only, shared route.",
@@ -203,7 +223,20 @@
     "proposalsEmpty": "No pending proposals from recent recordings.",
     "proposalAccept": "Split here",
     "proposalDismiss": "Dismiss",
-    "proposalSegment": "Segment #{id}"
+    "proposalSegment": "Segment #{id}",
+    "restrictButton": "Restrict path",
+    "restrictScope": "Applies to",
+    "restrictScopePersonal": "Only me",
+    "restrictScopeGlobal": "Everyone",
+    "restrictScopeRecommend": "Suggest for everyone (needs approval)",
+    "restrictSubmit": "Restrict",
+    "restrictClear": "Clear restriction",
+    "personalAvoidChip": "Avoided by me",
+    "lockProposalsTitle": "Lock proposals",
+    "lockProposalsEmpty": "No open lock proposals.",
+    "lockProposalApprove": "Lock",
+    "lockProposalDismiss": "Dismiss",
+    "lockProposalFrom": "Suggested by {name}"
   },
   "overview": {
     "backToView": "Back to view",
@@ -317,7 +350,19 @@
     "points": "Points",
     "weeklyPoints": "Points this week",
     "pointsLeaderboardHeading": "Points leaderboard",
-    "pointsLeaderboardEmpty": "No points recorded yet."
+    "pointsLeaderboardEmpty": "No points recorded yet.",
+    "gameHubTitle": "Game",
+    "gameHubBalance": "Point balance",
+    "gameHubGolden": "Golden today",
+    "walkPoints": "Points"
+  },
+  "game": {
+    "dailyChallenge": "Walk at least one golden path today for bonus points!",
+    "goldenHeading": "Golden today",
+    "goldenEmpty": "No golden paths today.",
+    "goldenMultiplier": "×{multiplier} bonus",
+    "hubBalance": "Your point balance",
+    "hubSubtitle": "Walks earn points — golden paths and streaks multiply them."
   },
   "draw": {
     "title": "Draw on the map",
@@ -427,6 +472,7 @@
     "lock": "Lock",
     "unlock": "Unlock",
     "impersonate": "Log in as",
+    "actionsMenu": "Actions",
     "deleteConfirm": "Permanently delete this account? Login credentials are removed; nodes/paths they created stay attributed to their name.",
     "createUserHeading": "Create a new user",
     "userUpdated": "User updated.",

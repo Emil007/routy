@@ -745,6 +745,91 @@ th {
   margin-bottom: 0.45rem;
 }
 
+.actions-menu {
+  position: relative;
+  display: inline-block;
+}
+
+.actions-menu-trigger {
+  width: 2rem;
+  height: 2rem;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.actions-menu-trigger:hover {
+  background: var(--surface-1);
+}
+
+.actions-menu-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 20;
+  min-width: 10rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  padding: 0.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.actions-menu-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 0.45rem 0.65rem;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--ink);
+  font-size: 0.82rem;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.actions-menu-item:hover {
+  background: var(--surface-2);
+}
+
+.actions-menu-item-danger {
+  color: var(--danger);
+}
+
+.settings-collapsible.card {
+  padding: 0;
+}
+
+.settings-collapsible.card > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 0.85rem 1rem;
+  font-weight: 600;
+}
+
+.settings-collapsible.card > summary::-webkit-details-marker {
+  display: none;
+}
+
+.settings-collapsible.card > .settings-collapsible-body {
+  padding: 0 1rem 1rem;
+}
+
+.settings-network-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(12rem, 1fr));
+  gap: 0.65rem 1rem;
+}
+
 .page-dense details.card > summary {
   font-size: 0.9rem;
   font-weight: 600;
@@ -778,4 +863,38 @@ th {
 .gpx-track-compact .map-box {
   height: 160px;
   min-height: 120px;
+}
+
+.completion-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  background: rgba(0, 0, 0, 0.45);
+}
+
+.completion-dialog {
+  width: min(100%, 22rem);
+  margin: 0;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+}
+
+.completion-dialog h2 {
+  margin: 0 0 0.35rem;
+  font-size: 1.1rem;
+}
+
+.completion-points {
+  margin: 0 0 0.5rem;
+  font-weight: 600;
+}
+
+.completion-breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.35rem;
 }

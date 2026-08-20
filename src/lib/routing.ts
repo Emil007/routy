@@ -2,6 +2,8 @@
 // a dead-end exception and start/destination/waypoint support.
 
 import { type LatLng, countSelfIntersections } from "./geo";
+import { computeRoutePointPreview, canonicalSegmentId } from "./points";
+import { listSegments } from "./segments";
 
 export interface SegmentEdge {
   id: number;
@@ -268,6 +270,8 @@ export interface ScoredRoute {
   conditionPenalty: number;
   /** Count of segments on the route not walked by this user in staleDays (surprise mode). */
   staleCount: number;
+  /** Expected point value for gamification tie-break. */
+  pointPreview: number;
 }
 
 /** Per avoided segment on a route — soft bias, not a hard ban. */
@@ -288,7 +292,9 @@ export function scoreRoutes(
   avoidSegmentIds: Set<number> = new Set(),
   conditionCounts: Map<number, number> = new Map(),
   staleSegmentIds: Set<number> = new Set(),
+  goldenMap: Map<number, number> = new Map(),
 ): ScoredRoute[] {
+  const canonicalOf = new Map(listSegments().map((s) => [s.id, canonicalSegmentId(s)]));
   return routes.map((route) => {
     const usageSum = route.segmentIds.reduce((s, id) => s + (usageMap.get(id) ?? 0), 0);
     const dailySum = route.segmentIds.reduce((s, id) => s + (dailyMap.get(id) ?? 0), 0) * dailyWeight;
@@ -319,6 +325,7 @@ export function scoreRoutes(
       }
       return seen.size;
     })();
+    const preview = computeRoutePointPreview(route.segmentIds, route.lengthM, usageMap, goldenMap, canonicalOf);
     return {
       route,
       key: segmentSetKey(route.segmentIds),
@@ -331,6 +338,7 @@ export function scoreRoutes(
       avoidPenalty,
       conditionPenalty,
       staleCount,
+      pointPreview: preview.total,
     };
   });
 }
@@ -369,6 +377,18 @@ export function pickBest(
     }
     const sShape = s.backtrack + s.crossing;
     const bestShape = best.backtrack + best.crossing;
+    const deltaTol = Math.max(best.delta, s.delta) * 0.15 + 50;
+    const withinDelta = Math.abs(s.delta - best.delta) <= deltaTol;
+    if (
+      withinDelta &&
+      s.avoidPenalty === best.avoidPenalty &&
+      s.conditionPenalty === best.conditionPenalty &&
+      sShape === bestShape &&
+      s.pointPreview > best.pointPreview
+    ) {
+      best = s;
+      continue;
+    }
     if (
       sShape < bestShape ||
       (sShape === bestShape &&

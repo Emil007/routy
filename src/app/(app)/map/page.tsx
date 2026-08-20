@@ -6,6 +6,7 @@ import { listSegments, listDeletedSegments, getUsageMap, isCanonicalSegment } fr
 import { listAllUsers } from "@/lib/users";
 import { getSettings, effectiveWalkSpeedKmh } from "@/lib/settings";
 import { listActiveConditions } from "@/lib/segmentConditions";
+import { listAvoidSegmentIds } from "@/lib/avoidList";
 import { OverviewMapClient } from "./OverviewMapClient";
 import { SegmentsTable } from "./SegmentsTable";
 import { TrashPanel } from "./TrashPanel";
@@ -63,6 +64,7 @@ export default async function MapPage({
           reason: c.reason,
           expiresAt: c.expiresAt,
         }))}
+        personalAvoidSegmentIds={listAvoidSegmentIds(user.id)}
       />
 
       <details className="card">
