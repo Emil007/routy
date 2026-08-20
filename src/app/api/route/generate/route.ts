@@ -10,6 +10,9 @@ import { findDirectRoutes, findWaypointRoutes, scoreRoutes, pickBest } from "@/l
 import { createRouteSession } from "@/lib/routeSessions";
 import { buildRouteDisplay } from "@/lib/routeDisplay";
 import { checkGenerateRateLimit } from "@/lib/generateRateLimit";
+import { getGoldenMultiplierMap } from "@/lib/goldenSegments";
+import { computeRoutePointPreview, canonicalSegmentId } from "@/lib/points";
+import { listSegments } from "@/lib/segments";
 
 const bodySchema = z.object({
   startNodeId: z.number().int().positive().optional(),
@@ -72,6 +75,7 @@ export async function POST(request: Request) {
   const dailyMap = getDailyUsageMap();
   const { avoidSegmentIds, conditionCounts, staleSegmentIds } = getRouteScoringContext(user.id, surpriseMode);
   const geometryOf = new Map([...segmentsById].map(([id, s]) => [id, s.geometry]));
+  const goldenMap = getGoldenMultiplierMap();
   const scored = scoreRoutes(
     candidates,
     pairOf,
@@ -85,6 +89,7 @@ export async function POST(request: Request) {
     avoidSegmentIds,
     conditionCounts,
     staleSegmentIds,
+    goldenMap,
   );
   const best = pickBest(scored, new Set(), explorerMode, surpriseMode);
   if (!best) {
@@ -120,5 +125,14 @@ export async function POST(request: Request) {
     segmentsById,
   );
 
-  return NextResponse.json({ token, route: display });
+  const canonicalOf = new Map(listSegments().map((s) => [s.id, canonicalSegmentId(s)]));
+  const pointPreview = computeRoutePointPreview(
+    best.route.segmentIds,
+    best.route.lengthM,
+    usageMap,
+    goldenMap,
+    canonicalOf,
+  );
+
+  return NextResponse.json({ token, route: display, pointPreview });
 }

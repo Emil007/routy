@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { t, type Locale } from "@/lib/i18n";
 import { haversineMeters, bearing, compassDirection } from "@/lib/geo";
 import { MapViewLazy } from "./MapViewLazy";
+import { RouteCompletionDialog, type RouteCompletionData } from "./RouteCompletionDialog";
 import type { NodeRow } from "@/lib/nodes";
 
 const VOICE_ANNOUNCE_RADIUS_M = 50;
@@ -35,6 +36,7 @@ interface RouteDisplayPayload {
 interface GenerateResponse {
   token: string;
   route: RouteDisplayPayload;
+  pointPreview?: { base: number; golden: number; exploration: number; diversity: number; total: number };
 }
 
 interface FavoriteEntry {
@@ -51,6 +53,7 @@ export function RouteGenerator({
   initialActiveRoute,
   initialNickname,
   favorites,
+  segmentGeometries,
 }: {
   locale: Locale;
   nodes: NodeRow[];
@@ -58,6 +61,7 @@ export function RouteGenerator({
   initialActiveRoute: RouteDisplayPayload | null;
   initialNickname: string | null;
   favorites: FavoriteEntry[];
+  segmentGeometries: Record<number, [number, number][]>;
 }) {
   const router = useRouter();
   const [startNodeId, setStartNodeId] = useState<number | "">(homeNodeId ?? "");
@@ -82,6 +86,9 @@ export function RouteGenerator({
   const [myLocation, setMyLocation] = useState<{ lat: number; lng: number } | null>(null);
   const [watchId, setWatchId] = useState<number | null>(null);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
+  const [pointBalance, setPointBalance] = useState<number | null>(null);
+  const [goldenSegmentIds, setGoldenSegmentIds] = useState<number[]>([]);
+  const [completionData, setCompletionData] = useState<RouteCompletionData | null>(null);
   const announcedStationIndexRef = useRef(0);
 
   function flashMessage(text: string, isError = false) {
@@ -89,10 +96,42 @@ export function RouteGenerator({
     setMessageIsError(isError);
   }
 
+  const goldenSet = useMemo(() => new Set(goldenSegmentIds), [goldenSegmentIds]);
+
+  const routeMapLines = useMemo(() => {
+    if (!result) return [];
+    const lines: { id: string | number; points: [number, number][]; color?: string; dashed?: boolean }[] = [
+      { id: "route", points: result.route.geometry },
+    ];
+    for (const segmentId of result.route.segmentIds) {
+      if (!goldenSet.has(segmentId)) continue;
+      const points = segmentGeometries[segmentId];
+      if (points?.length) {
+        lines.push({ id: `golden-${segmentId}`, points, color: "#c99a2e", dashed: true });
+      }
+    }
+    return lines;
+  }, [result, goldenSet, segmentGeometries]);
+
   function clearMessage() {
     setMessage(null);
     setMessageIsError(false);
   }
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const res = await fetch("/api/app/game/daily");
+      if (!cancelled && res.ok) {
+        const data = (await res.json()) as { pointBalance: number; goldenSegments: { segmentId: number }[] };
+        setPointBalance(data.pointBalance);
+        setGoldenSegmentIds(data.goldenSegments.map((g) => g.segmentId));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!voiceEnabled || mode !== "active" || !myLocation || !result) return;
@@ -208,11 +247,6 @@ export function RouteGenerator({
     }
   }
 
-  async function handleSuggest(e: React.FormEvent) {
-    e.preventDefault();
-    await suggest();
-  }
-
   async function handleAnother() {
     if (!result) return;
     setStatus("loading");
@@ -280,19 +314,28 @@ export function RouteGenerator({
 
   async function handleComplete() {
     setStatus("loading");
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      window.speechSynthesis.cancel();
+    }
     const res = await callApi("/api/route/complete");
     if (res.ok) {
+      const data = (await res.json()) as RouteCompletionData;
       setResult(null);
       setMode("suggesting");
       setStatus("idle");
-      flashMessage(t(locale, "route.completedMessage"));
+      setCompletionData(data);
+      if (typeof window !== "undefined" && "speechSynthesis" in window && data.celebrationTier !== "normal") {
+        const utterance = new SpeechSynthesisUtterance(t(locale, "route.celebration"));
+        utterance.lang = locale === "de" ? "de-DE" : "en-US";
+        window.speechSynthesis.speak(utterance);
+      }
+      setPointBalance((prev) => (prev !== null ? prev + data.pointsEarned : data.pointsEarned));
       setNickname("");
       if (watchId !== null) {
         navigator.geolocation.clearWatch(watchId);
         setWatchId(null);
         setMyLocation(null);
       }
-      if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
     } else {
       setStatus("idle");
       flashMessage(t(locale, "common.error"), true);
@@ -392,6 +435,23 @@ export function RouteGenerator({
           <span className="chip">↘ {t(locale, "route.elevationLoss", { loss: result.route.elevation.lossM })}</span>
         </>
       )}
+      {result.pointPreview && (
+        <>
+          <span className="chip">
+            {t(locale, "route.pointPreview", { points: result.pointPreview.total })}
+          </span>
+          <span className="chip">{t(locale, "route.pointPreviewBase", { points: result.pointPreview.base })}</span>
+          {result.pointPreview.golden > 0 && (
+            <span className="chip">{t(locale, "route.pointPreviewGolden", { points: result.pointPreview.golden })}</span>
+          )}
+          {result.pointPreview.exploration > 0 && (
+            <span className="chip">{t(locale, "route.pointPreviewExploration", { points: result.pointPreview.exploration })}</span>
+          )}
+          {result.pointPreview.diversity > 0 && (
+            <span className="chip">{t(locale, "route.pointPreviewDiversity", { points: result.pointPreview.diversity })}</span>
+          )}
+        </>
+      )}
     </>
   ) : null;
 
@@ -468,7 +528,7 @@ export function RouteGenerator({
         <div className="route-map-pane">
           <MapViewLazy
             fitKey={result.token || result.route.nodeChain.join("-")}
-            lines={[{ id: "route", points: result.route.geometry }]}
+            lines={routeMapLines}
             markers={[
               ...result.route.stations.map((s, idx) => ({
                 id: `${s.nodeId}-${idx}`,
@@ -491,6 +551,14 @@ export function RouteGenerator({
       )}
 
       <div className="route-controls-pane">
+        {pointBalance !== null && (
+          <div className="btn-row" style={{ marginBottom: "0.35rem" }}>
+            <span className="chip">{t(locale, "route.pointBalance", { points: pointBalance })}</span>
+            {goldenSegmentIds.length > 0 && (
+              <span className="chip">{t(locale, "route.goldenToday")}: {goldenSegmentIds.length}</span>
+            )}
+          </div>
+        )}
         {mode === "suggesting" && favorites.length > 0 && (
           <details className="card route-panel-compact route-favorites-compact">
             <summary>{t(locale, "route.favoritesTitle")} ({favorites.length})</summary>
@@ -520,7 +588,7 @@ export function RouteGenerator({
 
         {mode === "suggesting" && !result && (
           <div className="card route-panel-compact">
-            <form onSubmit={handleSuggest} className="stack" style={{ gap: "0.45rem" }}>
+            <form onSubmit={(e) => e.preventDefault()} className="stack" style={{ gap: "0.45rem" }}>
               <div className="field">
                 <label htmlFor="startNode">{t(locale, "route.start")}</label>
                 <select id="startNode" value={startNodeId} onChange={(e) => setStartNodeId(Number(e.target.value))}>
@@ -572,19 +640,16 @@ export function RouteGenerator({
               </details>
 
               <div className="route-action-bar">
-                <button type="submit" className="btn-primary btn-compact" disabled={status === "loading" || !startNodeId}>
-                  {status === "loading" ? t(locale, "route.generating") : t(locale, "route.suggest")}
+                <button type="button" className="btn-primary btn-compact" disabled={status === "loading" || !startNodeId} onClick={() => suggest("short")} title={t(locale, "route.presetShortHint")}>
+                  {status === "loading" ? t(locale, "route.generating") : t(locale, "route.presetShort")}
                 </button>
-                <button type="button" className="btn-secondary btn-compact" disabled={status === "loading" || !startNodeId} onClick={() => suggest("short")}>
-                  {t(locale, "route.presetShort")}
-                </button>
-                <button type="button" className="btn-secondary btn-compact" disabled={status === "loading" || !startNodeId} onClick={() => suggest("long")}>
+                <button type="button" className="btn-secondary btn-compact" disabled={status === "loading" || !startNodeId} onClick={() => suggest("long")} title={t(locale, "route.presetLongHint")}>
                   {t(locale, "route.presetLong")}
                 </button>
-                <button type="button" className="btn-secondary btn-compact" disabled={status === "loading" || !startNodeId} onClick={() => discover()}>
+                <button type="button" className="btn-secondary btn-compact" disabled={status === "loading" || !startNodeId} onClick={() => discover()} title={t(locale, "route.presetDiscoverHint")}>
                   {t(locale, "route.presetDiscover")}
                 </button>
-                <button type="button" className="btn-secondary btn-compact" disabled={status === "loading" || !startNodeId} onClick={() => surprise()}>
+                <button type="button" className="btn-secondary btn-compact" disabled={status === "loading" || !startNodeId} onClick={() => surprise()} title={t(locale, "route.presetSurpriseHint")}>
                   {t(locale, "route.presetSurprise")}
                 </button>
               </div>
@@ -607,6 +672,10 @@ export function RouteGenerator({
 
         {actionBar && <div className="route-action-bar-sticky">{actionBar}</div>}
       </div>
+
+      {completionData && (
+        <RouteCompletionDialog locale={locale} data={completionData} onClose={() => setCompletionData(null)} />
+      )}
     </div>
   );
 }

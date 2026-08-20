@@ -5,7 +5,8 @@ import { listNodes } from "@/lib/nodes";
 import { listSegments } from "@/lib/segments";
 import { walkPathPoints } from "@/lib/walkPathPoints";
 import { getUserStats, getRecentWalks, getSegmentUsageStats, getStreakStats, getWeeklyLeaderboard } from "@/lib/stats";
-import { computeUserPoints, getPointsLeaderboard } from "@/lib/points";
+import { computeUserPoints, getPointsLeaderboard, getWalkPointPreviewsForUser, computeWalkPointsEarned } from "@/lib/points";
+import { ensureTodayGoldenSegments } from "@/lib/goldenSegments";
 import { computeAchievements, TIERS } from "@/lib/achievements";
 import { ConfirmSubmitForm } from "@/components/ConfirmSubmitForm";
 import { WalkPathThumbnail } from "@/components/WalkPathThumbnail";
@@ -55,6 +56,8 @@ export default async function StatsPage() {
   const leaderboard = getWeeklyLeaderboard();
   const userPoints = computeUserPoints(user.id);
   const pointsLeaderboard = getPointsLeaderboard();
+  const goldenToday = ensureTodayGoldenSegments();
+  const walkPointPreviews = getWalkPointPreviewsForUser(user.id);
   const nodes = listNodes();
   const segments = listSegments();
   const nodesById = new Map(nodes.map((n) => [n.id, n]));
@@ -72,7 +75,45 @@ export default async function StatsPage() {
     <>
       <div className="page-heading">
         <h1>{t(locale, "stats.title")}</h1>
-        <p>{t(locale, "stats.subtitle")}</p>
+        <p>{t(locale, "game.hubSubtitle")}</p>
+      </div>
+
+      <div className="card">
+        <h2>{t(locale, "stats.gameHubTitle")}</h2>
+        <p style={{ fontSize: "2rem", fontWeight: 700, margin: "0.25rem 0 0.5rem" }}>
+          {userPoints.totalPoints}
+        </p>
+        <p className="hint-compact" style={{ marginTop: 0 }}>{t(locale, "stats.gameHubBalance")}</p>
+        <div className="btn-row" style={{ marginTop: "0.5rem" }}>
+          <span className="chip">
+            {t(locale, "stats.weeklyPoints")}: {userPoints.weeklyPoints}
+          </span>
+          <span className="chip">
+            {t(locale, "route.streakMultiplier", { multiplier: userPoints.streakMultiplier })}
+          </span>
+          <span className="chip">
+            {t(locale, "stats.currentStreak")}: {streakStats.currentStreak}
+          </span>
+        </div>
+        <p className="hint-compact" style={{ marginTop: "0.65rem" }}>{t(locale, "game.dailyChallenge")}</p>
+        <h3 style={{ marginTop: "0.75rem", marginBottom: "0.35rem" }}>{t(locale, "stats.gameHubGolden")}</h3>
+        {goldenToday.length === 0 ? (
+          <p className="hint-compact">{t(locale, "game.goldenEmpty")}</p>
+        ) : (
+          <ul className="dense-list">
+            {goldenToday.map((g) => {
+              const seg = segments.find((s) => s.id === g.segmentId);
+              const start = seg ? nodeName(seg.startNodeId) : `#${g.segmentId}`;
+              const end = seg ? nodeName(seg.endNodeId) : "";
+              return (
+                <li key={g.segmentId}>
+                  {seg?.name || `${start} — ${end}`}{" "}
+                  <span className="chip">{t(locale, "game.goldenMultiplier", { multiplier: g.multiplier })}</span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
       </div>
 
       <div className="card">
@@ -184,6 +225,7 @@ export default async function StatsPage() {
                   <th>{t(locale, "route.stationList")}</th>
                   <th>{t(locale, "import.length")}</th>
                   <th>{t(locale, "import.duration")}</th>
+                  <th>{t(locale, "stats.walkPoints")}</th>
                   <th></th>
                 </tr>
               </thead>
@@ -218,6 +260,26 @@ export default async function StatsPage() {
                     </td>
                     <td>
                       {w.durationMin} {t(locale, "common.min")}
+                    </td>
+                    <td>
+                      {(() => {
+                        const preview = walkPointPreviews.get(w.id);
+                        if (!preview) return "—";
+                        const earned = computeWalkPointsEarned(preview, userPoints.streakMultiplier);
+                        return (
+                          <span
+                            className="chip"
+                            title={[
+                              t(locale, "route.pointPreviewBase", { points: preview.base }),
+                              preview.golden > 0 ? t(locale, "route.pointPreviewGolden", { points: preview.golden }) : "",
+                              preview.exploration > 0 ? t(locale, "route.pointPreviewExploration", { points: preview.exploration }) : "",
+                              preview.diversity > 0 ? t(locale, "route.pointPreviewDiversity", { points: preview.diversity }) : "",
+                            ].filter(Boolean).join(" · ")}
+                          >
+                            +{earned}
+                          </span>
+                        );
+                      })()}
                     </td>
                     <td>
                       <ConfirmSubmitForm

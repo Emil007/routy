@@ -5,12 +5,19 @@ import { getNetworkVersion } from "./networkVersion";
 import { getUser } from "./users";
 import { listAvoidSegmentIds } from "./avoidList";
 import { listActiveConditions } from "./segmentConditions";
+import { listPendingLockProposalsForReviewer } from "./lockProposals";
+import { getTodayGoldenSegmentIds } from "./goldenSegments";
 
 /** ETag for /api/app/bootstrap — bumps when network, profile, or per-user route state changes. */
 export function getBootstrapVersion(userId: number): string {
   const active = getActiveRoute(userId);
   const favorites = listFavorites(userId);
   const user = getUser(userId);
+  const lockProposalIds = user
+    ? listPendingLockProposalsForReviewer(userId, user.role === "admin")
+        .map((p) => p.id)
+        .join(",")
+    : "";
   const payload = [
     getNetworkVersion(),
     userId,
@@ -26,6 +33,8 @@ export function getBootstrapVersion(userId: number): string {
     listActiveConditions()
       .map((c) => `${c.id}:${c.segmentId}:${c.reason}`)
       .join(","),
+    lockProposalIds,
+    getTodayGoldenSegmentIds().join(","),
   ].join(":");
   return createHash("sha256").update(payload).digest("hex").slice(0, 16);
 }

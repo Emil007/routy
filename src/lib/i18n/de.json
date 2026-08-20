@@ -15,7 +15,8 @@
     "optional": "optional",
     "hours": "Std.",
     "add": "Hinzufügen",
-    "remove": "Entfernen"
+    "remove": "Entfernen",
+    "ok": "OK"
   },
   "nav": {
     "route": "Route",
@@ -125,7 +126,26 @@
     "favoriteShare": "Teilen",
     "favoriteCopyLink": "Link kopieren",
     "favoriteUnshare": "Teilen beenden",
-    "favoriteShareCopied": "Link kopiert!"
+    "favoriteShareCopied": "Link kopiert!",
+    "pointPreview": "~{points} Punkte",
+    "pointPreviewBase": "Basis {points}",
+    "pointPreviewGolden": "Golden +{points}",
+    "pointPreviewExploration": "Neu +{points}",
+    "pointPreviewDiversity": "Vielfalt +{points}",
+    "pointBalance": "Punkte: {points}",
+    "streakMultiplier": "Serie ×{multiplier}",
+    "completedPoints": "+{points} Punkte (×{multiplier}, Serie {streak})",
+    "completedGolden": "{count} goldene Wege auf der Route!",
+    "celebration": "Starke Runde!",
+    "completionTitle": "Spaziergang bestätigt",
+    "celebrationGolden": "Goldene Route!",
+    "celebrationStreak": "Serien-Bonus!",
+    "celebrationAchievement": "Erfolg freigeschaltet!",
+    "goldenToday": "Heute golden",
+    "presetShortHint": "Kurze Route — weniger Punkte, schneller fertig",
+    "presetLongHint": "Lange Route — mehr Basis-Punkte",
+    "presetDiscoverHint": "Neue Wege — Explorations-Bonus",
+    "presetSurpriseHint": "Selten genutzte Wege — Diversitäts-Bonus"
   },
   "share": {
     "subtitle": "Schreibgeschützte, geteilte Route.",
@@ -203,7 +223,20 @@
     "proposalsEmpty": "Keine offenen Vorschläge aus Aufzeichnungen.",
     "proposalAccept": "Hier teilen",
     "proposalDismiss": "Verwerfen",
-    "proposalSegment": "Weg #{id}"
+    "proposalSegment": "Weg #{id}",
+    "restrictButton": "Weg einschränken",
+    "restrictScope": "Gilt für",
+    "restrictScopePersonal": "Nur mich",
+    "restrictScopeGlobal": "Alle",
+    "restrictScopeRecommend": "Für alle vorschlagen (Freigabe nötig)",
+    "restrictSubmit": "Einschränken",
+    "restrictClear": "Einschränkung aufheben",
+    "personalAvoidChip": "Von mir gemieden",
+    "lockProposalsTitle": "Sperr-Vorschläge",
+    "lockProposalsEmpty": "Keine offenen Sperr-Vorschläge.",
+    "lockProposalApprove": "Sperren",
+    "lockProposalDismiss": "Ablehnen",
+    "lockProposalFrom": "Vorgeschlagen von {name}"
   },
   "overview": {
     "backToView": "Zurück zur Ansicht",
@@ -317,7 +350,19 @@
     "points": "Punkte",
     "weeklyPoints": "Punkte diese Woche",
     "pointsLeaderboardHeading": "Punkte-Rangliste",
-    "pointsLeaderboardEmpty": "Noch keine Punkte erfasst."
+    "pointsLeaderboardEmpty": "Noch keine Punkte erfasst.",
+    "gameHubTitle": "Spiel",
+    "gameHubBalance": "Punktestand",
+    "gameHubGolden": "Heute golden",
+    "walkPoints": "Punkte"
+  },
+  "game": {
+    "dailyChallenge": "Geh heute mindestens einen goldenen Weg für Bonuspunkte!",
+    "goldenHeading": "Heute golden",
+    "goldenEmpty": "Keine goldenen Wege heute.",
+    "goldenMultiplier": "×{multiplier} Bonus",
+    "hubBalance": "Dein Punktestand",
+    "hubSubtitle": "Spaziergänge sammeln Punkte — goldene Wege und Serien multiplizieren."
   },
   "draw": {
     "title": "Auf der Karte zeichnen",
@@ -427,6 +472,7 @@
     "lock": "Sperren",
     "unlock": "Entsperren",
     "impersonate": "Einloggen als",
+    "actionsMenu": "Aktionen",
     "deleteConfirm": "Account unwiderruflich löschen? Login-Daten werden entfernt, angelegte Wege/Knoten bleiben mit dem Namen erhalten.",
     "createUserHeading": "Neuen Benutzer anlegen",
     "userUpdated": "Benutzer aktualisiert.",

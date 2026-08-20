@@ -6,14 +6,13 @@ import { t, type Locale } from "@/lib/i18n";
 import type { SegmentRow } from "@/lib/segments";
 import { deleteSegmentAction } from "@/app/(app)/map/actions";
 
-// Not imported from "@/lib/segments" — that module pulls in better-sqlite3,
-// which must never end up in a client bundle. Same one-line check, duplicated.
 function isLocked(segment: Pick<SegmentRow, "lockedUntil">): boolean {
   return segment.lockedUntil !== null && segment.lockedUntil > new Date().toISOString();
 }
 
-/** Real Leaflet popup content for a segment line — info for everyone, owner-gated
- * actions (rename/edit shape/delete) only when `canEditSegment`. */
+const RESTRICT_REASONS = ["muddy", "flooded", "construction", "dog", "icy", "overgrown"] as const;
+
+/** Leaflet popup for a segment — unified restrict dialog + owner edit actions. */
 export function SegmentPopup({
   locale,
   segment,
@@ -23,6 +22,7 @@ export function SegmentPopup({
   creatorName,
   usageCount,
   activeConditions,
+  personalAvoided,
   onEditShape,
 }: {
   locale: Locale;
@@ -33,19 +33,18 @@ export function SegmentPopup({
   creatorName: string;
   usageCount: number;
   activeConditions?: { id: number; reason: string; expiresAt: string }[];
+  personalAvoided?: boolean;
   onEditShape: () => void;
 }) {
   const router = useRouter();
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(segment.name ?? "");
   const [status, setStatus] = useState<"idle" | "saving" | "error">("idle");
-  const [locking, setLocking] = useState(false);
-  const [lockDays, setLockDays] = useState(7);
-  const [lockReason, setLockReason] = useState("");
-  const [lockStatus, setLockStatus] = useState<"idle" | "saving" | "error">("idle");
-  const [reportingCondition, setReportingCondition] = useState(false);
-  const [conditionReason, setConditionReason] = useState("muddy");
-  const [conditionStatus, setConditionStatus] = useState<"idle" | "saving" | "error">("idle");
+  const [showRestrict, setShowRestrict] = useState(false);
+  const [scope, setScope] = useState<"personal" | "global">("personal");
+  const [restrictDays, setRestrictDays] = useState(7);
+  const [restrictReason, setRestrictReason] = useState("muddy");
+  const [restrictStatus, setRestrictStatus] = useState<"idle" | "saving" | "error">("idle");
   const locked = isLocked(segment);
 
   async function saveRename() {
@@ -72,52 +71,25 @@ export function SegmentPopup({
     router.refresh();
   }
 
-  async function saveLock() {
-    setLockStatus("saving");
-    const res = await fetch("/api/segments/lock", {
+  async function submitRestrict(clear = false) {
+    setRestrictStatus("saving");
+    const res = await fetch("/api/segments/restrict", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ segmentId: segment.id, days: lockDays, reason: lockReason || undefined }),
+      body: JSON.stringify({
+        segmentId: segment.id,
+        scope: clear ? (personalAvoided ? "personal" : "global") : scope,
+        reason: restrictReason,
+        days: restrictDays,
+        clear,
+      }),
     });
     if (res.ok) {
-      setLocking(false);
-      setLockStatus("idle");
+      setShowRestrict(false);
+      setRestrictStatus("idle");
       router.refresh();
     } else {
-      setLockStatus("error");
-    }
-  }
-
-  async function saveCondition() {
-    setConditionStatus("saving");
-    const res = await fetch("/api/segments/condition", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ segmentId: segment.id, reason: conditionReason }),
-    });
-    if (res.ok) {
-      setReportingCondition(false);
-      setConditionStatus("idle");
-      router.refresh();
-    } else {
-      setConditionStatus("error");
-    }
-  }
-
-  const conditionReasons = ["muddy", "flooded", "construction", "dog", "icy", "overgrown"] as const;
-
-  async function handleUnlock() {
-    setLockStatus("saving");
-    const res = await fetch("/api/segments/lock", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ segmentId: segment.id, days: null }),
-    });
-    if (res.ok) {
-      setLockStatus("idle");
-      router.refresh();
-    } else {
-      setLockStatus("error");
+      setRestrictStatus("error");
     }
   }
 
@@ -139,6 +111,7 @@ export function SegmentPopup({
               })}
         </span>
       )}
+      {personalAvoided && <span className="chip">{t(locale, "map.personalAvoidChip")}</span>}
       <div className="btn-row" style={{ gap: "0.3rem" }}>
         <span className="chip">
           {(segment.lengthM / 1000).toFixed(2)} {t(locale, "common.km")}
@@ -172,29 +145,50 @@ export function SegmentPopup({
         </div>
       )}
 
-      {reportingCondition ? (
+      {showRestrict ? (
         <div className="stack" style={{ gap: "0.4rem" }}>
-          <label htmlFor={`condition-reason-${segment.id}`}>{t(locale, "map.conditionReason")}</label>
-          <select id={`condition-reason-${segment.id}`} value={conditionReason} onChange={(e) => setConditionReason(e.target.value)}>
-            {conditionReasons.map((r) => (
+          <label>{t(locale, "map.restrictScope")}</label>
+          <select value={scope} onChange={(e) => setScope(e.target.value as "personal" | "global")}>
+            <option value="personal">{t(locale, "map.restrictScopePersonal")}</option>
+            <option value="global">
+              {canEditSegment ? t(locale, "map.restrictScopeGlobal") : t(locale, "map.restrictScopeRecommend")}
+            </option>
+          </select>
+          <label htmlFor={`restrict-reason-${segment.id}`}>{t(locale, "map.conditionReason")}</label>
+          <select id={`restrict-reason-${segment.id}`} value={restrictReason} onChange={(e) => setRestrictReason(e.target.value)}>
+            {RESTRICT_REASONS.map((r) => (
               <option key={r} value={r}>
                 {t(locale, `map.conditionReason_${r}`)}
               </option>
             ))}
           </select>
+          <label htmlFor={`restrict-days-${segment.id}`}>{t(locale, "edit.lockDaysLabel")}</label>
+          <input
+            id={`restrict-days-${segment.id}`}
+            type="number"
+            min={1}
+            max={3650}
+            value={restrictDays}
+            onChange={(e) => setRestrictDays(Math.max(1, Number(e.target.value) || 1))}
+          />
           <div className="btn-row">
-            <button type="button" className="btn-primary" onClick={saveCondition} disabled={conditionStatus === "saving"}>
-              {t(locale, "map.conditionSubmit")}
+            <button type="button" className="btn-primary" onClick={() => submitRestrict(false)} disabled={restrictStatus === "saving"}>
+              {t(locale, "map.restrictSubmit")}
             </button>
-            <button type="button" className="btn-secondary" onClick={() => setReportingCondition(false)}>
+            <button type="button" className="btn-secondary" onClick={() => setShowRestrict(false)}>
               {t(locale, "common.cancel")}
             </button>
           </div>
-          {conditionStatus === "error" && <div className="alert alert-error">{t(locale, "common.error")}</div>}
+          {(personalAvoided || (canEditSegment && locked)) && (
+            <button type="button" className="btn-secondary" onClick={() => submitRestrict(true)} disabled={restrictStatus === "saving"}>
+              {t(locale, "map.restrictClear")}
+            </button>
+          )}
+          {restrictStatus === "error" && <div className="alert alert-error">{t(locale, "common.error")}</div>}
         </div>
       ) : (
-        <button type="button" className="btn-secondary" onClick={() => setReportingCondition(true)}>
-          {t(locale, "map.conditionReport")}
+        <button type="button" className="btn-secondary" onClick={() => setShowRestrict(true)}>
+          {t(locale, "map.restrictButton")}
         </button>
       )}
 
@@ -214,35 +208,6 @@ export function SegmentPopup({
             </div>
             {status === "error" && <div className="alert alert-error">{t(locale, "common.error")}</div>}
           </div>
-        ) : locking ? (
-          <div className="stack" style={{ gap: "0.4rem" }}>
-            <label htmlFor={`lock-days-${segment.id}`}>{t(locale, "edit.lockDaysLabel")}</label>
-            <input
-              id={`lock-days-${segment.id}`}
-              type="number"
-              min={1}
-              max={3650}
-              value={lockDays}
-              onChange={(e) => setLockDays(Math.max(1, Number(e.target.value) || 1))}
-            />
-            <label htmlFor={`lock-reason-${segment.id}`}>{t(locale, "edit.lockReasonLabel")}</label>
-            <input
-              id={`lock-reason-${segment.id}`}
-              type="text"
-              value={lockReason}
-              onChange={(e) => setLockReason(e.target.value)}
-              placeholder={t(locale, "edit.lockReasonPlaceholder")}
-            />
-            <div className="btn-row">
-              <button type="button" className="btn-primary" onClick={saveLock} disabled={lockStatus === "saving"}>
-                {t(locale, "edit.lockButton")}
-              </button>
-              <button type="button" className="btn-secondary" onClick={() => setLocking(false)}>
-                {t(locale, "common.cancel")}
-              </button>
-            </div>
-            {lockStatus === "error" && <div className="alert alert-error">{t(locale, "common.error")}</div>}
-          </div>
         ) : (
           <div className="btn-row">
             <button type="button" className="btn-secondary" onClick={onEditShape}>
@@ -251,15 +216,6 @@ export function SegmentPopup({
             <button type="button" className="btn-secondary" onClick={() => setRenaming(true)}>
               {t(locale, "map.rename")}
             </button>
-            {locked ? (
-              <button type="button" className="btn-secondary" onClick={handleUnlock} disabled={lockStatus === "saving"}>
-                {t(locale, "edit.unlockButton")}
-              </button>
-            ) : (
-              <button type="button" className="btn-secondary" onClick={() => setLocking(true)}>
-                {t(locale, "edit.lockButton")}
-              </button>
-            )}
             <button type="button" className="btn-danger" onClick={handleDelete}>
               {t(locale, "map.delete")}
             </button>

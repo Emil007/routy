@@ -311,6 +311,31 @@ function runMigrations(db: Database.Database): void {
   addColumnIfMissing(db, "sessions", "client", "ALTER TABLE sessions ADD COLUMN client TEXT NOT NULL DEFAULT 'web'");
   db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_sessions_session_id ON sessions(session_id)");
 
+  addColumnIfMissing(db, "user_avoid_segment", "expires_at", "ALTER TABLE user_avoid_segment ADD COLUMN expires_at TEXT");
+  addColumnIfMissing(db, "user_avoid_segment", "reason", "ALTER TABLE user_avoid_segment ADD COLUMN reason TEXT");
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS segment_lock_proposal (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      segment_id INTEGER NOT NULL REFERENCES segments(id) ON DELETE CASCADE,
+      requested_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      reason TEXT,
+      days INTEGER NOT NULL,
+      status TEXT NOT NULL DEFAULT 'pending',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+  `);
+  db.exec("CREATE INDEX IF NOT EXISTS idx_segment_lock_proposal_status ON segment_lock_proposal(status)");
+
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS golden_segments (
+      utc_date TEXT NOT NULL,
+      segment_id INTEGER NOT NULL REFERENCES segments(id) ON DELETE CASCADE,
+      multiplier REAL NOT NULL DEFAULT 3.0,
+      PRIMARY KEY (utc_date, segment_id)
+    );
+  `);
+
   // One-time promotion: on an already-deployed instance with no admin yet, the
   // earliest account becomes admin, and any pre-existing nodes/segments with no
   // owner (created before this feature existed) are attributed to them.

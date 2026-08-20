@@ -28,6 +28,13 @@ export default async function RoutePage() {
     display: buildRouteDisplay(f.nodeChain, f.segmentIds, f.lengthM, f.durationMin, nodesById, segmentsById),
   }));
 
+  const segmentGeometries = Object.fromEntries(
+    [...segmentsById.values()].map((s) => [
+      s.id,
+      s.geometry.map((p): [number, number] => [p.lat, p.lng]),
+    ]),
+  );
+
   return (
     <>
       <div className="page-heading">
@@ -45,6 +52,7 @@ export default async function RoutePage() {
           initialActiveRoute={activeDisplay}
           initialNickname={active?.nickname ?? null}
           favorites={favorites}
+          segmentGeometries={segmentGeometries}
         />
       )}
     </>
