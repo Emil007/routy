@@ -394,6 +394,25 @@ th {
   overflow-x: auto;
 }
 
+.table-wrap.users-table th:last-child,
+.table-wrap.users-table td:last-child {
+  position: sticky;
+  right: 0;
+  background: var(--surface);
+  z-index: 2;
+  box-shadow: -6px 0 8px -6px rgba(0, 0, 0, 0.18);
+  padding-left: 0.5rem;
+}
+
+@media (max-width: 640px) {
+  .table-wrap.users-table th:nth-child(2),
+  .table-wrap.users-table td:nth-child(2),
+  .table-wrap.users-table th:nth-child(3),
+  .table-wrap.users-table td:nth-child(3) {
+    display: none;
+  }
+}
+
 .grid-2-cols {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -781,6 +800,11 @@ th {
   display: flex;
   flex-direction: column;
   gap: 0.15rem;
+}
+
+.actions-menu-panel-fixed {
+  position: fixed;
+  z-index: 1000;
 }
 
 .actions-menu-item {
