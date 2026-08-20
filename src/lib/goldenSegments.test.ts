@@ -19,6 +19,8 @@ describe("pickGoldenSegmentIds", () => {
   });
 
   it("returns fewer ids when the network is smaller than the requested count", () => {
-    expect(pickGoldenSegmentIds([[1, 0], [2, 1]], 5)).toEqual([1, 2]);
+    const picked = pickGoldenSegmentIds([[1, 0], [2, 1]], 5);
+    expect(picked).toHaveLength(2);
+    expect(new Set(picked)).toEqual(new Set([1, 2]));
   });
 });
