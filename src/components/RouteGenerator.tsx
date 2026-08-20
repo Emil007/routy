@@ -37,6 +37,8 @@ interface GenerateResponse {
   token: string;
   route: RouteDisplayPayload;
   pointPreview?: { base: number; golden: number; exploration: number; diversity: number; total: number };
+  goldenHits?: number;
+  goldenHitIds?: number[];
 }
 
 interface FavoriteEntry {
@@ -101,18 +103,26 @@ export function RouteGenerator({
 
   const routeMapLines = useMemo(() => {
     if (!result) return [];
-    const lines: { id: string | number; points: [number, number][]; color?: string; dashed?: boolean }[] = [
+    const lines: { id: string | number; points: [number, number][]; color?: string; dashed?: boolean; weight?: number }[] = [
       { id: "route", points: result.route.geometry },
     ];
-    for (const segmentId of result.route.segmentIds) {
-      if (!goldenSet.has(segmentId)) continue;
+    const hitIds =
+      result.goldenHitIds ??
+      result.route.segmentIds.filter((id) => goldenSet.has(id));
+    for (const segmentId of hitIds) {
       const points = segmentGeometries[segmentId];
       if (points?.length) {
-        lines.push({ id: `golden-${segmentId}`, points, color: "#c99a2e", dashed: true });
+        lines.push({ id: `golden-${segmentId}`, points, color: "#c99a2e", dashed: true, weight: 6 });
       }
     }
     return lines;
   }, [result, goldenSet, segmentGeometries]);
+
+  async function readApiError(res: Response): Promise<string> {
+    const data = (await res.json().catch(() => null)) as { error?: string } | null;
+    if (data?.error === "no_golden_route") return t(locale, "route.noGoldenRoute");
+    return t(locale, "route.noRouteFound");
+  }
 
   function clearMessage() {
     setMessage(null);
@@ -223,7 +233,7 @@ export function RouteGenerator({
     } else {
       setResult(null);
       setStatus("error");
-      flashMessage(t(locale, "route.noRouteFound"), true);
+      flashMessage(await readApiError(res), true);
     }
   }
 
@@ -246,7 +256,7 @@ export function RouteGenerator({
     } else {
       setResult(null);
       setStatus("error");
-      flashMessage(t(locale, "route.noRouteFound"), true);
+      flashMessage(await readApiError(res), true);
     }
   }
 
@@ -557,9 +567,13 @@ export function RouteGenerator({
         {pointBalance !== null && (
           <div className="btn-row" style={{ marginBottom: "0.35rem" }}>
             <span className="chip">{t(locale, "route.pointBalance", { points: pointBalance })}</span>
-            {goldenSegmentIds.length > 0 && (
+            {(result?.goldenHits ?? result?.goldenHitIds?.length ?? 0) > 0 ? (
+              <span className="chip">
+                {t(locale, "route.goldenOnRoute")}: {result!.goldenHits ?? result!.goldenHitIds!.length}
+              </span>
+            ) : goldenSegmentIds.length > 0 ? (
               <span className="chip">{t(locale, "route.goldenToday")}: {goldenSegmentIds.length}</span>
-            )}
+            ) : null}
           </div>
         )}
         {mode === "suggesting" && favorites.length > 0 && (

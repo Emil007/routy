@@ -2,12 +2,14 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { getSettings } from "@/lib/settings";
-import { getUsageMap, getDailyUsageMap } from "@/lib/segments";
+import { getUsageMap, getDailyUsageMap, listSegments } from "@/lib/segments";
 import { getRouteScoringContext } from "@/lib/routeScoring";
 import { loadGraphContext } from "@/lib/routeContext";
 import { findDirectRoutes, findWaypointRoutes, scoreRoutes, pickBest, toleranceRange } from "@/lib/routing";
 import { updateRouteSession, assertRouteSessionOwner } from "@/lib/routeSessions";
 import { buildRouteDisplay } from "@/lib/routeDisplay";
+import { getGoldenMultiplierMap } from "@/lib/goldenSegments";
+import { computeRoutePointPreview, canonicalSegmentId, goldenHitCanonicalIds } from "@/lib/points";
 
 const bodySchema = z.object({ token: z.string().min(1) });
 
@@ -33,6 +35,8 @@ export async function POST(request: Request) {
   const { graph, pairOf, nodesById, segmentsById } = loadGraphContext();
   const { avoidSegmentIds, conditionCounts, staleSegmentIds } = getRouteScoringContext(user.id, session.surpriseMode);
   const { minValue, maxValue } = toleranceRange(session.targetValue, effectiveTolerance);
+  const goldenMap = getGoldenMultiplierMap();
+  const canonicalOf = new Map(listSegments().map((s) => [s.id, canonicalSegmentId(s)]));
 
   const candidates =
     session.waypointNodeId &&
@@ -74,6 +78,7 @@ export async function POST(request: Request) {
     avoidSegmentIds,
     conditionCounts,
     staleSegmentIds,
+    goldenMap,
   );
   const best = pickBest(scored, session.seenKeys, session.explorerMode, session.surpriseMode);
 
@@ -105,5 +110,21 @@ export async function POST(request: Request) {
     segmentsById,
   );
 
-  return NextResponse.json({ token: parsed.data.token, route: display, tolerancePercent: effectiveTolerance });
+  const pointPreview = computeRoutePointPreview(
+    best.route.segmentIds,
+    best.route.lengthM,
+    usageMap,
+    goldenMap,
+    canonicalOf,
+  );
+  const goldenHitIds = goldenHitCanonicalIds(best.route.segmentIds, goldenMap, canonicalOf);
+
+  return NextResponse.json({
+    token: parsed.data.token,
+    route: display,
+    tolerancePercent: effectiveTolerance,
+    pointPreview,
+    goldenHits: goldenHitIds.length,
+    goldenHitIds,
+  });
 }

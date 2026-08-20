@@ -78,6 +78,7 @@
     "accept": "Take this one",
     "cancel": "Cancel",
     "noRouteFound": "No route found within the configured length range.",
+    "noGoldenRoute": "No route that uses today's golden path was found in the length range.",
     "noAlternative": "No alternative found.",
     "distanceLabel": "Distance",
     "durationLabel": "Duration",
@@ -142,13 +143,14 @@
     "celebrationStreak": "Streak bonus!",
     "celebrationAchievement": "Achievement unlocked!",
     "goldenToday": "Golden today",
+    "goldenOnRoute": "Golden on route",
     "presetShortHint": "Short route — fewer points, quicker finish",
     "presetLongHint": "Long route — more base points",
     "presetDiscoverHint": "New paths — exploration bonus",
     "presetSurpriseHint": "Rarely used paths — diversity bonus",
     "moreOptions": "More options",
-    "forceGolden": "Include a golden path today",
-    "forceGoldenHint": "Prefer a route that passes through one of today's golden segments when possible."
+    "forceGolden": "Golden route",
+    "forceGoldenHint": "Only suggest routes that use at least one of today's golden segments."
   },
   "share": {
     "subtitle": "Read-only, shared route.",

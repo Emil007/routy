@@ -7,6 +7,7 @@ import { listAllUsers } from "@/lib/users";
 import { getSettings, effectiveWalkSpeedKmh } from "@/lib/settings";
 import { listActiveConditions } from "@/lib/segmentConditions";
 import { listAvoidSegmentIds } from "@/lib/avoidList";
+import { getTodayGoldenSegmentIds } from "@/lib/goldenSegments";
 import { OverviewMapClient } from "./OverviewMapClient";
 import { SegmentsTable } from "./SegmentsTable";
 import { TrashPanel } from "./TrashPanel";
@@ -65,6 +66,7 @@ export default async function MapPage({
           expiresAt: c.expiresAt,
         }))}
         personalAvoidSegmentIds={listAvoidSegmentIds(user.id)}
+        goldenSegmentIds={getTodayGoldenSegmentIds()}
       />
 
       <details className="card">
