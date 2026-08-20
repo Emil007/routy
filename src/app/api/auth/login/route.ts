@@ -76,6 +76,7 @@ export async function POST(request: Request) {
     active: user.active,
     theme: user.theme,
     totpEnabled: user.totpEnabled,
+    homeNodeId: user.homeNodeId,
     client: "app",
   };
 

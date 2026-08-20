@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { db } from "@/lib/db";
+import { checkApiRateLimit, rateLimitResponse } from "@/lib/apiRateLimit";
+import { getClientIp } from "@/lib/loginRateLimit";
 
 const bodySchema = z.object({
   message: z.string().trim().min(1).max(2000),
@@ -12,6 +14,9 @@ const bodySchema = z.object({
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
+  const rate = checkApiRateLimit("app_crash", { userId: user.id, ip: await getClientIp() });
+  if (!rate.allowed) return rateLimitResponse(rate.retryAfterSeconds);
 
   const json = await request.json().catch(() => null);
   const parsed = bodySchema.safeParse(json);

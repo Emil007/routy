@@ -7,11 +7,12 @@ import { NamePartsInput } from "./NamePartsInput";
 import type { NodeRow } from "@/lib/nodes";
 import { setHomeNodeAction, deleteNodeAction } from "@/app/(app)/map/actions";
 
-/** Real Leaflet popup content for a node marker — info for everyone, owner-gated
- * actions (rename/move/home/delete) only when `canEditNode`. */
+/** Real Leaflet popup content for a node marker — set-home is per-user (any signed-in
+ * profile); rename/move/delete stay owner-gated via `canEditNode`. */
 export function NodePopup({
   locale,
   node,
+  isUserHome,
   canEditNode,
   creatorName,
   segmentCount,
@@ -20,6 +21,7 @@ export function NodePopup({
 }: {
   locale: Locale;
   node: NodeRow;
+  isUserHome: boolean;
   canEditNode: boolean;
   creatorName: string;
   segmentCount: number;
@@ -66,50 +68,55 @@ export function NodePopup({
   return (
     <div className="stack" style={{ minWidth: 220, gap: "0.4rem" }}>
       <strong>{node.name || t(locale, "map.unnamedNode")}</strong>
-      {node.isHome && <span className="chip">{t(locale, "map.home")}</span>}
+      {isUserHome && <span className="chip">{t(locale, "map.home")}</span>}
       <p className="hint" style={{ margin: 0 }}>
         {t(locale, "map.createdBy")}: {creatorName}
       </p>
 
-      {canEditNode &&
-        (renaming ? (
-          <div className="stack" style={{ gap: "0.4rem" }}>
-            <NamePartsInput
-              locale={locale}
-              point={{ lat: node.lat, lng: node.lng }}
-              part1={part1}
-              part2={part2}
-              onPart1={setPart1}
-              onPart2={setPart2}
-            />
-            <div className="btn-row">
-              <button type="button" className="btn-primary" onClick={saveRename} disabled={status === "saving" || !part1.trim()}>
-                {t(locale, "map.rename")}
-              </button>
-              <button type="button" className="btn-secondary" onClick={() => setRenaming(false)}>
-                {t(locale, "common.cancel")}
-              </button>
-            </div>
-            {status === "error" && <div className="alert alert-error">{t(locale, "common.error")}</div>}
-          </div>
-        ) : (
+      {canEditNode && renaming ? (
+        <div className="stack" style={{ gap: "0.4rem" }}>
+          <NamePartsInput
+            locale={locale}
+            point={{ lat: node.lat, lng: node.lng }}
+            part1={part1}
+            part2={part2}
+            onPart1={setPart1}
+            onPart2={setPart2}
+          />
           <div className="btn-row">
+            <button type="button" className="btn-primary" onClick={saveRename} disabled={status === "saving" || !part1.trim()}>
+              {t(locale, "map.rename")}
+            </button>
+            <button type="button" className="btn-secondary" onClick={() => setRenaming(false)}>
+              {t(locale, "common.cancel")}
+            </button>
+          </div>
+          {status === "error" && <div className="alert alert-error">{t(locale, "common.error")}</div>}
+        </div>
+      ) : (
+        <div className="btn-row">
+          {canEditNode && (
             <button type="button" className="btn-secondary" onClick={() => setRenaming(true)}>
               {t(locale, "map.rename")}
             </button>
-            {!node.isHome && (
-              <button type="button" className="btn-secondary" onClick={handleSetHome}>
-                {t(locale, "map.home")}
+          )}
+          {!isUserHome && (
+            <button type="button" className="btn-secondary" onClick={handleSetHome}>
+              {t(locale, "map.home")}
+            </button>
+          )}
+          {canEditNode && (
+            <>
+              <button type="button" className={moveModeActive ? "btn-primary" : "btn-secondary"} onClick={onToggleMove}>
+                {moveModeActive ? t(locale, "map.moveNodeActive") : t(locale, "map.moveNode")}
               </button>
-            )}
-            <button type="button" className={moveModeActive ? "btn-primary" : "btn-secondary"} onClick={onToggleMove}>
-              {moveModeActive ? t(locale, "map.moveNodeActive") : t(locale, "map.moveNode")}
-            </button>
-            <button type="button" className="btn-danger" onClick={handleDelete}>
-              {t(locale, "map.delete")}
-            </button>
-          </div>
-        ))}
+              <button type="button" className="btn-danger" onClick={handleDelete}>
+                {t(locale, "map.delete")}
+              </button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

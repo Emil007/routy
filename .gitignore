@@ -46,3 +46,8 @@ next-env.d.ts
 # agent review notes (local only)
 /review_feedback.md
 
+
+# local Cursor/agent scaffolding (keep on disk, not in git)
+/CLAUDE.md
+/AGENTS.md
+

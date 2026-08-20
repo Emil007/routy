@@ -4,6 +4,8 @@ import { getCurrentUser } from "@/lib/session";
 import { CONDITION_REASONS, reportCondition } from "@/lib/segmentConditions";
 import { logActivity } from "@/lib/activityLog";
 import { getSegment } from "@/lib/segments";
+import { checkApiRateLimit, rateLimitResponse } from "@/lib/apiRateLimit";
+import { getClientIp } from "@/lib/loginRateLimit";
 
 const bodySchema = z.object({
   segmentId: z.number().int().positive(),
@@ -14,6 +16,9 @@ const bodySchema = z.object({
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
+  const rate = checkApiRateLimit("segment_condition", { userId: user.id, ip: await getClientIp() });
+  if (!rate.allowed) return rateLimitResponse(rate.retryAfterSeconds);
 
   const json = await request.json().catch(() => null);
   const parsed = bodySchema.safeParse(json);

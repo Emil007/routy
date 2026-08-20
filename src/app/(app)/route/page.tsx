@@ -1,7 +1,7 @@
 import { requireUser } from "@/lib/session";
 import { resolveLocale } from "@/lib/locale";
 import { t } from "@/lib/i18n";
-import { listNodes, getHomeNode } from "@/lib/nodes";
+import { listNodes, getUserHomeNode } from "@/lib/nodes";
 import { getActiveRoute } from "@/lib/activeRoute";
 import { listFavorites } from "@/lib/favorites";
 import { loadGraphContext } from "@/lib/routeContext";
@@ -12,7 +12,7 @@ export default async function RoutePage() {
   const user = await requireUser();
   const locale = await resolveLocale(user.locale);
   const nodes = listNodes();
-  const home = getHomeNode();
+  const home = getUserHomeNode(user.id);
 
   const { segmentsById, nodesById } = loadGraphContext();
 

@@ -92,6 +92,37 @@ export function getHomeNode(): NodeRow | null {
   return row ? mapNode(row) : null;
 }
 
+/**
+ * Per-user home (preferred). Returns null when unset — clients pick a first node
+ * or ask the user to set home. Does not fall back to global nodes.is_home
+ * (legacy flag remains for migration/display only).
+ */
+export function getUserHomeNode(userId: number): NodeRow | null {
+  const row = db
+    .prepare(
+      `SELECT ${NODE_COLUMNS}
+       FROM users u
+       INNER JOIN nodes n ON n.id = u.home_node_id
+       LEFT JOIN name_parts p1 ON p1.id = n.name_part_1_id
+       LEFT JOIN name_parts p2 ON p2.id = n.name_part_2_id
+       WHERE u.id = ? AND n.active = 1`,
+    )
+    .get(userId) as NodeDbRow | undefined;
+  return row ? mapNode(row) : null;
+}
+
+export function getUserHomeNodeId(userId: number): number | null {
+  const row = db.prepare("SELECT home_node_id FROM users WHERE id = ?").get(userId) as
+    | { home_node_id: number | null }
+    | undefined;
+  return row?.home_node_id ?? null;
+}
+
+/** Sets only this user's home_node_id — never touches other users or nodes.is_home. */
+export function setUserHomeNode(userId: number, nodeId: number): void {
+  db.prepare("UPDATE users SET home_node_id = ? WHERE id = ?").run(nodeId, userId);
+}
+
 export function createNode(
   name: string | null,
   point: LatLng,
@@ -99,6 +130,7 @@ export function createNode(
   createdBy: number | null = null,
   nameParts?: NodeNameParts,
 ): NodeRow {
+  // isHome still writes legacy nodes.is_home for older clients; prefer setUserHomeNode for user actions.
   if (isHome) {
     db.prepare("UPDATE nodes SET is_home = 0 WHERE is_home = 1").run();
   }
@@ -159,6 +191,7 @@ export function purgeNode(id: number): void {
   db.prepare("DELETE FROM nodes WHERE id = ?").run(id);
 }
 
+/** @deprecated Prefer setUserHomeNode — writes legacy global nodes.is_home only. */
 export function setHomeNode(id: number): void {
   const tx = db.transaction(() => {
     db.prepare("UPDATE nodes SET is_home = 0 WHERE is_home = 1").run();

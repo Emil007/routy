@@ -115,12 +115,23 @@ export interface WalkLogEntry {
   durationMin: number;
   nickname: string | null;
   acceptedAt: string;
+  pointsEarned: number | null;
+  pointsBase: number | null;
+  pointsGolden: number | null;
+  pointsExploration: number | null;
+  pointsDiversity: number | null;
+  streakMultiplier: number | null;
+  celebrationTier: string | null;
+  goldenHits: number | null;
 }
 
 export function getRecentWalks(userId: number, limit = 10): WalkLogEntry[] {
   const rows = db
     .prepare(
-      "SELECT id, node_chain, segment_ids, length_m, duration_min, nickname, accepted_at FROM walk_log WHERE user_id = ? ORDER BY accepted_at DESC LIMIT ?",
+      `SELECT id, node_chain, segment_ids, length_m, duration_min, nickname, accepted_at,
+              points_earned, points_base, points_golden, points_exploration, points_diversity,
+              streak_multiplier, celebration_tier, golden_hits
+       FROM walk_log WHERE user_id = ? ORDER BY accepted_at DESC LIMIT ?`,
     )
     .all(userId, limit) as {
     id: number;
@@ -130,6 +141,14 @@ export function getRecentWalks(userId: number, limit = 10): WalkLogEntry[] {
     duration_min: number;
     nickname: string | null;
     accepted_at: string;
+    points_earned: number | null;
+    points_base: number | null;
+    points_golden: number | null;
+    points_exploration: number | null;
+    points_diversity: number | null;
+    streak_multiplier: number | null;
+    celebration_tier: string | null;
+    golden_hits: number | null;
   }[];
 
   return rows.map((r) => ({
@@ -140,6 +159,14 @@ export function getRecentWalks(userId: number, limit = 10): WalkLogEntry[] {
     durationMin: r.duration_min,
     nickname: r.nickname,
     acceptedAt: r.accepted_at,
+    pointsEarned: r.points_earned,
+    pointsBase: r.points_base,
+    pointsGolden: r.points_golden,
+    pointsExploration: r.points_exploration,
+    pointsDiversity: r.points_diversity,
+    streakMultiplier: r.streak_multiplier,
+    celebrationTier: r.celebration_tier,
+    goldenHits: r.golden_hits,
   }));
 }
 

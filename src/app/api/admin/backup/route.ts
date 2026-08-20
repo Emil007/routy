@@ -6,7 +6,8 @@ import { getCurrentUser } from "@/lib/session";
 import { db } from "@/lib/db";
 import { log } from "@/lib/logger";
 
-export async function GET() {
+/** Admin DB download — POST only so a cookie alone cannot CSRF-navigate a GET download (SEC-2). */
+export async function POST() {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   if (user.role !== "admin") return NextResponse.json({ error: "forbidden" }, { status: 403 });

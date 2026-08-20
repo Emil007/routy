@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { getSettings } from "@/lib/settings";
-import { getHomeNode } from "@/lib/nodes";
+import { getUserHomeNode } from "@/lib/nodes";
 import { getUsageMap, getDailyUsageMap, listSegments } from "@/lib/segments";
 import { getRouteScoringContext } from "@/lib/routeScoring";
 import { loadGraphContext } from "@/lib/routeContext";
@@ -113,7 +113,7 @@ export async function POST(request: Request) {
   const { waypointNodeId, explorerMode, preset, forceGolden } = parsed.data;
   const surpriseMode = parsed.data.surpriseMode || preset === "surprise";
 
-  const home = getHomeNode();
+  const home = getUserHomeNode(user.id);
   const startNodeId = parsed.data.startNodeId ?? home?.id;
   if (!startNodeId) {
     return NextResponse.json({ error: "no_home_node" }, { status: 400 });

@@ -55,7 +55,7 @@ export default async function MapPage({
         segments={canonicalSegments}
         usage={Object.fromEntries(usage)}
         segmentCounts={segmentCounts}
-        currentUser={{ id: user.id, role: user.role }}
+        currentUser={{ id: user.id, role: user.role, homeNodeId: user.homeNodeId }}
         userNames={Object.fromEntries(userNames)}
         mergeRadiusM={settings.merge_radius_m}
         walkSpeedKmh={effectiveWalkSpeedKmh(user.walkSpeedKmh, settings)}

@@ -56,6 +56,14 @@ export async function destroyCurrentSession(): Promise<void> {
     db.prepare("DELETE FROM sessions WHERE token_hash = ?").run(hashToken(token));
   }
   store.delete(SESSION_COOKIE);
+
+  // SEC-1: revoke stashed admin session and clear cookie so logout cannot leave a
+  // restorable "return to admin" path for a later browser user.
+  const impersonatorToken = store.get(IMPERSONATOR_COOKIE)?.value;
+  if (impersonatorToken) {
+    db.prepare("DELETE FROM sessions WHERE token_hash = ?").run(hashToken(impersonatorToken));
+    store.delete(IMPERSONATOR_COOKIE);
+  }
 }
 
 /** Signs out every other device/browser signed into this account, keeping the current session alive. */
@@ -80,6 +88,8 @@ export interface SessionUser {
   active: boolean;
   theme: string;
   totpEnabled: boolean;
+  /** Per-user home node; null until set (no global is_home fallback). */
+  homeNodeId: number | null;
   /** Which client created this session — `"app"` is the native Android app (Bearer token) and its
    *  admin WebView tab (shared session cookie). Used to hide NavBar chrome in the WebView only;
    *  browser sessions use `"web"` and get the full site header. */
@@ -96,6 +106,7 @@ interface SessionRow {
   active: number;
   theme: string;
   totpEnabled: number;
+  homeNodeId: number | null;
   expiresAt: string;
   client: SessionClient;
 }
@@ -110,7 +121,8 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     .prepare(
       `SELECT u.id as id, u.username as username, u.display_name as displayName, u.locale as locale,
               u.walk_speed_kmh as walkSpeedKmh, u.role as role, u.active as active, u.theme as theme,
-              u.totp_enabled as totpEnabled, s.expires_at as expiresAt, s.client as client
+              u.totp_enabled as totpEnabled, u.home_node_id as homeNodeId,
+              s.expires_at as expiresAt, s.client as client
        FROM sessions s JOIN users u ON u.id = s.user_id
        WHERE s.token_hash = ?`,
     )
@@ -136,6 +148,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     active: row.active === 1,
     theme: row.theme,
     totpEnabled: row.totpEnabled === 1,
+    homeNodeId: row.homeNodeId,
     client: row.client,
   };
 }
@@ -198,6 +211,7 @@ export async function endImpersonation(): Promise<boolean> {
   store.delete(IMPERSONATOR_COOKIE);
 
   if (!stillValidAdmin) {
+    // Stale/revoked admin token — wipe session cookie; do not resurrect anyone.
     store.delete(SESSION_COOKIE);
     return false;
   }

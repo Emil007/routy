@@ -28,6 +28,19 @@ function buildCanonicalMap(segments: SegmentRow[]): Map<number, number> {
   return new Map(segments.map((s) => [s.id, canonicalSegmentId(s)]));
 }
 
+/** Collapse directed usage counts onto canonical segment ids (BUG-6). */
+export function toCanonicalUsageMap(
+  usageMap: Map<number, number>,
+  canonicalOf: Map<number, number>,
+): Map<number, number> {
+  const out = new Map<number, number>();
+  for (const [id, count] of usageMap) {
+    const canon = canonicalOf.get(id) ?? id;
+    out.set(canon, (out.get(canon) ?? 0) + count);
+  }
+  return out;
+}
+
 function elevationBonusForWalks(rows: WalkRow[]): number {
   let elevationBonus = 0;
   for (const row of rows) {
@@ -68,69 +81,38 @@ export function computeWalkPointsEarned(breakdown: PointPreviewBreakdown, streak
   return Math.round(breakdown.total * streakMult);
 }
 
-/** Sum preview totals for a user's walks, replaying global usage in walk order. */
-export function sumPreviewPointsForUser(userId: number, weeklyOnly: boolean): number {
-  let total = 0;
-  const weekCutoff = new Date(Date.now() - 7 * 86400000).toISOString();
-  replayAllWalkPreviews((row, preview) => {
-    if (row.user_id === userId && (!weeklyOnly || row.accepted_at >= weekCutoff)) {
-      total += preview.total;
-    }
-  });
-  return total;
+/**
+ * Streak length to use for the multiplier when completing a walk now.
+ * First walk of the day extends the streak; later walks the same day keep the same multiplier.
+ */
+export function streakForPointsMultiplier(userId: number): number {
+  const streak = getStreakStats(userId);
+  const walkedToday = db
+    .prepare("SELECT 1 FROM walk_log WHERE user_id = ? AND date(accepted_at) = date('now') LIMIT 1")
+    .get(userId);
+  if (walkedToday) return Math.max(1, streak.currentStreak);
+  if (streak.currentStreak > 0) return streak.currentStreak + 1;
+  return 1;
 }
 
-/** Preview breakdown per walk id for a user (usage replayed in walk order). */
-export function getWalkPointPreviewsForUser(userId: number): Map<number, PointPreviewBreakdown> {
-  const map = new Map<number, PointPreviewBreakdown>();
-  replayAllWalkPreviews((row, preview) => {
-    if (row.user_id === userId) map.set(row.id, preview);
-  });
-  return map;
-}
-
-type WalkLogReplayRow = {
-  id: number;
-  user_id: number;
-  length_m: number;
-  segment_ids: string;
-  accepted_at: string;
-};
-
-function loadGoldenMultiplierMap(): Map<number, number> {
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const { getGoldenMultiplierMap } = require("./goldenSegments") as typeof import("./goldenSegments");
-  return getGoldenMultiplierMap();
-}
-
-function replayAllWalkPreviews(
-  visitor: (row: WalkLogReplayRow, preview: PointPreviewBreakdown) => void,
-): void {
-  const goldenMap = loadGoldenMultiplierMap();
-  const canonicalOf = buildCanonicalMap(listSegments());
-  const usageMap = new Map<number, number>();
-  const rows = db
-    .prepare("SELECT id, user_id, length_m, segment_ids, accepted_at FROM walk_log ORDER BY accepted_at")
-    .all() as WalkLogReplayRow[];
-
-  for (const row of rows) {
-    const segmentIds = JSON.parse(row.segment_ids) as number[];
-    const preview = computeRoutePointPreview(segmentIds, row.length_m, usageMap, goldenMap, canonicalOf);
-    visitor(row, preview);
-    for (const id of segmentIds) {
-      usageMap.set(id, (usageMap.get(id) ?? 0) + 1);
-    }
-  }
-}
-
-/** Points from completed walks: preview totals with streak multiplier. */
+/** Ledger balances: SUM(points_earned) from walk_log (no replay × live streak). */
 export function computeUserPoints(userId: number): UserPoints {
   const streak = getStreakStats(userId);
   const multiplier = streakMultiplier(streak.currentStreak);
 
+  const totalRow = db
+    .prepare("SELECT COALESCE(SUM(points_earned), 0) AS total FROM walk_log WHERE user_id = ?")
+    .get(userId) as { total: number };
+  const weeklyRow = db
+    .prepare(
+      `SELECT COALESCE(SUM(points_earned), 0) AS total FROM walk_log
+       WHERE user_id = ? AND accepted_at >= datetime('now', '-7 days')`,
+    )
+    .get(userId) as { total: number };
+
   return {
-    totalPoints: computeWalkPointsEarned({ base: 0, golden: 0, exploration: 0, diversity: 0, total: sumPreviewPointsForUser(userId, false) }, multiplier),
-    weeklyPoints: computeWalkPointsEarned({ base: 0, golden: 0, exploration: 0, diversity: 0, total: sumPreviewPointsForUser(userId, true) }, multiplier),
+    totalPoints: totalRow.total,
+    weeklyPoints: weeklyRow.total,
     streakMultiplier: multiplier,
   };
 }
@@ -141,29 +123,25 @@ export interface PointsLeaderboardEntry {
   totalPoints: number;
 }
 
-/** All-time points leaderboard for the household. */
+/** All-time points leaderboard for the household (ledger sum). */
 export function getPointsLeaderboard(limit = 20): PointsLeaderboardEntry[] {
-  const users = db.prepare("SELECT id, display_name FROM users WHERE active = 1 AND deleted_at IS NULL").all() as {
-    id: number;
-    display_name: string;
-  }[];
+  const rows = db
+    .prepare(
+      `SELECT u.id AS user_id, u.display_name, COALESCE(SUM(w.points_earned), 0) AS total
+       FROM users u
+       LEFT JOIN walk_log w ON w.user_id = u.id
+       WHERE u.active = 1 AND u.deleted_at IS NULL
+       GROUP BY u.id
+       ORDER BY total DESC
+       LIMIT ?`,
+    )
+    .all(limit) as { user_id: number; display_name: string; total: number }[];
 
-  return users
-    .map((u) => {
-      const streak = getStreakStats(u.id);
-      const multiplier = streakMultiplier(streak.currentStreak);
-      const previewTotal = sumPreviewPointsForUser(u.id, false);
-      return {
-        userId: u.id,
-        displayName: u.display_name,
-        totalPoints: computeWalkPointsEarned(
-          { base: 0, golden: 0, exploration: 0, diversity: 0, total: previewTotal },
-          multiplier,
-        ),
-      };
-    })
-    .sort((a, b) => b.totalPoints - a.totalPoints)
-    .slice(0, limit);
+  return rows.map((r) => ({
+    userId: r.user_id,
+    displayName: r.display_name,
+    totalPoints: r.total,
+  }));
 }
 
 export interface PointPreviewBreakdown {
@@ -184,6 +162,7 @@ export function computeRoutePointPreview(
   goldenMap: Map<number, number>,
   canonicalOf: Map<number, number>,
 ): PointPreviewBreakdown {
+  const canonicalUsage = toCanonicalUsageMap(usageMap, canonicalOf);
   const base = Math.round(lengthM / 100) + 50;
   let golden = 0;
   const seenGolden = new Set<number>();
@@ -196,18 +175,15 @@ export function computeRoutePointPreview(
       golden += Math.round(base * 0.1 * (mult - 1));
     }
   }
-  const unexplored = segmentIds.filter((id) => (usageMap.get(id) ?? 0) === 0).length;
+  const routeCanons = [...new Set(segmentIds.map((id) => canonicalOf.get(id) ?? id))];
+  const unexplored = routeCanons.filter((c) => (canonicalUsage.get(c) ?? 0) === 0).length;
   const exploration = unexplored * 8;
-  const usageValues = [...usageMap.values()].sort((a, b) => a - b);
+  const usageValues = [...canonicalUsage.values()].sort((a, b) => a - b);
   const quartile =
     usageValues.length > 0 ? usageValues[Math.floor(usageValues.length * 0.25)] ?? 0 : 0;
   let diversity = 0;
-  const seenDiverse = new Set<number>();
-  for (const id of segmentIds) {
-    const canon = canonicalOf.get(id) ?? id;
-    if (seenDiverse.has(canon)) continue;
-    seenDiverse.add(canon);
-    if ((usageMap.get(id) ?? 0) <= quartile) diversity += 5;
+  for (const canon of routeCanons) {
+    if ((canonicalUsage.get(canon) ?? 0) <= quartile) diversity += 5;
   }
   const total = base + golden + exploration + diversity;
   return { base, golden, exploration, diversity, total };

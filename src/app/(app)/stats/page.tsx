@@ -5,7 +5,7 @@ import { listNodes } from "@/lib/nodes";
 import { listSegments } from "@/lib/segments";
 import { walkPathPoints } from "@/lib/walkPathPoints";
 import { getUserStats, getRecentWalks, getSegmentUsageStats, getStreakStats, getWeeklyLeaderboard } from "@/lib/stats";
-import { computeUserPoints, getPointsLeaderboard, getWalkPointPreviewsForUser, computeWalkPointsEarned } from "@/lib/points";
+import { computeUserPoints, getPointsLeaderboard } from "@/lib/points";
 import { ensureTodayGoldenSegments } from "@/lib/goldenSegments";
 import { computeAchievements, TIERS } from "@/lib/achievements";
 import { ConfirmSubmitForm } from "@/components/ConfirmSubmitForm";
@@ -57,7 +57,6 @@ export default async function StatsPage() {
   const userPoints = computeUserPoints(user.id);
   const pointsLeaderboard = getPointsLeaderboard();
   const goldenToday = ensureTodayGoldenSegments();
-  const walkPointPreviews = getWalkPointPreviewsForUser(user.id);
   const nodes = listNodes();
   const segments = listSegments();
   const nodesById = new Map(nodes.map((n) => [n.id, n]));
@@ -262,24 +261,30 @@ export default async function StatsPage() {
                       {w.durationMin} {t(locale, "common.min")}
                     </td>
                     <td>
-                      {(() => {
-                        const preview = walkPointPreviews.get(w.id);
-                        if (!preview) return "—";
-                        const earned = computeWalkPointsEarned(preview, userPoints.streakMultiplier);
-                        return (
-                          <span
-                            className="chip"
-                            title={[
-                              t(locale, "route.pointPreviewBase", { points: preview.base }),
-                              preview.golden > 0 ? t(locale, "route.pointPreviewGolden", { points: preview.golden }) : "",
-                              preview.exploration > 0 ? t(locale, "route.pointPreviewExploration", { points: preview.exploration }) : "",
-                              preview.diversity > 0 ? t(locale, "route.pointPreviewDiversity", { points: preview.diversity }) : "",
-                            ].filter(Boolean).join(" · ")}
-                          >
-                            +{earned}
-                          </span>
-                        );
-                      })()}
+                      {w.pointsEarned != null ? (
+                        <span
+                          className="chip"
+                          title={[
+                            w.pointsBase != null ? t(locale, "route.pointPreviewBase", { points: w.pointsBase }) : "",
+                            w.pointsGolden ? t(locale, "route.pointPreviewGolden", { points: w.pointsGolden }) : "",
+                            w.pointsExploration
+                              ? t(locale, "route.pointPreviewExploration", { points: w.pointsExploration })
+                              : "",
+                            w.pointsDiversity
+                              ? t(locale, "route.pointPreviewDiversity", { points: w.pointsDiversity })
+                              : "",
+                            w.streakMultiplier != null
+                              ? t(locale, "route.streakMultiplier", { multiplier: w.streakMultiplier })
+                              : "",
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        >
+                          +{w.pointsEarned}
+                        </span>
+                      ) : (
+                        "—"
+                      )}
                     </td>
                     <td>
                       <ConfirmSubmitForm
