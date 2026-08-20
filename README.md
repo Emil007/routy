@@ -6,9 +6,9 @@ Built as a hobby project by a sysadmin, not a product team. It works well for ou
 
 This repository is the **server** (web UI + API + database). There is also a companion **[Android app](https://github.com/Emil007/routy-android)** — same login, same path network, but native map, GPS recording while you walk, and offline cache. Use the browser alone or pair it with the app; the app cannot run without this server.
 
-**Server** (this repo) · **0.33s** · [`Emil007/routy`](https://github.com/Emil007/routy)  
-**Android app** · **0.31b** · [`Emil007/routy-android`](https://github.com/Emil007/routy-android)  
-*(Independent release tags: `v0.33s` vs `v0.31b`.)*
+**Server** (this repo) · **0.35s** · [`Emil007/routy`](https://github.com/Emil007/routy)  
+**Android app** · **0.35a** · [`Emil007/routy-android`](https://github.com/Emil007/routy-android)  
+*(Aligned release batch: same number, `s` / `a` suffix by repo — tags `v0.35s` / `v0.35a`.)*
 
 ---
 
@@ -58,20 +58,22 @@ Login and setup are rate-limited out of the box. Container runs read-only root, 
 
 **Build the network** — Draw paths, import GPX, or record a track on the map. Junctions snap together; names can reuse linked parts (with OSM hints). Edit, split, rename, lock a path temporarily, or soft-delete into trash. Map layers: street / hiking / satellite, plus optional Waymarked Trails overlay.
 
-**Plan a walk** — Pick a start (and optional waypoint). Routy suggests a route in your length band, scoring for loops, variety, and segments you have not used recently. Refine with short/long presets, explorer mode, favorites, and share links.
+**Plan a walk** — Pick a start (and optional waypoint). Short / Long / Discover / Surprise presets suggest a route in your length band, scoring for loops, variety, segments you have not used recently, and a **point preview** (daily golden paths boost the score). Favorites and share links included.
 
-**Walk it** — Accept a route as your active walk; optional nickname, live location, and voice cues on the web. Complete the walk to log stats; streaks, achievements, and a household leaderboard follow from there.
+**Walk it** — Accept a route as your active walk; optional nickname, live location, and voice cues on the web. Complete the walk to earn points (preview bonuses × streak), celebrate golden hits, and log stats; streaks, achievements, and household leaderboards follow from there.
 
-**Accounts** — First user is admin (users, impersonation, backups, activity log). Paths belong to their creator; only the owner or admin can edit. DE/EN UI, several themes, tunable routing parameters in Settings.
+**Restrict paths** — From the map, restrict a path for yourself (timed avoid) or everyone (owner/admin lock; others create a lock proposal for approval). Soft penalties and locks feed into routing.
+
+**Accounts** — First user is admin (users, impersonation, backups, activity log). Paths belong to their creator; only the owner or admin can edit. DE/EN UI, several themes, tunable routing parameters in Settings (admin network card at the bottom).
 
 **Clients**
 
 | | Browser (PWA) | [Android app](https://github.com/Emil007/routy-android) |
 |---|---|---|
-| Route, map, stats | Full web UI | Native (MapLibre map, offline cache) |
+| Route, map, stats | Full web UI + game hub | Native (MapLibre map, offline cache) + game hub |
 | GPS recording | Foreground only (browser limits) | Native foreground service |
-| Admin | Web | WebView tab |
-| Account security (password, 2FA) | Settings page | Opens Settings in Custom Tab |
+| Admin | Web (compact ⋮ user actions) | WebView tab (same UI) |
+| Account security (password, 2FA) | Settings `#account` | Authenticated in-app WebView sheet |
 
 Map tiles and elevation/name lookups use public OSM-related services (no API keys). See compose comments if you need outbound allowlists.
 
@@ -96,11 +98,11 @@ Stack: Next.js (App Router), React, TypeScript, Leaflet, Zod, Vitest. HTTP API n
 
 ## Version numbers
 
-Two independent lines, same `MAJOR.MINOR` idea:
+Server and Android share the **same numeric part** for a release batch; only the suffix differs:
 
-| Component | Tag example | Shown as |
-|-----------|-------------|----------|
-| Server | `v0.33s` | **0.33s** (`package.json`) |
-| Android | `v0.31b` | **0.31b** (`app/build.gradle.kts`) |
+| Component | Tag example | Shown as | Where |
+|-----------|-------------|----------|-------|
+| Server | `v0.35s` | **0.35s** | `package.json` |
+| Android | `v0.35a` | **0.35a** | `app/build.gradle.kts` |
 
-The `s` / `b` suffix tells them apart; bump each repo when that side changes.
+Pattern is always `0.<number>s` / `0.<number>a` — never swap suffixes, never use `b` / semver patch like `0.35.2`.
