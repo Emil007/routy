@@ -11,7 +11,7 @@ import { createRouteSession } from "@/lib/routeSessions";
 import { buildRouteDisplay } from "@/lib/routeDisplay";
 import { checkGenerateRateLimit } from "@/lib/generateRateLimit";
 import { getGoldenMultiplierMap } from "@/lib/goldenSegments";
-import { computeRoutePointPreview, canonicalSegmentId } from "@/lib/points";
+import { computeRoutePointPreview, canonicalSegmentId, countGoldenHits } from "@/lib/points";
 import { listSegments } from "@/lib/segments";
 
 const bodySchema = z.object({
@@ -22,6 +22,8 @@ const bodySchema = z.object({
   surpriseMode: z.boolean().default(false),
   /** Biases the search toward the lower/upper half of the configured suggest-length range. */
   preset: z.enum(["short", "long", "surprise"]).optional(),
+  /** Prefer (or require when possible) a route that hits today's golden segments. */
+  forceGolden: z.boolean().default(false),
 });
 
 export async function POST(request: Request) {
@@ -38,7 +40,7 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: "invalid_body", issues: parsed.error.issues }, { status: 400 });
   }
-  const { waypointNodeId, explorerMode, preset } = parsed.data;
+  const { waypointNodeId, explorerMode, preset, forceGolden } = parsed.data;
   const surpriseMode = parsed.data.surpriseMode || preset === "surprise";
 
   const home = getHomeNode();
@@ -76,6 +78,7 @@ export async function POST(request: Request) {
   const { avoidSegmentIds, conditionCounts, staleSegmentIds } = getRouteScoringContext(user.id, surpriseMode);
   const geometryOf = new Map([...segmentsById].map(([id, s]) => [id, s.geometry]));
   const goldenMap = getGoldenMultiplierMap();
+  const canonicalOf = new Map(listSegments().map((s) => [s.id, canonicalSegmentId(s)]));
   const scored = scoreRoutes(
     candidates,
     pairOf,
@@ -91,7 +94,16 @@ export async function POST(request: Request) {
     staleSegmentIds,
     goldenMap,
   );
-  const best = pickBest(scored, new Set(), explorerMode, surpriseMode);
+  const scoredPool =
+    forceGolden
+      ? (() => {
+          const withGolden = scored.filter(
+            (s) => countGoldenHits(s.route.segmentIds, goldenMap, canonicalOf) > 0,
+          );
+          return withGolden.length > 0 ? withGolden : scored;
+        })()
+      : scored;
+  const best = pickBest(scoredPool, new Set(), explorerMode, surpriseMode);
   if (!best) {
     return NextResponse.json({ error: "no_route" }, { status: 404 });
   }
@@ -125,7 +137,6 @@ export async function POST(request: Request) {
     segmentsById,
   );
 
-  const canonicalOf = new Map(listSegments().map((s) => [s.id, canonicalSegmentId(s)]));
   const pointPreview = computeRoutePointPreview(
     best.route.segmentIds,
     best.route.lengthM,

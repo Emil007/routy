@@ -145,7 +145,10 @@
     "presetShortHint": "Kurze Route — weniger Punkte, schneller fertig",
     "presetLongHint": "Lange Route — mehr Basis-Punkte",
     "presetDiscoverHint": "Neue Wege — Explorations-Bonus",
-    "presetSurpriseHint": "Selten genutzte Wege — Diversitäts-Bonus"
+    "presetSurpriseHint": "Selten genutzte Wege — Diversitäts-Bonus",
+    "moreOptions": "Weitere Optionen",
+    "forceGolden": "Einen goldenen Weg heute einbauen",
+    "forceGoldenHint": "Bevorzugt eine Route, die wenn möglich durch einen der heutigen goldenen Wege führt."
   },
   "share": {
     "subtitle": "Schreibgeschützte, geteilte Route.",

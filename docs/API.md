@@ -5,7 +5,7 @@ Shared contract between the **web app**, **native Android app**, and any future 
 - **Base URL:** user-configured (e.g. `https://routy.example.com/`)
 - **Auth:** `Authorization: Bearer <token>` (Android) or session cookie (browser). Same token from `POST /api/auth/login`.
 - **Errors:** JSON `{ "error": "<code>" }` unless noted. Common: `unauthorized`, `invalid_json`.
-- **Version:** server display `0.35s` (`package.json` `"0.35s"`).
+- **Version:** server display `0.36s` (`package.json` `"0.36s"`).
 
 ## Auth & profile
 
@@ -20,7 +20,7 @@ Shared contract between the **web app**, **native Android app**, and any future 
 | POST | `/api/auth/sessions/revoke-others` | — | `{ revoked }` | |
 | PATCH | `/api/app/profile` | `{ locale?, theme?, walkSpeedKmh? \| null }` | `{ user }` | Send `"walkSpeedKmh": null` to clear override. |
 
-**Account security (password change, TOTP enable/disable, account deactivation):** browser at `/settings#account` — native Android opens this page in an authenticated in-app WebView sheet (`{serverUrl}/settings#account`).
+**Account security (password change, TOTP enable/disable, account deactivation):** dedicated page at `/settings/account` — native Android opens that page in an authenticated in-app WebView sheet (`{serverUrl}/settings/account`). Browser `/settings` links to it.
 
 ## Bootstrap & health
 
@@ -33,7 +33,7 @@ Shared contract between the **web app**, **native Android app**, and any future 
 
 | Method | Path | Body | Response |
 |--------|------|------|----------|
-| POST | `/api/route/generate` | `{ startNodeId, destinationNodeId, waypointNodeId?, explorerMode?, surpriseMode?, preset? }` | `{ token, route, pointPreview? }` |
+| POST | `/api/route/generate` | `{ startNodeId, destinationNodeId, waypointNodeId?, explorerMode?, surpriseMode?, preset?, forceGolden? }` | `{ token, route, pointPreview? }` |
 | POST | `/api/route/widen` | `{ token }` | `{ token, route }` |
 | POST | `/api/route/adjust` | `{ token, direction }` | `{ token, route }` |
 | POST | `/api/route/accept` | `{ token }` | `{ success: true }` | Active route stored server-side. |
@@ -161,4 +161,4 @@ Distinct from GPX split proposals (`/api/app/proposals`).
 |--------|------|-------|
 | GET | `/api/admin/backup` | Admin-only DB download. |
 
-Browser-only flows (password change, TOTP, global settings) remain on `/settings` server actions — native app opens `/settings#account` in an authenticated in-app WebView sheet for account security.
+Browser-only flows (password change, TOTP) live on `/settings/account` — native app opens that page in an authenticated in-app WebView sheet. Locale/theme/network remain on `/settings`.

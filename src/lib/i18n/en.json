@@ -145,7 +145,10 @@
     "presetShortHint": "Short route — fewer points, quicker finish",
     "presetLongHint": "Long route — more base points",
     "presetDiscoverHint": "New paths — exploration bonus",
-    "presetSurpriseHint": "Rarely used paths — diversity bonus"
+    "presetSurpriseHint": "Rarely used paths — diversity bonus",
+    "moreOptions": "More options",
+    "forceGolden": "Include a golden path today",
+    "forceGoldenHint": "Prefer a route that passes through one of today's golden segments when possible."
   },
   "share": {
     "subtitle": "Read-only, shared route.",

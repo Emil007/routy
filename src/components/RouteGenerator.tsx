@@ -69,6 +69,7 @@ export function RouteGenerator({
   const [destinationNodeId, setDestinationNodeId] = useState<number | "">(homeNodeId ?? "");
   const [waypointNodeId, setWaypointNodeId] = useState<number | "">("");
   const [explorerMode, setExplorerMode] = useState(false);
+  const [forceGolden, setForceGolden] = useState(false);
 
   const [mode, setMode] = useState<"suggesting" | "active">(initialActiveRoute ? "active" : "suggesting");
   const [result, setResult] = useState<GenerateResponse | null>(
@@ -212,6 +213,7 @@ export function RouteGenerator({
       destinationNodeId: isLoop ? startNodeId : destinationNodeId || startNodeId,
       waypointNodeId: waypointNodeId || null,
       explorerMode: false,
+      forceGolden,
       preset: "surprise",
     });
     if (res.ok) {
@@ -234,6 +236,7 @@ export function RouteGenerator({
       destinationNodeId: isLoop ? startNodeId : destinationNodeId || startNodeId,
       waypointNodeId: waypointNodeId || null,
       explorerMode,
+      forceGolden,
       preset,
     });
     if (res.ok) {
@@ -627,9 +630,10 @@ export function RouteGenerator({
 
               <details>
                 <summary style={{ fontSize: "0.82rem", fontWeight: 600, color: "var(--ink-soft)", cursor: "pointer" }}>
-                  {t(locale, "route.waypoint")} ({t(locale, "common.optional")})
+                  {t(locale, "route.moreOptions")}
                 </summary>
                 <div className="field" style={{ marginTop: "0.35rem" }}>
+                  <label htmlFor="waypointNode">{t(locale, "route.waypoint")} ({t(locale, "common.optional")})</label>
                   <select id="waypointNode" value={waypointNodeId} onChange={(e) => setWaypointNodeId(e.target.value ? Number(e.target.value) : "")}>
                     <option value="">{t(locale, "route.waypointNone")}</option>
                     {sortedNodes.map((n) => (
@@ -637,6 +641,11 @@ export function RouteGenerator({
                     ))}
                   </select>
                 </div>
+                <label className="checkbox" style={{ marginTop: "0.45rem" }}>
+                  <input type="checkbox" checked={forceGolden} onChange={(e) => setForceGolden(e.target.checked)} />
+                  {t(locale, "route.forceGolden")}
+                </label>
+                <p className="hint" style={{ marginTop: "0.25rem" }}>{t(locale, "route.forceGoldenHint")}</p>
               </details>
 
               <div className="route-action-bar">

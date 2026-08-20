@@ -50,7 +50,7 @@ export default async function AdminPage({
 
       <div className="card">
         <h2>{t(locale, "admin.usersHeading")}</h2>
-        <div className="table-wrap">
+        <div className="table-wrap users-table">
           <table>
             <thead>
               <tr>

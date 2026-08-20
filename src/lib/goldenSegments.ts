@@ -2,7 +2,6 @@ import { db } from "./db";
 import { listSegments } from "./segments";
 import { canonicalSegmentId } from "./points";
 
-const GOLDEN_COUNT = 5;
 const GOLDEN_MULTIPLIER = 3;
 
 function utcDateString(): string {
@@ -14,10 +13,16 @@ export interface GoldenSegment {
   multiplier: number;
 }
 
+/** ~5% of the network, at least 1 when any routes exist (never a fixed 5). */
+export function goldenCountForNetwork(canonicalCount: number): number {
+  if (canonicalCount <= 0) return 0;
+  return Math.max(1, Math.round(canonicalCount * 0.05));
+}
+
 /** Pick golden segments from the lowest-usage quartile, weighted toward even lower usage. */
 export function pickGoldenSegmentIds(
   canonicalUsage: [segmentId: number, usage: number][],
-  count = GOLDEN_COUNT,
+  count: number,
 ): number[] {
   if (canonicalUsage.length === 0) return [];
 
@@ -78,7 +83,7 @@ export function ensureTodayGoldenSegments(): GoldenSegment[] {
     }
   }
 
-  const picked = pickGoldenSegmentIds([...canonical.entries()], GOLDEN_COUNT);
+  const picked = pickGoldenSegmentIds([...canonical.entries()], goldenCountForNetwork(canonical.size));
 
   const insert = db.prepare(
     "INSERT OR IGNORE INTO golden_segments (utc_date, segment_id, multiplier) VALUES (?, ?, ?)",

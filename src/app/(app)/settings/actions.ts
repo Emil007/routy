@@ -48,23 +48,23 @@ export async function changePasswordAction(formData: FormData) {
   const currentPassword = String(formData.get("currentPassword") || "");
   const newPassword = String(formData.get("newPassword") || "");
   if (newPassword.length < 6) {
-    redirect("/settings?passwordError=1");
+    redirect("/settings/account?passwordError=1");
   }
   const ok = changeOwnPassword(user.id, currentPassword, newPassword);
-  redirect(ok ? "/settings?passwordSuccess=1" : "/settings?passwordError=1");
+  redirect(ok ? "/settings/account?passwordSuccess=1" : "/settings/account?passwordError=1");
 }
 
 export async function logoutEverywhereAction() {
   const user = await requireUser();
   await destroyOtherSessions(user.id);
-  redirect("/settings?loggedOutEverywhere=1");
+  redirect("/settings/account?loggedOutEverywhere=1");
 }
 
 /** Generates (or regenerates) a pending secret and sends the user to the QR/confirm step — not enabled until confirmEnableTotpAction succeeds. */
 export async function startEnableTotpAction() {
   const user = await requireUser();
   setPendingTotpSecret(user.id, generateTotpSecret());
-  redirect("/settings?totpSetup=1");
+  redirect("/settings/account?totpSetup=1");
 }
 
 export async function confirmEnableTotpAction(formData: FormData) {
@@ -73,27 +73,27 @@ export async function confirmEnableTotpAction(formData: FormData) {
   const current = getUser(user.id);
 
   if (!current?.totpSecret || !verifyTotpCode(current.totpSecret, current.username, code)) {
-    redirect("/settings?totpSetup=1&totpError=1");
+    redirect("/settings/account?totpSetup=1&totpError=1");
   }
 
   enableTotp(user.id);
-  redirect("/settings?totpEnabled=1");
+  redirect("/settings/account?totpEnabled=1");
 }
 
 export async function cancelEnableTotpAction() {
   const user = await requireUser();
   disableTotp(user.id);
-  redirect("/settings");
+  redirect("/settings/account");
 }
 
 export async function disableTotpAction(formData: FormData) {
   const user = await requireUser();
   const currentPassword = String(formData.get("currentPassword") || "");
   if (!verifyLogin(user.username, currentPassword)) {
-    redirect("/settings?totpDisableError=1");
+    redirect("/settings/account?totpDisableError=1");
   }
   disableTotp(user.id);
-  redirect("/settings?totpDisabled=1");
+  redirect("/settings/account?totpDisabled=1");
 }
 
 export async function deleteOwnAccountAction() {
