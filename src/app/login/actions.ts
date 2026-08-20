@@ -8,9 +8,11 @@ import { checkLockout, recordFailure, clearAttempts, getClientIp, IP_LOCKOUT_THR
 import { verifyCaptcha, getCaptchaFieldName } from "@/lib/captcha";
 import { verifySetupToken } from "@/lib/setupToken";
 import { verifyTotpCode } from "@/lib/twoFactor";
+import { webSessionDeviceName } from "@/lib/deviceLabel";
 
 async function establishSession(userId: number) {
-  const token = await createSession(userId);
+  const deviceName = await webSessionDeviceName();
+  const token = await createSession(userId, { deviceName, client: "web" });
   const store = await cookies();
   store.set(SESSION_COOKIE, token, sessionCookieOptions());
 }

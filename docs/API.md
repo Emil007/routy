@@ -154,7 +154,7 @@ Distinct from GPX split proposals (`/api/app/proposals`).
 
 | Method | Path | Body | Response |
 |--------|------|------|----------|
-| GET | `/api/app/stats/me` | — | stats, streak, achievements, recentWalks (incl. `pointsEarned` + optional breakdown), points (`SUM(walk_log.points_earned)`), networkUsage |
+| GET | `/api/app/stats/me` | — | stats, streak, achievements, recentWalks (incl. `pointsEarned` + optional breakdown), points (`SUM(walk_log.points_earned)`), networkUsage, `nodes[]` (`id`/`name` for label resolution) |
 | GET | `/api/app/stats/leaderboard/weekly` | — | `{ leaderboard[], userId }` |
 | GET | `/api/app/stats/leaderboard/points` | — | `{ leaderboard[], userId }` — ledger totals |
 | POST | `/api/app/stats/walks/delete` | `{ walkId }` | `{ ok: true }` — removes walk; adjusts segment usage |

@@ -4,6 +4,7 @@ import { resolveLocale } from "@/lib/locale";
 import { getUserStats, getStreakStats, getRecentWalks, getSegmentUsageStats } from "@/lib/stats";
 import { computeAchievements } from "@/lib/achievements";
 import { computeUserPoints } from "@/lib/points";
+import { listNodes } from "@/lib/nodes";
 
 /** Native stats tab payload — mirrors the Stats page's computed data. */
 export async function GET() {
@@ -19,5 +20,6 @@ export async function GET() {
     recentWalks: getRecentWalks(user.id, 8),
     points: computeUserPoints(user.id),
     networkUsage: getSegmentUsageStats(),
+    nodes: listNodes().map((n) => ({ id: n.id, name: n.name })),
   });
 }

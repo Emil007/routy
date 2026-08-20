@@ -611,9 +611,9 @@ th {
   font-size: 0.82rem;
   color: var(--ink-soft);
   margin: 0;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  line-height: 1.35;
 }
 
 .record-shell {

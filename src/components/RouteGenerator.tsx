@@ -106,17 +106,24 @@ export function RouteGenerator({
     const lines: { id: string | number; points: [number, number][]; color?: string; dashed?: boolean; weight?: number }[] = [
       { id: "route", points: result.route.geometry },
     ];
-    const hitIds =
+    const hitIds = new Set(
       result.goldenHitIds ??
-      result.route.segmentIds.filter((id) => goldenSet.has(id));
-    for (const segmentId of hitIds) {
+        result.route.segmentIds.filter((id) => goldenSet.has(id)),
+    );
+    for (const segmentId of goldenSegmentIds) {
       const points = segmentGeometries[segmentId];
-      if (points?.length) {
-        lines.push({ id: `golden-${segmentId}`, points, color: "#c99a2e", dashed: true, weight: 6 });
-      }
+      if (!points?.length) continue;
+      const onRoute = hitIds.has(segmentId);
+      lines.push({
+        id: `golden-${segmentId}`,
+        points,
+        color: "#c99a2e",
+        dashed: true,
+        weight: onRoute ? 7 : 5,
+      });
     }
     return lines;
-  }, [result, goldenSet, segmentGeometries]);
+  }, [result, goldenSet, goldenSegmentIds, segmentGeometries]);
 
   async function readApiError(res: Response): Promise<string> {
     const data = (await res.json().catch(() => null)) as { error?: string } | null;
@@ -197,6 +204,7 @@ export function RouteGenerator({
       navigator.geolocation.clearWatch(watchId);
       setWatchId(null);
       setMyLocation(null);
+      setVoiceEnabled(false);
       return;
     }
     if (typeof navigator === "undefined" || !navigator.geolocation) return;
@@ -206,11 +214,6 @@ export function RouteGenerator({
       { enableHighAccuracy: true, maximumAge: 5000 },
     );
     setWatchId(id);
-  }
-
-  async function discover() {
-    setExplorerMode(true);
-    await suggest();
   }
 
   async function surprise() {
@@ -500,17 +503,23 @@ export function RouteGenerator({
         </>
       ) : (
         <>
-          <button type="button" className={watchId !== null ? "btn-primary btn-compact" : "btn-secondary btn-compact"} onClick={toggleLocation}>
-            {watchId !== null ? t(locale, "route.hideLocation") : t(locale, "route.showLocation")}
-          </button>
-          <button
-            type="button"
-            className={voiceEnabled ? "btn-primary btn-compact" : "btn-secondary btn-compact"}
-            onClick={() => setVoiceEnabled((v) => !v)}
-            title={t(locale, "route.voiceHint")}
-          >
-            {voiceEnabled ? t(locale, "route.voiceOff") : t(locale, "route.voiceOn")}
-          </button>
+          <label className="checkbox" style={{ fontSize: "0.82rem" }}>
+            <input
+              type="checkbox"
+              checked={watchId !== null}
+              onChange={() => toggleLocation()}
+            />
+            {t(locale, "route.locationCheck")}
+          </label>
+          <label className="checkbox" style={{ fontSize: "0.82rem" }} title={t(locale, "route.voiceHint")}>
+            <input
+              type="checkbox"
+              checked={voiceEnabled}
+              disabled={watchId === null}
+              onChange={(e) => setVoiceEnabled(e.target.checked)}
+            />
+            {t(locale, "route.voiceCheck")}
+          </label>
           <button type="button" className="btn-primary btn-compact" onClick={handleComplete} disabled={status === "loading"}>
             {t(locale, "route.completeButton")}
           </button>
@@ -620,13 +629,17 @@ export function RouteGenerator({
               </div>
 
               <div className="btn-row">
-                <label className="checkbox">
+                <label className="checkbox" title={t(locale, "route.loopHint")}>
                   <input type="checkbox" checked={isLoop} onChange={(e) => setIsLoop(e.target.checked)} />
                   {t(locale, "route.loop")}
                 </label>
                 <label className="checkbox">
                   <input type="checkbox" checked={explorerMode} onChange={(e) => setExplorerMode(e.target.checked)} />
                   {t(locale, "route.explorerMode")}
+                </label>
+                <label className="checkbox" title={t(locale, "route.forceGoldenHint")}>
+                  <input type="checkbox" checked={forceGolden} onChange={(e) => setForceGolden(e.target.checked)} />
+                  {t(locale, "route.forceGolden")}
                 </label>
               </div>
 
@@ -658,11 +671,6 @@ export function RouteGenerator({
                     ))}
                   </select>
                 </div>
-                <label className="checkbox" style={{ marginTop: "0.45rem" }}>
-                  <input type="checkbox" checked={forceGolden} onChange={(e) => setForceGolden(e.target.checked)} />
-                  {t(locale, "route.forceGolden")}
-                </label>
-                <p className="hint" style={{ marginTop: "0.25rem" }}>{t(locale, "route.forceGoldenHint")}</p>
               </details>
 
               <div className="route-action-bar">
@@ -671,9 +679,6 @@ export function RouteGenerator({
                 </button>
                 <button type="button" className="btn-secondary btn-compact" disabled={status === "loading" || !startNodeId} onClick={() => suggest("long")} title={t(locale, "route.presetLongHint")}>
                   {t(locale, "route.presetLong")}
-                </button>
-                <button type="button" className="btn-secondary btn-compact" disabled={status === "loading" || !startNodeId} onClick={() => discover()} title={t(locale, "route.presetDiscoverHint")}>
-                  {t(locale, "route.presetDiscover")}
                 </button>
                 <button type="button" className="btn-secondary btn-compact" disabled={status === "loading" || !startNodeId} onClick={() => surprise()} title={t(locale, "route.presetSurpriseHint")}>
                   {t(locale, "route.presetSurprise")}
