@@ -18,7 +18,6 @@ import { logActivity } from "@/lib/activityLog";
 import { getGoldenMultiplierMap } from "@/lib/goldenSegments";
 import { checkApiRateLimit } from "@/lib/apiRateLimit";
 import { persistHopTimingsFromWalk } from "@/lib/trackGeometry";
-import { getSettings, effectiveWalkSpeedKmh } from "@/lib/settings";
 
 const trackPointSchema = z.object({
   lat: z.number(),
@@ -97,8 +96,7 @@ export async function POST(request: Request) {
        ON CONFLICT(walk_id) DO UPDATE SET points_json = excluded.points_json`,
     ).run(walkId, pointsJson);
     db.prepare("UPDATE walk_log SET track_json = ? WHERE id = ?").run(pointsJson, walkId);
-    const settings = getSettings();
-    persistHopTimingsFromWalk(walkId, effectiveWalkSpeedKmh(user.walkSpeedKmh, settings));
+    persistHopTimingsFromWalk(walkId);
   }
 
   logActivity(user.id, "walk_complete", "walk", walkId, {

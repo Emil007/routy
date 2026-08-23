@@ -10,7 +10,6 @@ import {
   scoreRoutes,
   pickBest,
   toleranceRange,
-  type RouteResult,
   type ScoredRoute,
 } from "@/lib/routing";
 import { updateRouteSession, assertRouteSessionOwner } from "@/lib/routeSessions";

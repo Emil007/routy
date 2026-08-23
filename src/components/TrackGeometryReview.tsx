@@ -47,17 +47,17 @@ export function TrackGeometryReview({ locale }: { locale: Locale }) {
   }, []);
 
   useEffect(() => {
-    void loadWalks();
+    queueMicrotask(() => {
+      void loadWalks();
+    });
   }, [loadWalks]);
 
   useEffect(() => {
-    if (selectedWalkId === null) {
-      setSuggestions([]);
-      setSelectedSegmentId(null);
-      return;
-    }
+    if (selectedWalkId === null) return;
     let cancelled = false;
     (async () => {
+      await Promise.resolve();
+      if (cancelled) return;
       setStatus("loading");
       const res = await fetch(`/api/admin/track-geometry/walk/${selectedWalkId}`);
       if (!cancelled && res.ok) {
@@ -192,7 +192,11 @@ export function TrackGeometryReview({ locale }: { locale: Locale }) {
                       <button
                         type="button"
                         className="btn-secondary btn-compact"
-                        onClick={() => setSelectedWalkId(w.id)}
+                        onClick={() => {
+                          setSelectedWalkId(w.id);
+                          setSuggestions([]);
+                          setSelectedSegmentId(null);
+                        }}
                       >
                         {t(locale, "admin.trackGeometryReview")}
                       </button>

@@ -9,7 +9,6 @@ import {
   formatStationLabel,
   stationSpeakName,
   voiceAnnounceRadiusM,
-  type VoiceStation,
 } from "@/lib/voiceAnnounce";
 import { MapViewLazy } from "./MapViewLazy";
 import { RouteCompletionDialog, type RouteCompletionData } from "./RouteCompletionDialog";
@@ -76,12 +75,12 @@ export function RouteGenerator({
 }) {
   const router = useRouter();
   const nodesById = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
-  const [favorites, setFavorites] = useState(initialFavorites);
+  const [deletedFavoriteIds, setDeletedFavoriteIds] = useState<Set<number>>(() => new Set());
+  const favorites = useMemo(
+    () => initialFavorites.filter((f) => !deletedFavoriteIds.has(f.id)),
+    [initialFavorites, deletedFavoriteIds],
+  );
   const [favoritesOpen, setFavoritesOpen] = useState(false);
-
-  useEffect(() => {
-    setFavorites(initialFavorites);
-  }, [initialFavorites]);
 
   const [startNodeId, setStartNodeId] = useState<number | "">(homeNodeId ?? "");
   const [isLoop, setIsLoop] = useState(true);
@@ -306,10 +305,6 @@ export function RouteGenerator({
       cancelled = true;
     };
   }, []);
-
-  useEffect(() => {
-    if (isLoop && startNodeId) setEndNodeId(startNodeId);
-  }, [isLoop, startNodeId]);
 
   useEffect(() => {
     if (!voiceEnabled || mode !== "active" || !myLocation || !result) return;
@@ -588,7 +583,7 @@ export function RouteGenerator({
     if (!window.confirm(t(locale, "route.favoriteDeleteConfirm"))) return;
     const res = await callApi(`/api/favorites/${id}/delete`);
     if (res.ok) {
-      setFavorites((prev) => prev.filter((f) => f.id !== id));
+      setDeletedFavoriteIds((prev) => new Set(prev).add(id));
     }
   }
 

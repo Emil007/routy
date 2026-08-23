@@ -56,7 +56,9 @@ export function SessionsPanel({ locale }: { locale: Locale }) {
   }, []);
 
   useEffect(() => {
-    loadSessions();
+    queueMicrotask(() => {
+      void loadSessions();
+    });
   }, [loadSessions]);
 
   async function revoke(sessionId: string) {

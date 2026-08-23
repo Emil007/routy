@@ -24,11 +24,6 @@ describe("trackGeometry", () => {
       { lat: 50.001, lng: 8 },
       { lat: 50.002, lng: 8 },
     ];
-    const nodeCoords = new Map<number, LatLng>([
-      [10, { lat: 50, lng: 8 }],
-      [20, { lat: 50.001, lng: 8 }],
-      [30, { lat: 50.002, lng: 8 }],
-    ]);
     // Mock listNodes via splitTrackByRoute using real DB would need integration test;
     // test avgDistanceToPath instead for unit scope.
     expect(avgDistanceToPath([{ lat: 50, lng: 8 }], track)).toBeLessThan(5);

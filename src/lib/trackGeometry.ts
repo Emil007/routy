@@ -9,7 +9,6 @@ import {
   type SegmentRow,
 } from "./segments";
 import { listNodes } from "./nodes";
-import { getSettings, effectiveWalkSpeedKmh } from "./settings";
 
 export interface TrackPoint extends LatLng {
   time?: string;
@@ -373,7 +372,7 @@ export function discardTrackSuggestion(walkId: number, segmentId: number): { ok:
 }
 
 /** When a walk uploads GPS with timestamps, persist per-hop durations on segments that lack them. */
-export function persistHopTimingsFromWalk(walkId: number, walkSpeedKmh: number): void {
+export function persistHopTimingsFromWalk(walkId: number): void {
   const walkRow = db
     .prepare("SELECT node_chain, segment_ids, track_json FROM walk_log WHERE id = ?")
     .get(walkId) as { node_chain: string; segment_ids: string; track_json: string | null } | undefined;
