@@ -6,9 +6,9 @@ Built as a hobby project by a sysadmin, not a product team. It works well for ou
 
 This repository is the **server** (web UI + API + database). There is also a companion **[Android app](https://github.com/Emil007/routy-android)** — same login, same path network, but native map, GPS recording while you walk, and offline cache. Use the browser alone or pair it with the app; the app cannot run without this server.
 
-**Server** (this repo) · **0.40s** · [`Emil007/routy`](https://github.com/Emil007/routy)  
-**Android app** · **0.40a** · [`Emil007/routy-android`](https://github.com/Emil007/routy-android)  
-*(Aligned release batch: same number, `s` / `a` suffix by repo — tags `v0.40s` / `v0.40a`.)*
+**Server** (this repo) · **0.42s** · [`Emil007/routy`](https://github.com/Emil007/routy)
+**Android app** · **0.42a** · [`Emil007/routy-android`](https://github.com/Emil007/routy-android)
+*(Aligned release batch: same number, `s` / `a` suffix by repo — tags `v0.42s` / `v0.42a`.)*
 
 ---
 
@@ -58,7 +58,7 @@ Login and setup are rate-limited out of the box. Container runs read-only root, 
 
 **Build the network** — Draw paths, import GPX, or record a track on the map. Junctions snap together; names can reuse linked parts (with OSM hints). Edit, split, rename, lock a path temporarily, or soft-delete into trash. Map layers: street / hiking / satellite, plus optional Waymarked Trails overlay.
 
-**Plan a walk** — Pick a start (and optional waypoint). Short / Long / Discover / Surprise presets suggest a route in your length band, scoring for loops, variety, segments you have not used recently, and a **point preview** (daily golden paths boost the score). Favorites and share links included.
+**Plan a walk** — Pick a start (and optional waypoints / required or excluded paths). Short / Normal / Long / Surprise presets suggest a route in your length band (personal taste after 3 rated walks, else network defaults), scoring for loops, variety, and a **point preview** (daily golden paths boost the score). **Favorites:** save only after a completed walk; on the generate screen a compact **Favorites** button opens Load + Delete.
 
 **Walk it** — Accept a route as your active walk; optional nickname, live location, and voice cues on the web. Complete the walk to earn points (preview bonuses × streak), celebrate golden hits, and log stats; streaks, achievements, and household leaderboards follow from there.
 
@@ -94,6 +94,8 @@ npm run dev
 
 Stack: Next.js (App Router), React, TypeScript, Leaflet, Zod, Vitest. HTTP API notes for the Android client: [docs/API.md](docs/API.md).
 
+Walk completion sounds (*Purchase Success* / *Brass Fanfare Short* from Pixabay, edited) ship as MP3/OGG in `public/sounds/` (Android `res/raw` uses OGG).
+
 ---
 
 ## Version numbers
@@ -102,7 +104,7 @@ Server and Android share the **same numeric part** for a release batch; only the
 
 | Component | Tag example | Shown as | Where |
 |-----------|-------------|----------|-------|
-| Server | `v0.40s` | **0.40s** | `package.json` |
-| Android | `v0.40a` | **0.40a** | `app/build.gradle.kts` |
+| Server | `v0.42s` | **0.42s** | `package.json` |
+| Android | `v0.42a` | **0.42a** | `app/build.gradle.kts` |
 
 Pattern is always `0.<number>s` / `0.<number>a` — never swap suffixes, never use `b` / semver patch like `0.35.2`.

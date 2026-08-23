@@ -4,8 +4,10 @@ import { t } from "@/lib/i18n";
 import { listNodes, getUserHomeNode } from "@/lib/nodes";
 import { getActiveRoute } from "@/lib/activeRoute";
 import { listFavorites } from "@/lib/favorites";
+import { listSegments, isCanonicalSegment } from "@/lib/segments";
 import { loadGraphContext } from "@/lib/routeContext";
 import { buildRouteDisplay } from "@/lib/routeDisplay";
+import { lengthBandForUser } from "@/lib/lengthTaste";
 import { RouteGenerator } from "@/components/RouteGenerator";
 
 export default async function RoutePage() {
@@ -35,6 +37,14 @@ export default async function RoutePage() {
     ]),
   );
 
+  const canonicalSegmentIds = listSegments().filter(isCanonicalSegment).map((s) => s.id);
+
+  const segmentNames = Object.fromEntries(
+    [...segmentsById.values()].map((s) => [s.id, s.name]),
+  ) as Record<number, string | null>;
+
+  const lengthBand = lengthBandForUser(user.id, "normal");
+
   return (
     <>
       <div className="page-heading">
@@ -53,6 +63,9 @@ export default async function RoutePage() {
           initialNickname={active?.nickname ?? null}
           favorites={favorites}
           segmentGeometries={segmentGeometries}
+          canonicalSegmentIds={canonicalSegmentIds}
+          segmentNames={segmentNames}
+          initialUsingNetworkFallback={lengthBand.usingNetworkFallback}
         />
       )}
     </>

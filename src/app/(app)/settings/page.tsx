@@ -5,7 +5,9 @@ import { t } from "@/lib/i18n";
 import { getSettings, type Settings } from "@/lib/settings";
 import { LocaleSelectForm } from "@/components/LocaleSelectForm";
 import { ThemeSelectForm } from "@/components/ThemeSelectForm";
+import { GoldenPercentStepper } from "@/components/GoldenPercentStepper";
 import { saveSettingsAction, saveWalkSpeedAction } from "./actions";
+import { previewGoldenPick } from "@/lib/goldenSegments";
 
 const STEP: Partial<Record<keyof Settings, number>> = {
   daily_diversity_weight: 0.5,
@@ -51,6 +53,7 @@ export default async function SettingsPage() {
   const user = await requireUser();
   const locale = await resolveLocale(user.locale);
   const settings = getSettings();
+  const goldenPreview = previewGoldenPick(settings.golden_percent);
 
   return (
     <>
@@ -115,6 +118,11 @@ export default async function SettingsPage() {
                   ))}
                 </div>
               ))}
+              <GoldenPercentStepper
+                locale={locale}
+                initialPercent={settings.golden_percent}
+                canonicalTotal={goldenPreview.total}
+              />
               <button type="submit" className="btn-primary btn-compact">
                 {t(locale, "common.save")}
               </button>

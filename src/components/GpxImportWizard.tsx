@@ -171,6 +171,7 @@ export function GpxImportWizard({ locale }: { locale: Locale }) {
                 </h3>
 
                 <MapViewLazy
+                  locale={locale}
                   lines={[{ id: "track", points: track.points.map((p): [number, number] => [p.lat, p.lng]) }]}
                   markers={[
                     { id: "start", lat: start.lat, lng: start.lng, color: "#a5711c", label: t(locale, "import.startNode") },

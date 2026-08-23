@@ -359,6 +359,7 @@ export function OverviewMapClient({
   return (
     <div className="map-overview-shell">
       <MapViewLazy
+        locale={locale}
         height={560}
         markers={markers}
         lines={lines}

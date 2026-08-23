@@ -35,6 +35,8 @@ export default async function AdminPage({
           <Link href="/admin/activity">{t(locale, "admin.activityHeading")}</Link>
           {" · "}
           <Link href="/admin/insights">{t(locale, "admin.insightsHeading")}</Link>
+          {" · "}
+          <Link href="/admin/track-geometry">{t(locale, "admin.trackGeometryHeading")}</Link>
         </p>
       </div>
 

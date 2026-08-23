@@ -1,10 +1,12 @@
 import { isCanonicalSegment, type SegmentRow } from "./segments";
 import type { NodeRow } from "./nodes";
-import { getNamePart } from "./nameParts";
+import { getDisplayName, getNamePart, getSpeakName } from "./nameParts";
 
 export interface RouteStation {
   nodeId: number;
   name: string | null;
+  /** Full unabbreviated label for TTS. */
+  speakName: string | null;
   lat: number;
   lng: number;
   namePart1Id: number | null;
@@ -72,7 +74,7 @@ function buildShortStationGroups(stations: RouteStation[]): ShortStationGroup[] 
 
   const partTextCache = new Map<number, string | null>();
   function partText(id: number): string | null {
-    if (!partTextCache.has(id)) partTextCache.set(id, getNamePart(id)?.text ?? null);
+    if (!partTextCache.has(id)) partTextCache.set(id, getNamePart(id)?.displayText ?? null);
     return partTextCache.get(id) ?? null;
   }
 
@@ -131,9 +133,11 @@ export function buildRouteDisplay(
       arrivingSegment && arrivingSegment.name && findSiblingSegments(arrivingSegment, segmentsById).length > 0
         ? arrivingSegment.name
         : null;
+    const displayName = node ? getDisplayName(node) : null;
     return {
       nodeId: id,
-      name: node?.name ?? null,
+      name: displayName ?? node?.name ?? null,
+      speakName: node ? getSpeakName(node) : null,
       lat: node?.lat ?? 0,
       lng: node?.lng ?? 0,
       namePart1Id: node?.namePart1Id ?? null,

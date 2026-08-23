@@ -287,13 +287,24 @@ export default async function StatsPage() {
                       )}
                     </td>
                     <td>
-                      <ConfirmSubmitForm
-                        action={deleteWalkAction}
-                        confirmMessage={t(locale, "stats.deleteWalkConfirm")}
-                        hiddenName="walkId"
-                        hiddenValue={w.id}
-                        buttonLabel={t(locale, "map.delete")}
-                      />
+                      <div className="btn-row" style={{ gap: "0.35rem", flexWrap: "nowrap" }}>
+                        {w.hasTrack && (
+                          <a
+                            className="btn-secondary btn-compact"
+                            href={`/api/app/stats/walks/gpx?walkId=${w.id}`}
+                            download
+                          >
+                            {t(locale, "stats.exportGpx")}
+                          </a>
+                        )}
+                        <ConfirmSubmitForm
+                          action={deleteWalkAction}
+                          confirmMessage={t(locale, "stats.deleteWalkConfirm")}
+                          hiddenName="walkId"
+                          hiddenValue={w.id}
+                          buttonLabel={t(locale, "map.delete")}
+                        />
+                      </div>
                     </td>
                   </tr>
                 ))}

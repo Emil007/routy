@@ -491,6 +491,46 @@ th {
   border-radius: var(--radius);
   overflow: hidden;
   border: 1px solid var(--line);
+  position: relative;
+}
+
+.map-layer-controls {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 1000;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.45rem;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 0.35rem 0.5rem;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
+  font-size: 0.78rem;
+  height: 2rem;
+  max-width: calc(100% - 20px);
+}
+
+.map-layer-select {
+  width: auto;
+  min-width: 6.5rem;
+  font-size: 0.78rem;
+  padding: 0.15rem 0.25rem;
+  height: 1.5rem;
+}
+
+.map-layer-trails {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.row-selected td {
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 .map-box.tall {
@@ -536,6 +576,129 @@ th {
 .route-map-pane .map-box {
   height: min(42vh, 360px);
   min-height: 200px;
+}
+
+.routy-marker-wrap {
+  background: transparent !important;
+  border: none !important;
+}
+
+.routy-marker-dot {
+  display: block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+}
+
+.routy-marker-badge {
+  position: absolute;
+  top: -10px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0 4px;
+  min-width: 14px;
+  font-size: 9px;
+  font-weight: 700;
+  line-height: 14px;
+  text-align: center;
+  color: #fff;
+  background: #1a365d;
+  border-radius: 8px;
+  border: 1px solid #fff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.25);
+  white-space: nowrap;
+}
+
+.route-summary-chip {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.route-selection-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  align-items: center;
+  padding: 0.4rem 0.5rem;
+  font-size: 0.82rem;
+  background: var(--surface-muted, #f7f5f0);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+}
+
+.length-rating-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.length-rating-row button {
+  flex: 1 1 auto;
+  min-width: 4.5rem;
+  font-size: 0.75rem;
+  padding: 0.35rem 0.4rem;
+}
+
+.length-rating-row button.selected {
+  outline: 2px solid var(--accent, #2e6b49);
+  outline-offset: 1px;
+}
+
+.length-rating-prominent {
+  margin-top: 0.65rem;
+}
+
+.length-rating-prominent button {
+  flex: 1 1 0;
+  min-width: 3.5rem;
+  font-size: 0.82rem;
+  padding: 0.55rem 0.45rem;
+  font-weight: 600;
+}
+
+.completion-length-prompt {
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.route-abbrev-display {
+  text-transform: capitalize;
+}
+
+.route-segment-badge-required {
+  border-color: color-mix(in srgb, #2b6cb0 40%, var(--line));
+}
+
+.route-segment-badge-excluded {
+  border-color: color-mix(in srgb, #c53030 40%, var(--line));
+}
+
+.route-map-hint {
+  margin: 0;
+}
+
+.route-more-options summary {
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+  list-style: none;
+}
+
+.route-more-options summary::-webkit-details-marker {
+  display: none;
+}
+
+.route-more-options[open] summary {
+  margin-bottom: 0.15rem;
+}
+
+.track-geometry-overlay-row {
+  gap: 0.65rem;
 }
 
 .route-controls-pane {

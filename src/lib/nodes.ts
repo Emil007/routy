@@ -59,7 +59,9 @@ function mapNode(row: NodeDbRow): NodeRow {
 
 const NODE_COLUMNS = `
   n.id, n.name, n.lat, n.lng, n.is_home, n.created_by, n.name_part_1_id, n.name_part_2_id, n.name_separator,
-  n.deleted_at, p1.text as name_part_1_text, p2.text as name_part_2_text
+  n.deleted_at,
+  COALESCE(p1.speak_text, p1.text) as name_part_1_text,
+  COALESCE(p2.speak_text, p2.text) as name_part_2_text
 `;
 const NODE_JOIN = `
   FROM nodes n

@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { getActiveRoute } from "@/lib/activeRoute";
+import { db } from "@/lib/db";
 import {
   computeWalkPointsEarned,
   streakMultiplier,
@@ -15,8 +17,25 @@ import { getStreakStats } from "@/lib/stats";
 import { logActivity } from "@/lib/activityLog";
 import { getGoldenMultiplierMap } from "@/lib/goldenSegments";
 import { checkApiRateLimit } from "@/lib/apiRateLimit";
+import { persistHopTimingsFromWalk } from "@/lib/trackGeometry";
 
-export async function POST() {
+const trackPointSchema = z.object({
+  lat: z.number(),
+  lng: z.number(),
+  ele: z.number().optional(),
+  time: z.string().optional(),
+  accuracy: z.number().optional(),
+  speed: z.number().optional(),
+  bearing: z.number().optional(),
+});
+
+const bodySchema = z
+  .object({
+    trackPoints: z.array(trackPointSchema).optional(),
+  })
+  .optional();
+
+export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
@@ -24,6 +43,13 @@ export async function POST() {
   if (!rate.allowed) {
     return NextResponse.json({ error: "rate_limited", retryAfterSeconds: rate.retryAfterSeconds }, { status: 429 });
   }
+
+  const json = await request.json().catch(() => null);
+  const parsed = bodySchema.safeParse(json ?? {});
+  if (!parsed.success) {
+    return NextResponse.json({ error: "invalid_body", issues: parsed.error.issues }, { status: 400 });
+  }
+  const trackPoints = parsed.data?.trackPoints;
 
   const active = getActiveRoute(user.id);
   if (!active) return NextResponse.json({ error: "no_active_route" }, { status: 404 });
@@ -61,6 +87,16 @@ export async function POST() {
 
   if (walkId === null) {
     return NextResponse.json({ error: "no_active_route" }, { status: 404 });
+  }
+
+  if (trackPoints && trackPoints.length > 0) {
+    const pointsJson = JSON.stringify(trackPoints);
+    db.prepare(
+      `INSERT INTO walk_track (walk_id, points_json) VALUES (?, ?)
+       ON CONFLICT(walk_id) DO UPDATE SET points_json = excluded.points_json`,
+    ).run(walkId, pointsJson);
+    db.prepare("UPDATE walk_log SET track_json = ? WHERE id = ?").run(pointsJson, walkId);
+    persistHopTimingsFromWalk(walkId);
   }
 
   logActivity(user.id, "walk_complete", "walk", walkId, {

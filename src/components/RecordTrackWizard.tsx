@@ -186,6 +186,7 @@ export function RecordTrackWizard({
       <p style={{ color: "var(--ink-soft)", fontSize: "0.82rem", margin: 0 }}>{t(locale, "record.instructions")}</p>
 
       <MapViewLazy
+        locale={locale}
         height={420}
         autoFit={false}
         lines={[...networkLines, ...trackLine]}

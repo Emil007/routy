@@ -1,5 +1,6 @@
 import { type LatLng } from "./geo";
 import { listNamePartsNear, type NamePart } from "./nameParts";
+import { abbreviateStreetTypes } from "./streetAbbrev";
 
 const NOMINATIM_ENDPOINT = "https://nominatim.openstreetmap.org/reverse";
 const FETCH_TIMEOUT_MS = 8000;
@@ -65,7 +66,11 @@ async function fetchOsmBaseName(point: LatLng): Promise<string | null> {
 }
 
 export interface NodeNameSuggestions {
-  /** The OSM-derived road/way/place name, if any — not yet a stored name_part. */
+  /** Full OSM road/way name for TTS and storage — not yet a stored name_part. */
+  osmSpeakText: string | null;
+  /** Abbreviated OSM label for UI chips and preview. */
+  osmDisplayText: string | null;
+  /** @deprecated Use osmSpeakText — kept for older clients. */
   osmText: string | null;
   /** Existing name_parts already used by nodes nearby — reusable "link" candidates for either slot. */
   nearbyParts: NamePart[];
@@ -78,7 +83,22 @@ export interface NodeNameSuggestions {
  * typing everything by hand. Best-effort — empty result on any failure.
  */
 export async function suggestNodeNameParts(point: LatLng): Promise<NodeNameSuggestions> {
-  const osmText = await fetchOsmBaseName(point);
-  const nearbyParts = listNamePartsNear(point);
-  return { osmText, nearbyParts };
+  const osmSpeakText = await fetchOsmBaseName(point);
+  const osmDisplayText = osmSpeakText ? abbreviateStreetTypes(osmSpeakText) : null;
+  let nearbyParts = listNamePartsNear(point);
+
+  // Prefer an existing nearby part when its speak text matches the OSM road.
+  if (osmSpeakText) {
+    const match = nearbyParts.find((p) => p.speakText === osmSpeakText);
+    if (match) {
+      nearbyParts = [match, ...nearbyParts.filter((p) => p.id !== match.id)];
+    }
+  }
+
+  return {
+    osmSpeakText,
+    osmDisplayText,
+    osmText: osmSpeakText,
+    nearbyParts,
+  };
 }

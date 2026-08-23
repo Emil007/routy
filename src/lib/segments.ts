@@ -416,9 +416,18 @@ function resolveCanonical(id: number): SegmentRow | null {
 }
 
 /** Writes new geometry to a canonical/reverse pair, recomputing length/duration/elevation for both. */
-function writeSegmentGeometry(canonical: SegmentRow, reverse: SegmentRow, points: LatLng[], walkSpeedKmh: number): void {
+function writeSegmentGeometry(
+  canonical: SegmentRow,
+  reverse: SegmentRow,
+  points: LatLng[],
+  walkSpeedKmh: number,
+  durationOverrideMin?: number,
+): void {
   const lengthM = Math.round(pathLengthMeters(points));
-  const durationMin = estimateMinutes(lengthM, walkSpeedKmh);
+  const durationMin =
+    durationOverrideMin != null && durationOverrideMin > 0
+      ? Math.round(durationOverrideMin)
+      : estimateMinutes(lengthM, walkSpeedKmh);
   const elevation = elevationStats(points);
   const reversePts = reversePoints(points);
   const reverseElevation: ElevationStats | null = elevation
@@ -459,6 +468,7 @@ export function updateSegmentGeometry(
   segmentId: number,
   points: LatLng[],
   walkSpeedKmh: number,
+  durationOverrideMin?: number,
 ): { ok: true } | { error: "not_found" | "too_few_points" } {
   const canonical = resolveCanonical(segmentId);
   if (!canonical || canonical.reverseOf === null) return { error: "not_found" };
@@ -469,9 +479,27 @@ export function updateSegmentGeometry(
   const fixedPoints = [...points];
   fixedPoints[0] = canonical.geometry[0];
   fixedPoints[fixedPoints.length - 1] = canonical.geometry[canonical.geometry.length - 1];
-  const tx = db.transaction(() => writeSegmentGeometry(canonical, reverse, fixedPoints, walkSpeedKmh));
+  const tx = db.transaction(() =>
+    writeSegmentGeometry(canonical, reverse, fixedPoints, walkSpeedKmh, durationOverrideMin),
+  );
   tx();
   return { ok: true };
+}
+
+/** Updates segment duration from GPS when the segment has no prior GPS-derived timing. */
+export function applyGpsHopDurationIfMissing(segmentId: number, durationMin: number): void {
+  if (durationMin <= 0) return;
+  const canonical = resolveCanonical(segmentId);
+  if (!canonical || canonical.reverseOf === null) return;
+  const row = db.prepare("SELECT duration_from_gps FROM segments WHERE id = ?").get(canonical.id) as
+    | { duration_from_gps: number }
+    | undefined;
+  if (row?.duration_from_gps) return;
+  const reverse = getSegment(canonical.reverseOf);
+  if (!reverse) return;
+  const rounded = Math.round(durationMin);
+  db.prepare("UPDATE segments SET duration_min = ?, duration_from_gps = 1 WHERE id = ?").run(rounded, canonical.id);
+  db.prepare("UPDATE segments SET duration_min = ?, duration_from_gps = 1 WHERE id = ?").run(rounded, reverse.id);
 }
 
 /**

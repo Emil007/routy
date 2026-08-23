@@ -198,6 +198,7 @@ export function SegmentGeometryEditor({
     <div className="stack">
       <div className="card stack">
         <MapViewLazy
+          locale={locale}
           height={420}
           autoFit={false}
           lines={[...networkLines, editLine]}

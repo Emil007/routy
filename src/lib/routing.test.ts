@@ -3,6 +3,9 @@ import {
   buildGraph,
   buildPairMap,
   findDirectRoutes,
+  findMultiWaypointRoutes,
+  filterRequiredSegments,
+  searchRoutesWithConstraints,
   backtrackScore,
   crossingScore,
   scoreRoutes,
@@ -184,6 +187,7 @@ describe("scoreRoutes + pickBest", () => {
         conditionPenalty: 0,
         staleCount: 0,
         pointPreview: 0,
+        homeConnectors: 0,
       },
       {
         key: "b",
@@ -198,6 +202,7 @@ describe("scoreRoutes + pickBest", () => {
         conditionPenalty: 0,
         staleCount: 0,
         pointPreview: 0,
+        homeConnectors: 0,
       },
     ];
     const normal = pickBest(scored, new Set(), false);
@@ -227,6 +232,43 @@ describe("scoreRoutes + pickBest", () => {
     expect(scored[1].conditionPenalty).toBe(CONDITION_PENALTY_WEIGHT);
     const best = pickBest(scored, new Set());
     expect(best?.route.segmentIds).toEqual([1, 2, 3, 4]);
+  });
+
+  it("(L6) generation prefers a single home connector over using both house paths", () => {
+    // Home node 1 has two distinct physical connectors: {1,5} (1↔2) and {4,8} (1↔4).
+    const pairOf = buildPairMap(reversePairs);
+    const home = new Set([1, 5, 4, 8]);
+    const candidates = [
+      // Out-and-back on ONE connector (1↔2): both segments are home connectors.
+      { nodeChain: [1, 2, 1], segmentIds: [1, 5], lengthM: 200, durationMin: 4 },
+      // Clean square loop, but it leaves via connector {1} and returns via connector {4}.
+      { nodeChain: [1, 2, 3, 4, 1], segmentIds: [1, 2, 3, 4], lengthM: 400, durationMin: 8 },
+    ];
+    const scoredIgnore = scoreRoutes(
+      candidates,
+      pairOf,
+      new Map(),
+      new Map(),
+      1,
+      new Set(),
+      400,
+      "km",
+      new Map(),
+      new Set(),
+      new Map(),
+      new Set(),
+      new Map(),
+      home,
+    );
+    const single = scoredIgnore.find((s) => s.route.segmentIds.join(",") === "1,5")!;
+    const both = scoredIgnore.find((s) => s.route.segmentIds.join(",") === "1,2,3,4")!;
+    expect(single.homeConnectors).toBe(1);
+    expect(both.homeConnectors).toBe(2);
+    // With home edges ignored for scoring, the single-connector option wins (L6).
+    expect(pickBest(scoredIgnore, new Set())?.route.segmentIds).toEqual([1, 5]);
+    // Without ignoring home edges, the out-and-back's backtrack makes the loop win instead.
+    const scoredFull = scoreRoutes(candidates, pairOf, new Map(), new Map(), 1, new Set(), 400, "km");
+    expect(pickBest(scoredFull, new Set())?.route.segmentIds).toEqual([1, 2, 3, 4]);
   });
 
   it("counts stale segments once per physical path", () => {
@@ -270,6 +312,7 @@ describe("scoreRoutes + pickBest", () => {
         conditionPenalty: 0,
         staleCount: 1,
         pointPreview: 0,
+        homeConnectors: 0,
       },
       {
         key: "b",
@@ -284,6 +327,7 @@ describe("scoreRoutes + pickBest", () => {
         conditionPenalty: 0,
         staleCount: 3,
         pointPreview: 0,
+        homeConnectors: 0,
       },
     ];
     const normal = pickBest(scored, new Set(), false, false);
@@ -300,5 +344,92 @@ describe("toleranceRange", () => {
 
   it("never goes below zero", () => {
     expect(toleranceRange(50, 200)).toEqual({ minValue: 0, maxValue: 150 });
+  });
+});
+
+describe("findMultiWaypointRoutes + constraints", () => {
+  const graph = buildGraph(edges);
+  const pairOf = buildPairMap(reversePairs);
+
+  it("chains start → waypoint → destination", () => {
+    const results = findMultiWaypointRoutes(graph, pairOf, 1, [3], 1, "km", 300, 500);
+    expect(results.length).toBeGreaterThan(0);
+    for (const r of results) {
+      expect(r.nodeChain[0]).toBe(1);
+      expect(r.nodeChain).toContain(3);
+      expect(r.nodeChain[r.nodeChain.length - 1]).toBe(1);
+    }
+  });
+
+  it("hard-excludes directed segments from search", () => {
+    const withExclude = findDirectRoutes(graph, pairOf, 1, 1, "km", 300, 500, 50, new Set([1, 5]));
+    for (const r of withExclude) {
+      expect(r.segmentIds).not.toContain(1);
+      expect(r.segmentIds).not.toContain(5);
+    }
+  });
+
+  it("filters to routes containing required segments", () => {
+    const open = findDirectRoutes(graph, pairOf, 1, 1, "km", 300, 500);
+    const filtered = filterRequiredSegments(open, [2], pairOf);
+    expect(filtered.length).toBeGreaterThan(0);
+    for (const r of filtered) {
+      expect(r.segmentIds.includes(2) || r.segmentIds.includes(6)).toBe(true);
+    }
+  });
+
+  it("length-relaxes when the band is empty but a feasible route exists", () => {
+    const { routes, lengthRelaxed } = searchRoutesWithConstraints({
+      graph,
+      pairOf,
+      start: 1,
+      destination: 1,
+      mode: "km",
+      minValue: 10000,
+      maxValue: 20000,
+    });
+    expect(lengthRelaxed).toBe(true);
+    expect(routes.length).toBeGreaterThan(0);
+    expect(routes[0]!.lengthM).toBeLessThan(10000);
+  });
+
+  it("ignoring home-access segments does not change pickBest vs an otherwise identical ranking", () => {
+    // Both candidates share the same home connector (1); the rest of the network differs.
+    const candidates = [
+      { nodeChain: [1, 2, 3, 4, 1], segmentIds: [1, 2, 3, 4], lengthM: 400, durationMin: 8 },
+      { nodeChain: [1, 2, 3, 2, 1], segmentIds: [1, 2, 6, 5], lengthM: 400, durationMin: 8 },
+    ];
+    const usage = new Map<number, number>([
+      [1, 99],
+      [2, 1],
+      [3, 1],
+      [4, 1],
+      [5, 1],
+      [6, 1],
+    ]);
+    const home = new Set([1, 5]);
+    const scoredFull = scoreRoutes(candidates, pairOf, usage, new Map(), 1, new Set(), 400, "km");
+    const scoredIgnore = scoreRoutes(
+      candidates,
+      pairOf,
+      usage,
+      new Map(),
+      1,
+      new Set(),
+      400,
+      "km",
+      new Map(),
+      new Set(),
+      new Map(),
+      new Set(),
+      new Map(),
+      home,
+    );
+    // Clean loop wins either way (backtrack on 2↔6 still counts when home edges are ignored).
+    expect(pickBest(scoredFull, new Set())?.route.segmentIds).toEqual([1, 2, 3, 4]);
+    expect(pickBest(scoredIgnore, new Set())?.route.segmentIds).toEqual([1, 2, 3, 4]);
+    const fullLoop = scoredFull.find((s) => s.route.segmentIds.join(",") === "1,2,3,4")!;
+    const ignoreLoop = scoredIgnore.find((s) => s.route.segmentIds.join(",") === "1,2,3,4")!;
+    expect(ignoreLoop.weightedUsage).toBeLessThan(fullLoop.weightedUsage);
   });
 });

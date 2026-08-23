@@ -4,49 +4,51 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { t, type Locale } from "@/lib/i18n";
 import { haversineMeters, bearing, compassDirection } from "@/lib/geo";
+import { playRoutySound } from "@/lib/sounds";
+import {
+  formatStationLabel,
+  stationSpeakName,
+  voiceAnnounceRadiusM,
+} from "@/lib/voiceAnnounce";
 import { MapViewLazy } from "./MapViewLazy";
 import { RouteCompletionDialog, type RouteCompletionData } from "./RouteCompletionDialog";
+import type { MapLine, MapMarker } from "./MapView";
 import type { NodeRow } from "@/lib/nodes";
-
-const VOICE_ANNOUNCE_RADIUS_M = 50;
-
-interface RouteStation {
-  nodeId: number;
-  name: string | null;
-  lat: number;
-  lng: number;
-}
-
-interface ShortStationGroup {
-  text: string;
-  viaSegmentName: string | null;
-}
-
-interface RouteDisplayPayload {
-  nodeChain: number[];
-  segmentIds: number[];
-  lengthM: number;
-  durationMin: number;
-  stations: RouteStation[];
-  shortStationGroups: ShortStationGroup[];
-  elevation: { gainM: number; lossM: number } | null;
-  geometry: [number, number][];
-}
+import type { RouteDisplay } from "@/lib/routeDisplay";
 
 interface GenerateResponse {
   token: string;
-  route: RouteDisplayPayload;
+  route: RouteDisplay;
   pointPreview?: { base: number; golden: number; exploration: number; diversity: number; total: number };
   goldenHits?: number;
   goldenHitIds?: number[];
+  lengthRelaxed?: boolean;
+  lengthKm?: number;
+  usingNetworkFallback?: boolean;
 }
 
 interface FavoriteEntry {
   id: number;
   name: string;
   shareToken: string | null;
-  display: RouteDisplayPayload;
+  display: RouteDisplay;
 }
+
+type LengthPreset = "short" | "normal" | "long" | "surprise";
+
+const PRESET_LABEL_KEYS: Record<LengthPreset, string> = {
+  short: "route.presetShort",
+  normal: "route.presetNormal",
+  long: "route.presetLong",
+  surprise: "route.presetSurprise",
+};
+
+const PRESET_HINT_KEYS: Record<LengthPreset, string> = {
+  short: "route.presetShortHint",
+  normal: "route.presetNormalHint",
+  long: "route.presetLongHint",
+  surprise: "route.presetSurpriseHint",
+};
 
 export function RouteGenerator({
   locale,
@@ -54,24 +56,42 @@ export function RouteGenerator({
   homeNodeId,
   initialActiveRoute,
   initialNickname,
-  favorites,
+  favorites: initialFavorites,
   segmentGeometries,
+  canonicalSegmentIds,
+  segmentNames,
+  initialUsingNetworkFallback,
 }: {
   locale: Locale;
   nodes: NodeRow[];
   homeNodeId: number | null;
-  initialActiveRoute: RouteDisplayPayload | null;
+  initialActiveRoute: RouteDisplay | null;
   initialNickname: string | null;
   favorites: FavoriteEntry[];
   segmentGeometries: Record<number, [number, number][]>;
+  canonicalSegmentIds: number[];
+  segmentNames: Record<number, string | null>;
+  initialUsingNetworkFallback: boolean;
 }) {
   const router = useRouter();
+  const nodesById = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
+  const [deletedFavoriteIds, setDeletedFavoriteIds] = useState<Set<number>>(() => new Set());
+  const favorites = useMemo(
+    () => initialFavorites.filter((f) => !deletedFavoriteIds.has(f.id)),
+    [initialFavorites, deletedFavoriteIds],
+  );
+  const [favoritesOpen, setFavoritesOpen] = useState(false);
+
   const [startNodeId, setStartNodeId] = useState<number | "">(homeNodeId ?? "");
   const [isLoop, setIsLoop] = useState(true);
-  const [destinationNodeId, setDestinationNodeId] = useState<number | "">(homeNodeId ?? "");
-  const [waypointNodeId, setWaypointNodeId] = useState<number | "">("");
+  const [endNodeId, setEndNodeId] = useState<number | "">(homeNodeId ?? "");
+  const [mustVisitNodeIds, setMustVisitNodeIds] = useState<number[]>([]);
+  const [requiredSegmentIds, setRequiredSegmentIds] = useState<number[]>([]);
+  const [excludedSegmentIds, setExcludedSegmentIds] = useState<number[]>([]);
   const [explorerMode, setExplorerMode] = useState(false);
   const [forceGolden, setForceGolden] = useState(false);
+  const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
+  const [selectedSegmentId, setSelectedSegmentId] = useState<number | null>(null);
 
   const [mode, setMode] = useState<"suggesting" | "active">(initialActiveRoute ? "active" : "suggesting");
   const [result, setResult] = useState<GenerateResponse | null>(
@@ -80,8 +100,6 @@ export function RouteGenerator({
   const [status, setStatus] = useState<"idle" | "loading" | "error">("idle");
   const [message, setMessage] = useState<string | null>(null);
   const [messageIsError, setMessageIsError] = useState(false);
-  const [favoriteName, setFavoriteName] = useState("");
-  const [savingFavorite, setSavingFavorite] = useState(false);
 
   const [nickname, setNickname] = useState(initialNickname ?? "");
   const [nicknameStatus, setNicknameStatus] = useState<"idle" | "saving">("idle");
@@ -92,23 +110,91 @@ export function RouteGenerator({
   const [pointBalance, setPointBalance] = useState<number | null>(null);
   const [goldenSegmentIds, setGoldenSegmentIds] = useState<number[]>([]);
   const [completionData, setCompletionData] = useState<RouteCompletionData | null>(null);
+  const [usingNetworkFallback, setUsingNetworkFallback] = useState<boolean | null>(initialUsingNetworkFallback);
   const announcedStationIndexRef = useRef(0);
+  const waitingToLeaveIndexRef = useRef<number | null>(null);
+  const followEnabled = watchId !== null;
+
+  const requiredSet = useMemo(() => new Set(requiredSegmentIds), [requiredSegmentIds]);
+  const excludedSet = useMemo(() => new Set(excludedSegmentIds), [excludedSegmentIds]);
+  const goldenSet = useMemo(() => new Set(goldenSegmentIds), [goldenSegmentIds]);
+
+  function segmentLabel(segmentId: number): string {
+    const name = segmentNames[segmentId];
+    if (name?.trim()) return name;
+    return t(locale, "map.proposalSegment", { id: segmentId });
+  }
+
+  function nodeLabel(id: number | ""): string {
+    if (!id) return "…";
+    const n = nodesById.get(id);
+    const name = n?.name || `#${id}`;
+    return id === homeNodeId ? `${name} (${t(locale, "map.home")})` : name;
+  }
 
   function flashMessage(text: string, isError = false) {
     setMessage(text);
     setMessageIsError(isError);
   }
 
-  const goldenSet = useMemo(() => new Set(goldenSegmentIds), [goldenSegmentIds]);
+  function clearMessage() {
+    setMessage(null);
+    setMessageIsError(false);
+  }
+
+  function clearNodeRole(nodeId: number) {
+    if (startNodeId === nodeId) setStartNodeId(homeNodeId ?? "");
+    if (endNodeId === nodeId) setEndNodeId(homeNodeId ?? "");
+    setMustVisitNodeIds((prev) => prev.filter((id) => id !== nodeId));
+  }
+
+  function setNodeAsStart(nodeId: number) {
+    clearNodeRole(nodeId);
+    setStartNodeId(nodeId);
+    if (isLoop) setEndNodeId(nodeId);
+    setSelectedNodeId(null);
+  }
+
+  function setNodeAsEnd(nodeId: number) {
+    clearNodeRole(nodeId);
+    setEndNodeId(nodeId);
+    setSelectedNodeId(null);
+  }
+
+  function toggleMustVisit(nodeId: number) {
+    if (mustVisitNodeIds.includes(nodeId)) {
+      setMustVisitNodeIds((prev) => prev.filter((id) => id !== nodeId));
+    } else {
+      if (startNodeId === nodeId) setStartNodeId(homeNodeId ?? "");
+      if (endNodeId === nodeId) setEndNodeId(homeNodeId ?? "");
+      setMustVisitNodeIds((prev) => [...prev, nodeId]);
+    }
+    setSelectedNodeId(null);
+  }
+
+  function setSegmentRequired(segmentId: number) {
+    setExcludedSegmentIds((prev) => prev.filter((id) => id !== segmentId));
+    setRequiredSegmentIds((prev) => (prev.includes(segmentId) ? prev : [...prev, segmentId]));
+    setSelectedSegmentId(null);
+  }
+
+  function setSegmentExcluded(segmentId: number) {
+    setRequiredSegmentIds((prev) => prev.filter((id) => id !== segmentId));
+    setExcludedSegmentIds((prev) => (prev.includes(segmentId) ? prev : [...prev, segmentId]));
+    setSelectedSegmentId(null);
+  }
+
+  function clearSegmentConstraint(segmentId: number) {
+    setRequiredSegmentIds((prev) => prev.filter((id) => id !== segmentId));
+    setExcludedSegmentIds((prev) => prev.filter((id) => id !== segmentId));
+    setSelectedSegmentId(null);
+  }
 
   const routeMapLines = useMemo(() => {
     if (!result) return [];
-    const lines: { id: string | number; points: [number, number][]; color?: string; dashed?: boolean; weight?: number }[] = [
-      { id: "route", points: result.route.geometry },
-    ];
+    const lines: MapLine[] = [{ id: "route", points: result.route.geometry }];
     const hitIds = new Set(
-      result.goldenHitIds ??
-        result.route.segmentIds.filter((id) => goldenSet.has(id)),
+      result.goldenHitIds ?? result.route.segmentIds.filter((id) => goldenSet.has(id)),
     );
     for (const segmentId of goldenSegmentIds) {
       const points = segmentGeometries[segmentId];
@@ -125,15 +211,84 @@ export function RouteGenerator({
     return lines;
   }, [result, goldenSet, goldenSegmentIds, segmentGeometries]);
 
-  async function readApiError(res: Response): Promise<string> {
-    const data = (await res.json().catch(() => null)) as { error?: string } | null;
-    if (data?.error === "no_golden_route") return t(locale, "route.noGoldenRoute");
-    return t(locale, "route.noRouteFound");
-  }
+  const networkMapLines = useMemo((): MapLine[] => {
+    if (mode !== "suggesting" || result) return [];
+    const lines: MapLine[] = [];
+    for (const segmentId of canonicalSegmentIds) {
+      const points = segmentGeometries[segmentId];
+      if (!points?.length) continue;
+      const isRequired = requiredSet.has(segmentId);
+      const isExcluded = excludedSet.has(segmentId);
+      const isGolden = goldenSet.has(segmentId);
+      lines.push({
+        id: segmentId,
+        points,
+        color: isExcluded ? "#c53030" : isRequired ? "#2b6cb0" : isGolden ? "#c99a2e" : "#6b9080",
+        weight: isRequired || isGolden ? 6 : 4,
+        dashed: isExcluded || isGolden,
+      });
+    }
+    return lines;
+  }, [mode, result, canonicalSegmentIds, segmentGeometries, requiredSet, excludedSet, goldenSet]);
 
-  function clearMessage() {
-    setMessage(null);
-    setMessageIsError(false);
+  const planningMarkers = useMemo((): MapMarker[] => {
+    if (mode !== "suggesting" || result) return [];
+    return nodes.map((n) => {
+      let badge: string | undefined;
+      let color = "#2e6b49";
+      if (n.id === startNodeId) {
+        badge = t(locale, "route.badgeStart");
+        color = "#a5711c";
+      } else if (!isLoop && n.id === endNodeId) {
+        badge = t(locale, "route.badgeEnd");
+        color = "#a5711c";
+      } else {
+        const mustIdx = mustVisitNodeIds.indexOf(n.id);
+        if (mustIdx >= 0) {
+          badge = mustVisitNodeIds.length > 1 ? String(mustIdx + 1) : t(locale, "route.badgeMustVisit");
+          color = "#2b6cb0";
+        }
+      }
+      return {
+        id: n.id,
+        lat: n.lat,
+        lng: n.lng,
+        label: n.name || `#${n.id}`,
+        color,
+        badge,
+      };
+    });
+  }, [mode, result, nodes, startNodeId, endNodeId, isLoop, mustVisitNodeIds, locale]);
+
+  const mapLines = result ? routeMapLines : networkMapLines;
+  const mapMarkers: MapMarker[] = result
+    ? [
+        ...result.route.stations.map((s, idx) => ({
+          id: `${s.nodeId}-${idx}`,
+          lat: s.lat,
+          lng: s.lng,
+          label: s.name || `#${s.nodeId}`,
+          color: idx === 0 ? "#a5711c" : "#2e6b49",
+        })),
+        ...(myLocation
+          ? [{ id: "me", lat: myLocation.lat, lng: myLocation.lng, label: t(locale, "route.you"), color: "#2b6cb0" }]
+          : []),
+      ]
+    : planningMarkers;
+
+  const mapFitKey = result
+    ? result.token || result.route.nodeChain.join("-")
+    : `plan-${startNodeId}-${mustVisitNodeIds.join(",")}-${requiredSegmentIds.join(",")}`;
+
+  async function readApiError(res: Response): Promise<string> {
+    const data = (await res.json().catch(() => null)) as { error?: string; retryAfterSeconds?: number } | null;
+    if (res.status === 429 && data?.error === "rate_limited") {
+      return t(locale, "route.rateLimited", { seconds: data.retryAfterSeconds ?? 60 });
+    }
+    if (data?.error === "no_home_node") return t(locale, "route.noHomeNode");
+    if (data?.error === "no_golden_route") return t(locale, "route.noGoldenRoute");
+    if (data?.error === "constraints_impossible") return t(locale, "route.constraintsImpossible");
+    return t(locale, "route.noRouteFound");
   }
 
   useEffect(() => {
@@ -154,28 +309,38 @@ export function RouteGenerator({
   useEffect(() => {
     if (!voiceEnabled || mode !== "active" || !myLocation || !result) return;
     const stations = result.route.stations;
+
+    const waitingIdx = waitingToLeaveIndexRef.current;
+    if (waitingIdx !== null) {
+      const leftStation = stations[waitingIdx];
+      const leftRadius = voiceAnnounceRadiusM(waitingIdx, stations);
+      if (haversineMeters(myLocation, leftStation) <= leftRadius) return;
+      waitingToLeaveIndexRef.current = null;
+    }
+
     const idx = announcedStationIndexRef.current;
     if (idx >= stations.length) return;
     const station = stations[idx];
-    const distance = haversineMeters(myLocation, { lat: station.lat, lng: station.lng });
-    if (distance <= VOICE_ANNOUNCE_RADIUS_M) {
-      announcedStationIndexRef.current = idx + 1;
-      if (typeof window !== "undefined" && "speechSynthesis" in window) {
-        const here = station.name || t(locale, "route.station");
-        const next = stations[idx + 1];
-        // On arrival, the useful thing to say is what's coming up next (and which
-        // way), not that you've reached the station you're already standing at.
-        const text = next
-          ? t(locale, "route.voiceArrivedNext", {
-              here,
-              next: next.name || t(locale, "route.station"),
-              direction: t(locale, `route.compass${compassDirection(bearing(station, next))}`),
-            })
-          : t(locale, "route.voiceArrivedFinal", { here });
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = locale === "de" ? "de-DE" : "en-US";
-        window.speechSynthesis.speak(utterance);
-      }
+    const radius = voiceAnnounceRadiusM(idx, stations);
+    if (haversineMeters(myLocation, station) > radius) return;
+
+    announcedStationIndexRef.current = idx + 1;
+    if (idx < stations.length - 1) waitingToLeaveIndexRef.current = idx;
+
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      const here = formatStationLabel(locale, stationSpeakName(station), station.viaSegmentName);
+      const next = stations[idx + 1];
+      const text = next
+        ? t(locale, "route.voiceArrivedNext", {
+            here,
+            next: formatStationLabel(locale, stationSpeakName(next), next.viaSegmentName),
+            direction: t(locale, `route.compass${compassDirection(bearing(station, next))}`),
+          })
+        : t(locale, "route.voiceArrivedFinal", { here });
+      if (window.speechSynthesis.speaking) window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = locale === "de" ? "de-DE" : "en-US";
+      window.speechSynthesis.speak(utterance);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myLocation, voiceEnabled, mode]);
@@ -186,11 +351,6 @@ export function RouteGenerator({
     };
   }, [watchId]);
 
-  const sortedNodes = useMemo(
-    () => [...nodes].sort((a, b) => (a.name || `#${a.id}`).localeCompare(b.name || `#${b.id}`, locale)),
-    [nodes, locale],
-  );
-
   async function callApi(path: string, body: unknown = {}): Promise<Response> {
     return fetch(path, {
       method: "POST",
@@ -199,7 +359,7 @@ export function RouteGenerator({
     });
   }
 
-  function toggleLocation() {
+  function toggleFollow() {
     if (watchId !== null) {
       navigator.geolocation.clearWatch(watchId);
       setWatchId(null);
@@ -216,48 +376,53 @@ export function RouteGenerator({
     setWatchId(id);
   }
 
-  async function surprise() {
-    setExplorerMode(false);
-    setStatus("loading");
-    clearMessage();
-    if (!startNodeId) return;
-    const res = await callApi("/api/route/generate", {
-      startNodeId,
-      destinationNodeId: isLoop ? startNodeId : destinationNodeId || startNodeId,
-      waypointNodeId: waypointNodeId || null,
-      explorerMode: false,
-      forceGolden,
-      preset: "surprise",
-    });
-    if (res.ok) {
-      const data = (await res.json()) as GenerateResponse;
-      setResult(data);
-      setStatus("idle");
+  function setVoiceChecked(checked: boolean) {
+    if (checked) {
+      if (watchId === null) toggleFollow();
+      setVoiceEnabled(true);
     } else {
-      setResult(null);
-      setStatus("error");
-      flashMessage(await readApiError(res), true);
+      setVoiceEnabled(false);
     }
   }
 
-  async function suggest(preset?: "short" | "long") {
-    if (!startNodeId) return;
+  async function generate(preset: LengthPreset) {
+    if (!startNodeId) {
+      flashMessage(t(locale, "route.noHomeNode"), true);
+      return;
+    }
     setStatus("loading");
     clearMessage();
+    setSelectedNodeId(null);
+    setSelectedSegmentId(null);
+
+    const destination = isLoop ? startNodeId : endNodeId || startNodeId;
+    const mustVisit = mustVisitNodeIds.filter((id) => id !== startNodeId && id !== destination);
+
     const res = await callApi("/api/route/generate", {
       startNodeId,
-      destinationNodeId: isLoop ? startNodeId : destinationNodeId || startNodeId,
-      waypointNodeId: waypointNodeId || null,
-      explorerMode,
+      destinationNodeId: destination,
+      mustVisitNodeIds: mustVisit,
+      requiredSegmentIds,
+      excludedSegmentIds,
+      explorerMode: preset === "surprise" ? false : explorerMode,
       forceGolden,
       preset,
     });
+
     if (res.ok) {
       const data = (await res.json()) as GenerateResponse;
       setResult(data);
+      setUsingNetworkFallback(data.usingNetworkFallback ?? null);
       setStatus("idle");
+      if (data.lengthRelaxed) {
+        flashMessage(
+          t(locale, "route.lengthRelaxed", { km: (data.lengthKm ?? data.route.lengthM / 1000).toFixed(2) }),
+          false,
+        );
+      }
     } else {
       setResult(null);
+      setUsingNetworkFallback(null);
       setStatus("error");
       flashMessage(await readApiError(res), true);
     }
@@ -270,8 +435,15 @@ export function RouteGenerator({
     if (res.ok) {
       const data = (await res.json()) as GenerateResponse;
       setResult(data);
+      setUsingNetworkFallback(data.usingNetworkFallback ?? null);
       setStatus("idle");
       clearMessage();
+      if (data.lengthRelaxed) {
+        flashMessage(
+          t(locale, "route.lengthRelaxed", { km: (data.lengthKm ?? data.route.lengthM / 1000).toFixed(2) }),
+          false,
+        );
+      }
     } else {
       setStatus("idle");
       flashMessage(t(locale, "route.noAlternative"), true);
@@ -303,6 +475,7 @@ export function RouteGenerator({
       clearMessage();
       setNickname("");
       announcedStationIndexRef.current = 0;
+      waitingToLeaveIndexRef.current = null;
     } else {
       setStatus("idle");
       flashMessage(t(locale, "route.sessionExpired"), true);
@@ -333,13 +506,25 @@ export function RouteGenerator({
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       window.speechSynthesis.cancel();
     }
-    const res = await callApi("/api/route/complete");
+    const completedRoute = result?.route;
+    const res = await callApi("/api/route/complete", {});
     if (res.ok) {
+      playRoutySound("route_finish");
       const data = (await res.json()) as RouteCompletionData;
       setResult(null);
       setMode("suggesting");
       setStatus("idle");
-      setCompletionData(data);
+      setCompletionData({
+        ...data,
+        route: completedRoute
+          ? {
+              nodeChain: completedRoute.nodeChain,
+              segmentIds: completedRoute.segmentIds,
+              lengthM: completedRoute.lengthM,
+              durationMin: completedRoute.durationMin,
+            }
+          : undefined,
+      });
       if (typeof window !== "undefined" && "speechSynthesis" in window && data.celebrationTier !== "normal") {
         const utterance = new SpeechSynthesisUtterance(t(locale, "route.celebration"));
         utterance.lang = locale === "de" ? "de-DE" : "en-US";
@@ -356,68 +541,6 @@ export function RouteGenerator({
       setStatus("idle");
       flashMessage(t(locale, "common.error"), true);
     }
-  }
-
-  async function handleSaveFavorite() {
-    if (!result) return;
-    const name = (mode === "active" ? nickname : favoriteName).trim();
-    if (!name) return;
-    setSavingFavorite(true);
-    const res = await callApi("/api/favorites", {
-      name,
-      nodeChain: result.route.nodeChain,
-      segmentIds: result.route.segmentIds,
-      lengthM: result.route.lengthM,
-      durationMin: result.route.durationMin,
-    });
-    setSavingFavorite(false);
-    if (res.ok) {
-      if (mode === "suggesting") setFavoriteName("");
-      flashMessage(t(locale, "route.favoriteSaved"));
-      router.refresh();
-    }
-  }
-
-  async function handleTakeFavorite(favorite: FavoriteEntry) {
-    setStatus("loading");
-    const res = await callApi(`/api/favorites/${favorite.id}/accept`);
-    if (res.ok) {
-      setResult({ token: "", route: favorite.display });
-      setMode("active");
-      setStatus("idle");
-      clearMessage();
-      setNickname("");
-      announcedStationIndexRef.current = 0;
-    } else {
-      const body = (await res.json().catch(() => null)) as { error?: string } | null;
-      setStatus("idle");
-      flashMessage(body?.error === "favorite_stale" ? t(locale, "route.favoriteStale") : t(locale, "common.error"), true);
-    }
-  }
-
-  async function handleDeleteFavorite(id: number) {
-    if (!window.confirm(t(locale, "route.favoriteDeleteConfirm"))) return;
-    await callApi(`/api/favorites/${id}/delete`);
-    router.refresh();
-  }
-
-  async function handleCopyShareLink(fav: FavoriteEntry) {
-    if (!fav.shareToken) return;
-    await navigator.clipboard.writeText(`${window.location.origin}/share/${fav.shareToken}`);
-    flashMessage(t(locale, "route.favoriteShareCopied"));
-  }
-
-  async function handleToggleShare(fav: FavoriteEntry) {
-    const res = await callApi(`/api/favorites/${fav.id}/share`, { enable: !fav.shareToken });
-    if (!res.ok) return;
-    const data = (await res.json()) as { shareToken: string | null };
-    if (data.shareToken) {
-      await navigator.clipboard.writeText(`${window.location.origin}/share/${data.shareToken}`);
-      flashMessage(t(locale, "route.favoriteShareCopied"));
-    } else {
-      flashMessage(t(locale, "route.favoriteUnshare"));
-    }
-    router.refresh();
   }
 
   async function handleDiscardActive() {
@@ -437,6 +560,64 @@ export function RouteGenerator({
     if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
   }
 
+  async function handleLoadFavorite(favorite: FavoriteEntry) {
+    setStatus("loading");
+    setFavoritesOpen(false);
+    const res = await callApi(`/api/favorites/${favorite.id}/accept`);
+    if (res.ok) {
+      setResult({ token: "", route: favorite.display });
+      setMode("active");
+      setStatus("idle");
+      clearMessage();
+      setNickname("");
+      announcedStationIndexRef.current = 0;
+      waitingToLeaveIndexRef.current = null;
+    } else {
+      const body = (await res.json().catch(() => null)) as { error?: string } | null;
+      setStatus("idle");
+      flashMessage(body?.error === "favorite_stale" ? t(locale, "route.favoriteStale") : t(locale, "common.error"), true);
+    }
+  }
+
+  async function handleDeleteFavorite(id: number) {
+    if (!window.confirm(t(locale, "route.favoriteDeleteConfirm"))) return;
+    const res = await callApi(`/api/favorites/${id}/delete`);
+    if (res.ok) {
+      setDeletedFavoriteIds((prev) => new Set(prev).add(id));
+    }
+  }
+
+  function handleMarkerClick(id: number | string) {
+    if (mode !== "suggesting" || result) return;
+    setSelectedSegmentId(null);
+    setSelectedNodeId(Number(id));
+  }
+
+  function handleLineClick(id: number | string) {
+    if (mode !== "suggesting" || result) return;
+    setSelectedNodeId(null);
+    setSelectedSegmentId(Number(id));
+  }
+
+  const summaryParts: string[] = [];
+  if (isLoop) {
+    summaryParts.push(t(locale, "route.summaryLoop", { start: nodeLabel(startNodeId) }));
+  } else {
+    summaryParts.push(
+      t(locale, "route.summaryPointToPoint", { start: nodeLabel(startNodeId), end: nodeLabel(endNodeId) }),
+    );
+  }
+  if (mustVisitNodeIds.length > 0) {
+    summaryParts.push(t(locale, "route.summaryMustVisit", { count: mustVisitNodeIds.length }));
+  }
+  if (requiredSegmentIds.length > 0) {
+    summaryParts.push(t(locale, "route.summaryRequired", { count: requiredSegmentIds.length }));
+  }
+  if (excludedSegmentIds.length > 0) {
+    summaryParts.push(t(locale, "route.summaryExcluded", { count: excludedSegmentIds.length }));
+  }
+  const summaryText = summaryParts.join(" · ");
+
   const routeChips = result ? (
     <>
       <span className="chip">
@@ -453,9 +634,7 @@ export function RouteGenerator({
       )}
       {result.pointPreview && (
         <>
-          <span className="chip">
-            {t(locale, "route.pointPreview", { points: result.pointPreview.total })}
-          </span>
+          <span className="chip">{t(locale, "route.pointPreview", { points: result.pointPreview.total })}</span>
           <span className="chip">{t(locale, "route.pointPreviewBase", { points: result.pointPreview.base })}</span>
           {result.pointPreview.golden > 0 && (
             <span className="chip">{t(locale, "route.pointPreviewGolden", { points: result.pointPreview.golden })}</span>
@@ -472,7 +651,7 @@ export function RouteGenerator({
   ) : null;
 
   const actionBar = result ? (
-    <div className={`route-action-bar${mode === "active" ? "" : ""}`}>
+    <div className="route-action-bar">
       {mode === "suggesting" ? (
         <>
           <button type="button" className="btn-secondary btn-compact" onClick={() => handleAdjust("shorter")} disabled={status === "loading"}>
@@ -490,36 +669,24 @@ export function RouteGenerator({
           <button type="button" className="btn-danger btn-compact" onClick={handleCancel} disabled={status === "loading"}>
             {t(locale, "route.cancel")}
           </button>
-          <input
-            type="text"
-            value={favoriteName}
-            onChange={(e) => setFavoriteName(e.target.value)}
-            placeholder={t(locale, "route.routeNamePlaceholder")}
-            style={{ maxWidth: "9rem", fontSize: "0.82rem", padding: "0.35rem 0.5rem" }}
-          />
-          <button type="button" className="btn-secondary btn-compact" onClick={handleSaveFavorite} disabled={savingFavorite || !favoriteName.trim()}>
-            {t(locale, "route.saveFavorite")}
-          </button>
         </>
       ) : (
         <>
-          <label className="checkbox" style={{ fontSize: "0.82rem" }}>
-            <input
-              type="checkbox"
-              checked={watchId !== null}
-              onChange={() => toggleLocation()}
-            />
-            {t(locale, "route.locationCheck")}
-          </label>
-          <label className="checkbox" style={{ fontSize: "0.82rem" }} title={t(locale, "route.voiceHint")}>
-            <input
-              type="checkbox"
-              checked={voiceEnabled}
-              disabled={watchId === null}
-              onChange={(e) => setVoiceEnabled(e.target.checked)}
-            />
-            {t(locale, "route.voiceCheck")}
-          </label>
+          <div className="btn-row" style={{ gap: "0.65rem", flexWrap: "wrap" }}>
+            <label className="checkbox" style={{ fontSize: "0.82rem" }} title={t(locale, "route.showLocation")}>
+              <input type="checkbox" checked={followEnabled} onChange={() => toggleFollow()} />
+              {t(locale, "route.followCheck")}
+            </label>
+            <label className="checkbox" style={{ fontSize: "0.82rem" }} title={t(locale, "route.voiceHint")}>
+              <input
+                type="checkbox"
+                checked={voiceEnabled}
+                disabled={!followEnabled}
+                onChange={(e) => setVoiceChecked(e.target.checked)}
+              />
+              {t(locale, "route.voiceCheck")}
+            </label>
+          </div>
           <button type="button" className="btn-primary btn-compact" onClick={handleComplete} disabled={status === "loading"}>
             {t(locale, "route.completeButton")}
           </button>
@@ -536,41 +703,40 @@ export function RouteGenerator({
           <button type="button" className="btn-secondary btn-compact" onClick={saveNickname} disabled={nicknameStatus === "saving"}>
             {t(locale, "route.saveName")}
           </button>
-          <button type="button" className="btn-secondary btn-compact" onClick={handleSaveFavorite} disabled={savingFavorite || !nickname.trim()}>
-            {t(locale, "route.saveFavorite")}
-          </button>
         </>
       )}
     </div>
   ) : null;
 
   return (
-    <div className={`route-shell${result ? " has-map" : ""}`}>
-      {result && (
-        <div className="route-map-pane">
-          <MapViewLazy
-            fitKey={result.token || result.route.nodeChain.join("-")}
-            lines={routeMapLines}
-            markers={[
-              ...result.route.stations.map((s, idx) => ({
-                id: `${s.nodeId}-${idx}`,
-                lat: s.lat,
-                lng: s.lng,
-                label: s.name || `#${s.nodeId}`,
-                color: idx === 0 ? "#a5711c" : "#2e6b49",
-              })),
-              ...(myLocation ? [{ id: "me", lat: myLocation.lat, lng: myLocation.lng, label: t(locale, "route.you"), color: "#2b6cb0" }] : []),
-            ]}
-            height={360}
-          />
-          {routeChips && <div className="route-action-bar" style={{ marginTop: "0.45rem" }}>{routeChips}</div>}
-          <p className="route-stations-oneline" title={result.route.shortStationGroups.map((g) => (g.viaSegmentName ? `${g.text} (${t(locale, "route.via", { name: g.viaSegmentName })})` : g.text)).join(" › ")}>
+    <div className="route-shell has-map">
+      <div className="route-map-pane">
+        <MapViewLazy
+          fitKey={mapFitKey}
+          lines={mapLines}
+          markers={mapMarkers}
+          onMarkerClick={mode === "suggesting" && !result ? handleMarkerClick : undefined}
+          onLineClick={mode === "suggesting" && !result ? handleLineClick : undefined}
+          height={360}
+        />
+        {result && routeChips && (
+          <div className="route-action-bar" style={{ marginTop: "0.45rem" }}>
+            {routeChips}
+          </div>
+        )}
+        {result && (
+          <p
+            className="route-stations-oneline route-abbrev-display"
+            title={result.route.shortStationGroups
+              .map((g) => (g.viaSegmentName ? `${g.text} (${t(locale, "route.via", { name: g.viaSegmentName })})` : g.text))
+              .join(" › ")}
+          >
             {result.route.shortStationGroups
               .map((g) => (g.viaSegmentName ? `${g.text} (${t(locale, "route.via", { name: g.viaSegmentName })})` : g.text))
               .join(" › ")}
           </p>
-        </div>
-      )}
+        )}
+      </div>
 
       <div className="route-controls-pane">
         {pointBalance !== null && (
@@ -585,55 +751,87 @@ export function RouteGenerator({
             ) : null}
           </div>
         )}
-        {mode === "suggesting" && favorites.length > 0 && (
-          <details className="card route-panel-compact route-favorites-compact">
-            <summary>{t(locale, "route.favoritesTitle")} ({favorites.length})</summary>
-            <div style={{ marginTop: "0.45rem" }}>
-              {favorites.map((fav) => (
-                <div key={fav.id} className="route-favorite-row">
-                  <span className="chip">{fav.name} · {(fav.display.lengthM / 1000).toFixed(2)} {t(locale, "common.km")}</span>
-                  <button type="button" className="btn-secondary btn-compact" onClick={() => handleTakeFavorite(fav)} disabled={status === "loading"}>
-                    {t(locale, "route.favoriteTake")}
-                  </button>
-                  <button type="button" className="btn-secondary btn-compact" onClick={() => handleToggleShare(fav)}>
-                    {fav.shareToken ? t(locale, "route.favoriteUnshare") : t(locale, "route.favoriteShare")}
-                  </button>
-                  {fav.shareToken && (
-                    <button type="button" className="btn-secondary btn-compact" onClick={() => handleCopyShareLink(fav)}>
-                      {t(locale, "route.favoriteCopyLink")}
-                    </button>
-                  )}
-                  <button type="button" className="btn-danger btn-compact" onClick={() => handleDeleteFavorite(fav.id)}>
-                    {t(locale, "map.delete")}
-                  </button>
-                </div>
-              ))}
-            </div>
-          </details>
-        )}
 
         {mode === "suggesting" && !result && (
-          <div className="card route-panel-compact">
-            <form onSubmit={(e) => e.preventDefault()} className="stack" style={{ gap: "0.45rem" }}>
-              <div className="field">
-                <label htmlFor="startNode">{t(locale, "route.start")}</label>
-                <select id="startNode" value={startNodeId} onChange={(e) => setStartNodeId(Number(e.target.value))}>
-                  <option value="" disabled>…</option>
-                  {sortedNodes.map((n) => (
-                    <option key={n.id} value={n.id}>
-                      {n.name || `#${n.id}`}
-                      {n.id === homeNodeId ? ` (${t(locale, "map.home")})` : ""}
-                    </option>
-                  ))}
-                </select>
-              </div>
+          <div className="stack" style={{ gap: "0.45rem" }}>
+            <span className="chip route-summary-chip" title={summaryText}>
+              {summaryText}
+            </span>
 
-              <div className="btn-row">
+            {(requiredSegmentIds.length > 0 || excludedSegmentIds.length > 0) && (
+              <div className="btn-row" style={{ flexWrap: "wrap", gap: "0.3rem" }}>
+                {requiredSegmentIds.map((id) => (
+                  <span key={`req-${id}`} className="chip route-segment-badge route-segment-badge-required route-abbrev-display" title={segmentLabel(id)}>
+                    {t(locale, "route.badgeRequired")}: {segmentLabel(id)}
+                  </span>
+                ))}
+                {excludedSegmentIds.map((id) => (
+                  <span key={`ex-${id}`} className="chip route-segment-badge route-segment-badge-excluded route-abbrev-display" title={segmentLabel(id)}>
+                    {t(locale, "route.badgeExcluded")}: {segmentLabel(id)}
+                  </span>
+                ))}
+              </div>
+            )}
+
+            <p className="hint-compact route-map-hint">{t(locale, "route.mapTapHint")}</p>
+
+            {selectedNodeId !== null && nodesById.get(selectedNodeId) && (
+              <div className="route-selection-bar">
+                <strong className="route-abbrev-display">{nodesById.get(selectedNodeId)!.name || `#${selectedNodeId}`}</strong>
+                <button type="button" className="btn-secondary btn-compact" onClick={() => setNodeAsStart(selectedNodeId)}>
+                  {t(locale, "route.nodeMenuStart")}
+                </button>
+                {!isLoop && (
+                  <button type="button" className="btn-secondary btn-compact" onClick={() => setNodeAsEnd(selectedNodeId)}>
+                    {t(locale, "route.nodeMenuEnd")}
+                  </button>
+                )}
+                <button type="button" className="btn-secondary btn-compact" onClick={() => toggleMustVisit(selectedNodeId)}>
+                  {t(locale, "route.nodeMenuMustVisit")}
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary btn-compact"
+                  onClick={() => {
+                    clearNodeRole(selectedNodeId);
+                    setSelectedNodeId(null);
+                  }}
+                >
+                  {t(locale, "route.nodeMenuClear")}
+                </button>
+              </div>
+            )}
+
+            {selectedSegmentId !== null && (
+              <div className="route-selection-bar">
+                <strong className="route-abbrev-display">{segmentLabel(selectedSegmentId)}</strong>
+                <button type="button" className="btn-secondary btn-compact" onClick={() => setSegmentRequired(selectedSegmentId)}>
+                  {t(locale, "route.segmentMenuRequired")}
+                </button>
+                <button type="button" className="btn-secondary btn-compact" onClick={() => setSegmentExcluded(selectedSegmentId)}>
+                  {t(locale, "route.segmentMenuExcluded")}
+                </button>
+                <button type="button" className="btn-secondary btn-compact" onClick={() => clearSegmentConstraint(selectedSegmentId)}>
+                  {t(locale, "route.segmentMenuClear")}
+                </button>
+              </div>
+            )}
+
+            <details className="route-more-options">
+              <summary>{t(locale, "route.moreOptions")}</summary>
+              <div className="btn-row" style={{ marginTop: "0.45rem" }}>
                 <label className="checkbox" title={t(locale, "route.loopHint")}>
-                  <input type="checkbox" checked={isLoop} onChange={(e) => setIsLoop(e.target.checked)} />
+                  <input
+                    type="checkbox"
+                    checked={isLoop}
+                    onChange={(e) => {
+                      setIsLoop(e.target.checked);
+                      if (e.target.checked && startNodeId) setEndNodeId(startNodeId);
+                    }}
+                  />
                   {t(locale, "route.loop")}
                 </label>
-                <label className="checkbox">
+                <label className="checkbox" title={t(locale, "route.explorerModeHint")}>
                   <input type="checkbox" checked={explorerMode} onChange={(e) => setExplorerMode(e.target.checked)} />
                   {t(locale, "route.explorerMode")}
                 </label>
@@ -642,54 +840,76 @@ export function RouteGenerator({
                   {t(locale, "route.forceGolden")}
                 </label>
               </div>
+            </details>
 
-              {!isLoop && (
-                <div className="field">
-                  <label htmlFor="destinationNode">{t(locale, "route.destination")}</label>
-                  <select id="destinationNode" value={destinationNodeId} onChange={(e) => setDestinationNodeId(Number(e.target.value))}>
-                    <option value="" disabled>…</option>
-                    {sortedNodes.map((n) => (
-                      <option key={n.id} value={n.id}>
-                        {n.name || `#${n.id}`}
-                        {n.id === homeNodeId ? ` (${t(locale, "map.home")})` : ""}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+            <div className="route-action-bar">
+              {(usingNetworkFallback === true || usingNetworkFallback === false) && (
+                <span
+                  className="chip"
+                  title={
+                    usingNetworkFallback
+                      ? t(locale, "route.lengthTasteNetworkHint")
+                      : t(locale, "route.lengthTastePersonalHint")
+                  }
+                >
+                  {usingNetworkFallback ? t(locale, "route.lengthTasteNetwork") : t(locale, "route.lengthTastePersonal")}
+                </span>
               )}
-
-              <details>
-                <summary style={{ fontSize: "0.82rem", fontWeight: 600, color: "var(--ink-soft)", cursor: "pointer" }}>
-                  {t(locale, "route.moreOptions")}
-                </summary>
-                <div className="field" style={{ marginTop: "0.35rem" }}>
-                  <label htmlFor="waypointNode">{t(locale, "route.waypoint")} ({t(locale, "common.optional")})</label>
-                  <select id="waypointNode" value={waypointNodeId} onChange={(e) => setWaypointNodeId(e.target.value ? Number(e.target.value) : "")}>
-                    <option value="">{t(locale, "route.waypointNone")}</option>
-                    {sortedNodes.map((n) => (
-                      <option key={n.id} value={n.id}>{n.name || `#${n.id}`}</option>
-                    ))}
-                  </select>
-                </div>
-              </details>
-
-              <div className="route-action-bar">
-                <button type="button" className="btn-primary btn-compact" disabled={status === "loading" || !startNodeId} onClick={() => suggest("short")} title={t(locale, "route.presetShortHint")}>
-                  {status === "loading" ? t(locale, "route.generating") : t(locale, "route.presetShort")}
+              {favorites.length > 0 && (
+                <button
+                  type="button"
+                  className="btn-secondary btn-compact"
+                  onClick={() => setFavoritesOpen((o) => !o)}
+                >
+                  {t(locale, "route.favoritesTitle")} ({favorites.length})
                 </button>
-                <button type="button" className="btn-secondary btn-compact" disabled={status === "loading" || !startNodeId} onClick={() => suggest("long")} title={t(locale, "route.presetLongHint")}>
-                  {t(locale, "route.presetLong")}
+              )}
+              {(["short", "normal", "long", "surprise"] as const).map((preset) => (
+                <button
+                  key={preset}
+                  type="button"
+                  className={preset === "short" ? "btn-primary btn-compact" : "btn-secondary btn-compact"}
+                  disabled={status === "loading" || !startNodeId}
+                  onClick={() => generate(preset)}
+                  title={t(locale, PRESET_HINT_KEYS[preset])}
+                >
+                  {status === "loading" ? t(locale, "route.generating") : t(locale, PRESET_LABEL_KEYS[preset])}
                 </button>
-                <button type="button" className="btn-secondary btn-compact" disabled={status === "loading" || !startNodeId} onClick={() => surprise()} title={t(locale, "route.presetSurpriseHint")}>
-                  {t(locale, "route.presetSurprise")}
-                </button>
+              ))}
+            </div>
+            {favoritesOpen && favorites.length > 0 && (
+              <div className="card route-panel-compact" style={{ marginTop: "0.35rem" }}>
+                {favorites.map((fav) => (
+                  <div key={fav.id} className="route-favorite-row">
+                    <span className="chip">
+                      {fav.name} · {(fav.display.lengthM / 1000).toFixed(2)} {t(locale, "common.km")}
+                    </span>
+                    <button
+                      type="button"
+                      className="btn-secondary btn-compact"
+                      onClick={() => handleLoadFavorite(fav)}
+                      disabled={status === "loading"}
+                    >
+                      {t(locale, "route.favoriteTake")}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-danger btn-compact"
+                      onClick={() => handleDeleteFavorite(fav.id)}
+                    >
+                      {t(locale, "map.delete")}
+                    </button>
+                  </div>
+                ))}
               </div>
-            </form>
+            )}
           </div>
         )}
 
         {mode === "active" && !result && (
-          <div className="alert alert-success" style={{ padding: "0.45rem 0.65rem", fontSize: "0.82rem" }}>{t(locale, "route.activeNotice")}</div>
+          <div className="alert alert-success" style={{ padding: "0.45rem 0.65rem", fontSize: "0.82rem" }}>
+            {t(locale, "route.activeNotice")}
+          </div>
         )}
 
         {message && (
