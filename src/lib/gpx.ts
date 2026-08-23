@@ -109,3 +109,47 @@ export function parseGpx(xml: string, walkSpeedKmh: number): ParsedTrack[] {
 
   return result;
 }
+
+export interface WalkGpxPoint {
+  lat: number;
+  lng: number;
+  ele?: number;
+  time?: string;
+}
+
+/** Build a GPX 1.1 document from a walked GPS track. */
+export function buildWalkGpx(opts: {
+  name: string;
+  points: WalkGpxPoint[];
+  description?: string;
+}): string {
+  const pts = opts.points.filter((p) => typeof p.lat === "number" && typeof p.lng === "number");
+  const trkpts = pts
+    .map((p) => {
+      const ele = p.ele != null && !Number.isNaN(p.ele) ? `\n        <ele>${p.ele}</ele>` : "";
+      const time = p.time ? `\n        <time>${p.time}</time>` : "";
+      return `      <trkpt lat="${p.lat}" lon="${p.lng}">${ele}${time}\n      </trkpt>`;
+    })
+    .join("\n");
+  const desc = opts.description
+    ? `\n    <desc>${escapeXml(opts.description)}</desc>`
+    : "";
+  return `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Routy" xmlns="http://www.topografix.com/GPX/1/1">
+  <trk>
+    <name>${escapeXml(opts.name)}</name>${desc}
+    <trkseg>
+${trkpts}
+    </trkseg>
+  </trk>
+</gpx>
+`;
+}
+
+function escapeXml(text: string): string {
+  return text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}

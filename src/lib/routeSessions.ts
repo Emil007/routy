@@ -7,9 +7,15 @@ export interface RouteSessionState {
   targetValue: number;
   startNodeId: number;
   destinationNodeId: number;
+  /** @deprecated prefer mustVisitNodeIds — kept for older clients reading sessions mid-deploy */
   waypointNodeId: number | null;
+  mustVisitNodeIds: number[];
+  requiredSegmentIds: number[];
+  excludedSegmentIds: number[];
   explorerMode: boolean;
   surpriseMode: boolean;
+  forceGolden: boolean;
+  preset: "short" | "normal" | "long" | "surprise" | null;
   current: {
     nodeChain: number[];
     segmentIds: number[];
@@ -23,14 +29,13 @@ export interface RouteSessionState {
 }
 
 declare global {
-   
   var __routySessions: Map<string, RouteSessionState> | undefined;
 }
 
 const store: Map<string, RouteSessionState> = globalThis.__routySessions ?? new Map();
 globalThis.__routySessions = store;
 
-const SESSION_TTL_MS = 2 * 60 * 60 * 1000; // 2h — generous for an in-memory "pick a route" flow
+const SESSION_TTL_MS = 2 * 60 * 60 * 1000;
 
 function sweep() {
   const now = Date.now();
@@ -39,10 +44,30 @@ function sweep() {
   }
 }
 
-export function createRouteSession(state: Omit<RouteSessionState, "createdAt">): string {
+export function createRouteSession(
+  state: Omit<RouteSessionState, "createdAt" | "mustVisitNodeIds" | "requiredSegmentIds" | "excludedSegmentIds" | "forceGolden" | "preset"> &
+    Partial<
+      Pick<
+        RouteSessionState,
+        "mustVisitNodeIds" | "requiredSegmentIds" | "excludedSegmentIds" | "forceGolden" | "preset"
+      >
+    >,
+): string {
   sweep();
   const token = randomBytes(16).toString("hex");
-  store.set(token, { ...state, createdAt: Date.now() });
+  const mustVisit =
+    state.mustVisitNodeIds ??
+    (state.waypointNodeId != null ? [state.waypointNodeId] : []);
+  store.set(token, {
+    ...state,
+    mustVisitNodeIds: mustVisit,
+    requiredSegmentIds: state.requiredSegmentIds ?? [],
+    excludedSegmentIds: state.excludedSegmentIds ?? [],
+    forceGolden: state.forceGolden ?? false,
+    preset: state.preset ?? null,
+    waypointNodeId: state.waypointNodeId ?? mustVisit[0] ?? null,
+    createdAt: Date.now(),
+  });
   return token;
 }
 
@@ -67,7 +92,6 @@ export function deleteRouteSession(token: string): void {
   store.delete(token);
 }
 
-/** Drop in-memory route suggestion tokens past TTL — also called from the daily purge job. */
 export function sweepExpiredRouteSessions(): number {
   const before = store.size;
   sweep();

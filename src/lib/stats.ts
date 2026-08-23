@@ -13,7 +13,9 @@ export interface UserStats {
   totalSegments: number;
 }
 
-/** Per-profile totals. Segment counts treat a path and its reverse direction as one. */
+/** Per-profile totals. Segment counts treat a path and its reverse direction as one.
+ * Home-access connectors count exactly like every other walked path (Phase L: the 0.41
+ * exclusion from exploration totals was reverted — only generation scoring ignores them). */
 export function getUserStats(userId: number): UserStats {
   const rows = db
     .prepare("SELECT length_m, duration_min, segment_ids FROM walk_log WHERE user_id = ?")
@@ -123,15 +125,19 @@ export interface WalkLogEntry {
   streakMultiplier: number | null;
   celebrationTier: string | null;
   goldenHits: number | null;
+  hasTrack: boolean;
 }
 
 export function getRecentWalks(userId: number, limit = 10): WalkLogEntry[] {
   const rows = db
     .prepare(
-      `SELECT id, node_chain, segment_ids, length_m, duration_min, nickname, accepted_at,
-              points_earned, points_base, points_golden, points_exploration, points_diversity,
-              streak_multiplier, celebration_tier, golden_hits
-       FROM walk_log WHERE user_id = ? ORDER BY accepted_at DESC LIMIT ?`,
+      `SELECT w.id, w.node_chain, w.segment_ids, w.length_m, w.duration_min, w.nickname, w.accepted_at,
+              w.points_earned, w.points_base, w.points_golden, w.points_exploration, w.points_diversity,
+              w.streak_multiplier, w.celebration_tier, w.golden_hits,
+              (w.track_json IS NOT NULL OR wt.walk_id IS NOT NULL) AS has_track
+       FROM walk_log w
+       LEFT JOIN walk_track wt ON wt.walk_id = w.id
+       WHERE w.user_id = ? ORDER BY w.accepted_at DESC LIMIT ?`,
     )
     .all(userId, limit) as {
     id: number;
@@ -149,6 +155,7 @@ export function getRecentWalks(userId: number, limit = 10): WalkLogEntry[] {
     streak_multiplier: number | null;
     celebration_tier: string | null;
     golden_hits: number | null;
+    has_track: number;
   }[];
 
   return rows.map((r) => ({
@@ -167,6 +174,7 @@ export function getRecentWalks(userId: number, limit = 10): WalkLogEntry[] {
     streakMultiplier: r.streak_multiplier,
     celebrationTier: r.celebration_tier,
     goldenHits: r.golden_hits,
+    hasTrack: Boolean(r.has_track),
   }));
 }
 
@@ -205,7 +213,8 @@ export interface SegmentUsageStat {
   usageCount: number;
 }
 
-/** Network-wide usage per physical path (both directions combined). */
+/** Network-wide usage per physical path (both directions combined).
+ * Home-access connectors are ranked like every other path (Phase L revert). */
 export function getSegmentUsageStats(): SegmentUsageStat[] {
   const segments = listSegments();
   const usage = getUsageMap();

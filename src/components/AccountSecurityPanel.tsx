@@ -1,5 +1,6 @@
 import { t, type Locale } from "@/lib/i18n";
 import { ConfirmSubmitForm } from "@/components/ConfirmSubmitForm";
+import { SessionsPanel } from "@/components/SessionsPanel";
 import {
   changePasswordAction,
   logoutEverywhereAction,
@@ -117,6 +118,8 @@ export function AccountSecurityPanel({
           </>
         )}
       </div>
+
+      <SessionsPanel locale={locale} />
 
       <div>
         <h2>{t(locale, "settings.logoutEverywhereTitle")}</h2>

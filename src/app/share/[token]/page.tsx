@@ -65,6 +65,7 @@ export default async function SharePage({ params }: { params: Promise<{ token: s
       ) : (
         <div className="card stack">
           <MapViewLazy
+            locale={locale}
             lines={[{ id: "route", points: display.geometry }]}
             markers={display.stations.map((s, idx) => ({
               id: `${s.nodeId}-${idx}`,

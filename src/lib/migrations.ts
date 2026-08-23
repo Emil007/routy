@@ -321,6 +321,68 @@ export const MIGRATIONS: Migration[] = [
   { id: 1, name: "legacy_schema_hardening", up: legacySchemaHardening },
   { id: 2, name: "per_user_home", up: perUserHome },
   { id: 3, name: "walk_points_ledger", up: walkPointsLedger },
+  {
+    id: 4,
+    name: "length_taste_and_track",
+    up: (db) => {
+      addColumnIfMissing(db, "walk_log", "length_rating", "ALTER TABLE walk_log ADD COLUMN length_rating INTEGER");
+      addColumnIfMissing(db, "users", "taste_short_m", "ALTER TABLE users ADD COLUMN taste_short_m REAL");
+      addColumnIfMissing(db, "users", "taste_normal_m", "ALTER TABLE users ADD COLUMN taste_normal_m REAL");
+      addColumnIfMissing(db, "users", "taste_long_m", "ALTER TABLE users ADD COLUMN taste_long_m REAL");
+      addColumnIfMissing(db, "walk_log", "track_json", "ALTER TABLE walk_log ADD COLUMN track_json TEXT");
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS walk_track (
+          walk_id INTEGER PRIMARY KEY REFERENCES walk_log(id) ON DELETE CASCADE,
+          points_json TEXT NOT NULL,
+          created_at TEXT NOT NULL DEFAULT (datetime('now'))
+        );
+      `);
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS segment_geometry_history (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          segment_id INTEGER NOT NULL REFERENCES segments(id) ON DELETE CASCADE,
+          geometry_json TEXT NOT NULL,
+          length_m REAL,
+          ele_gain_m REAL,
+          ele_loss_m REAL,
+          duration_min REAL,
+          backed_up_at TEXT NOT NULL DEFAULT (datetime('now')),
+          reason TEXT
+        );
+      `);
+      addColumnIfMissing(db, "name_parts", "display_text", "ALTER TABLE name_parts ADD COLUMN display_text TEXT");
+      addColumnIfMissing(db, "name_parts", "speak_text", "ALTER TABLE name_parts ADD COLUMN speak_text TEXT");
+      try {
+        db.exec(`UPDATE name_parts SET speak_text = text WHERE speak_text IS NULL`);
+        db.exec(`UPDATE name_parts SET display_text = text WHERE display_text IS NULL`);
+      } catch {
+        /* column may not exist yet on fresh DB before addColumn — ignore */
+      }
+      db.prepare(
+        "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO NOTHING",
+      ).run("golden_percent", "5");
+    },
+  },
+  {
+    id: 5,
+    name: "track_geometry_dismissals",
+    up: (db) => {
+      addColumnIfMissing(
+        db,
+        "segments",
+        "duration_from_gps",
+        "ALTER TABLE segments ADD COLUMN duration_from_gps INTEGER NOT NULL DEFAULT 0",
+      );
+      db.exec(`
+        CREATE TABLE IF NOT EXISTS track_geometry_dismissals (
+          walk_id INTEGER NOT NULL REFERENCES walk_log(id) ON DELETE CASCADE,
+          segment_id INTEGER NOT NULL REFERENCES segments(id) ON DELETE CASCADE,
+          dismissed_at TEXT NOT NULL DEFAULT (datetime('now')),
+          PRIMARY KEY (walk_id, segment_id)
+        );
+      `);
+    },
+  },
 ];
 
 export function runAllMigrations(db: Database.Database): void {

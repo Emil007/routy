@@ -184,6 +184,7 @@ export function DrawPathWizard({
 
       <div className="card stack">
         <MapViewLazy
+          locale={locale}
           height={420}
           autoFit={false}
           lines={[...networkLines, ...draftLine]}

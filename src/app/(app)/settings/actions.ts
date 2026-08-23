@@ -27,6 +27,9 @@ export async function saveSettingsAction(formData: FormData) {
       if (!Number.isNaN(num)) partial[key] = num;
     }
   }
+  if (partial.golden_percent !== undefined) {
+    partial.golden_percent = Math.min(25, Math.max(1, partial.golden_percent));
+  }
   updateSettings(partial);
   revalidatePath("/settings");
 }

@@ -1,45 +1,36 @@
 "use client";
 
-import { type ReactNode, useEffect, useMemo } from "react";
-import { MapContainer, TileLayer, LayersControl, Marker, Polyline, Circle, Popup, Tooltip, useMap, useMapEvents } from "react-leaflet";
+import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { MapContainer, TileLayer, Marker, Polyline, Circle, Popup, Tooltip, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { t, type Locale } from "@/lib/i18n";
 
-/** Extensible base-layer list — add an entry here to offer another tile view everywhere maps are shown.
- * Kept to free, keyless tile services only (no API key/signup) — several other options from
- * openstreetmap.org's own layer picker (Tracestrack Topo, MapTiler OMT, …) need a registered key
- * and aren't usable this way. */
 const TILE_LAYERS = [
   {
     id: "streets",
-    name: "Straßenkarte",
     url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
   },
   {
     id: "hiking",
-    name: "Wanderkarte",
     url: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
     attribution:
-      'Kartendaten: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, SRTM | Darstellung: &copy; <a href="https://opentopomap.org">OpenTopoMap</a> (<a href="https://creativecommons.org/licenses/by-sa/3.0/">CC-BY-SA</a>)',
+      'Kartendaten: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, SRTM | Darstellung: &copy; <a href="https://opentopomap.org">OpenTopoMap</a>',
   },
   {
     id: "satellite",
-    name: "Satellit",
     url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-    attribution: "Tiles &copy; Esri &mdash; Source: Esri, Maxar, Earthstar Geographics, and the GIS User Community",
+    attribution: "Tiles &copy; Esri",
   },
-];
+] as const;
 
-/** Optional overlays drawn on top of the chosen base layer — checkboxes, combinable with any of them. */
-const TILE_OVERLAYS = [
-  {
-    id: "hiking-trails",
-    name: "Wanderwege (markiert)",
-    url: "https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png",
-    attribution: 'Wanderwege: &copy; <a href="https://waymarkedtrails.org">Waymarked Trails</a>',
-  },
-];
+const TRAILS_OVERLAY = {
+  url: "https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png",
+  attribution: 'Wanderwege: &copy; <a href="https://waymarkedtrails.org">Waymarked Trails</a>',
+};
+
+type BaseLayerId = (typeof TILE_LAYERS)[number]["id"];
 
 export interface MapMarker {
   id: number | string;
@@ -48,7 +39,6 @@ export interface MapMarker {
   label?: string;
   color?: string;
   draggable?: boolean;
-  /** Rendered inside a real Leaflet Popup anchored to this marker — info and/or owner-gated actions. */
   popup?: ReactNode;
 }
 
@@ -57,9 +47,7 @@ export interface MapLine {
   points: [number, number][];
   color?: string;
   weight?: number;
-  /** Dashed stroke — used to mark a path as temporarily locked out of route rotation. */
   dashed?: boolean;
-  /** Rendered inside a real Leaflet Popup opened at the click position along this line. */
   popup?: ReactNode;
 }
 
@@ -80,14 +68,6 @@ function dotIcon(color: string) {
   });
 }
 
-/**
- * Fits the view to the given markers/lines once per `fitKey` value (default: once on
- * mount, since an unset key never changes). Deliberately NOT keyed to the marker/line
- * content itself — refitting on every content change means a single node move (which
- * legitimately changes that node's lat/lng) zooms the whole map back out, discarding
- * whatever the user was looking at. Callers that show a genuinely new dataset (e.g. a
- * freshly generated route) should bump `fitKey` to opt back into a refit.
- */
 function FitBounds({ markers, lines, fitKey }: { markers: MapMarker[]; lines: MapLine[]; fitKey?: string | number }) {
   const map = useMap();
   useEffect(() => {
@@ -118,9 +98,6 @@ export interface MapViewState {
   zoom: number;
 }
 
-/** Reports the current center/zoom on every pan/zoom — lets a parent remember the view
- * across remounts (e.g. switching between the Übersicht's view/draw/edit modes, each of
- * which mounts its own MapContainer) instead of resetting to the default fit every time. */
 function ViewTracker({ onViewChange }: { onViewChange: (view: MapViewState) => void }) {
   const map = useMapEvents({
     moveend: () => onViewChange({ center: [map.getCenter().lat, map.getCenter().lng], zoom: map.getZoom() }),
@@ -134,6 +111,7 @@ export function MapView({
   lines = [],
   circles = [],
   height = 360,
+  locale = "de",
   onMarkerClick,
   onMarkerDragEnd,
   onMapClick,
@@ -148,36 +126,50 @@ export function MapView({
   lines?: MapLine[];
   circles?: MapCircle[];
   height?: number;
+  locale?: Locale;
   onMarkerClick?: (id: number | string) => void;
-  /** Fired after a marker with `draggable: true` is released at a new position. */
   onMarkerDragEnd?: (id: number | string, lat: number, lng: number) => void;
   onMapClick?: (lat: number, lng: number) => void;
-  /** Fired when a line is clicked, with the lat/lng of the click along it. */
   onLineClick?: (id: number | string, lat: number, lng: number) => void;
-  /** Re-fit the view once per distinct `fitKey` (default: once on mount). Disable entirely
-   * for interactive drawing, where re-centering on every click would fight the user's own
-   * panning/zoom. */
   autoFit?: boolean;
-  /** Bump this (e.g. to a route token) when a genuinely new dataset should trigger a refit. */
   fitKey?: string | number;
-  /** Restore a previously-tracked center/zoom instead of the default fit-to-content —
-   * for a parent that remounts this map across mode switches and wants continuity. */
   initialView?: MapViewState;
-  /** Fired on every pan/zoom with the current view, so a parent can pass it back in as
-   * `initialView` next time this map (or a sibling one) mounts. */
   onViewChange?: (view: MapViewState) => void;
   className?: string;
 }) {
+  const [baseLayerId, setBaseLayerId] = useState<BaseLayerId>("streets");
+  const [showTrails, setShowTrails] = useState(false);
+
   const defaultCenter = useMemo<[number, number]>(() => {
     if (initialView) return initialView.center;
     if (markers[0]) return [markers[0].lat, markers[0].lng];
     if (lines[0]?.points[0]) return lines[0].points[0];
-    return [51.1657, 10.4515]; // Germany, fallback
+    return [51.1657, 10.4515];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const baseLayer = TILE_LAYERS.find((l) => l.id === baseLayerId) ?? TILE_LAYERS[0];
+
   return (
-    <div className={`map-box ${className ?? ""}`} style={{ height }}>
+    <div className={`map-box ${className ?? ""}`} style={{ height, position: "relative" }}>
+      <div className="map-layer-controls">
+        <select
+          className="map-layer-select"
+          value={baseLayerId}
+          onChange={(e) => setBaseLayerId(e.target.value as BaseLayerId)}
+          aria-label={t(locale, "map.layerBaseLabel")}
+        >
+          {TILE_LAYERS.map((layer) => (
+            <option key={layer.id} value={layer.id}>
+              {t(locale, `map.layer.${layer.id}`)}
+            </option>
+          ))}
+        </select>
+        <label className="map-layer-trails">
+          <input type="checkbox" checked={showTrails} onChange={(e) => setShowTrails(e.target.checked)} />
+          {t(locale, "map.layer.hikingTrails")}
+        </label>
+      </div>
       <MapContainer
         center={defaultCenter}
         zoom={initialView?.zoom ?? 14}
@@ -186,18 +178,10 @@ export function MapView({
         closePopupOnClick={false}
       >
         {onViewChange && <ViewTracker onViewChange={onViewChange} />}
-        <LayersControl position="topright">
-          {TILE_LAYERS.map((layer, idx) => (
-            <LayersControl.BaseLayer key={layer.id} name={layer.name} checked={idx === 0}>
-              <TileLayer attribution={layer.attribution} url={layer.url} />
-            </LayersControl.BaseLayer>
-          ))}
-          {TILE_OVERLAYS.map((overlay) => (
-            <LayersControl.Overlay key={overlay.id} name={overlay.name}>
-              <TileLayer attribution={overlay.attribution} url={overlay.url} />
-            </LayersControl.Overlay>
-          ))}
-        </LayersControl>
+        <TileLayer key={baseLayer.id} attribution={baseLayer.attribution} url={baseLayer.url} />
+        {showTrails && (
+          <TileLayer attribution={TRAILS_OVERLAY.attribution} url={TRAILS_OVERLAY.url} opacity={0.85} />
+        )}
         {lines.map((line) => (
           <Polyline
             key={line.id}

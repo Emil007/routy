@@ -5,7 +5,7 @@ Shared contract between the **web app**, **native Android app**, and any future 
 - **Base URL:** user-configured (e.g. `https://routy.example.com/`)
 - **Auth:** `Authorization: Bearer <token>` (Android) or session cookie (browser). Same token from `POST /api/auth/login`.
 - **Errors:** JSON `{ "error": "<code>" }` unless noted. Common: `unauthorized`, `invalid_json`.
-- **Version:** server display `0.38s` (`package.json` `"0.38s"`).
+- **Version:** server display `0.42s` (`package.json` `"0.42s"`).
 
 ## Auth & profile
 
@@ -16,11 +16,11 @@ Shared contract between the **web app**, **native Android app**, and any future 
 | POST | `/api/auth/logout` | — | `{ ok: true }` | |
 | GET | `/api/auth/me` | — | `{ user }` | |
 | GET | `/api/auth/sessions` | — | `{ sessions[] }` | |
-| DELETE | `/api/auth/sessions/:sessionId` | — | `{ ok: true }` | Revoke one session. |
+| DELETE | `/api/auth/sessions/:sessionId` | — | `{ ok: true }` | Revoke one session (web account page + Android). |
 | POST | `/api/auth/sessions/revoke-others` | — | `{ revoked }` | |
 | PATCH | `/api/app/profile` | `{ locale?, theme?, walkSpeedKmh? \| null }` | `{ user }` | Send `"walkSpeedKmh": null` to clear override. |
 
-**Account security (password change, TOTP enable/disable, account deactivation):** dedicated page at `/settings/account` — native Android opens that page in an authenticated in-app WebView sheet (`{serverUrl}/settings/account`). Browser `/settings` links to it.
+**Account security (password change, TOTP enable/disable, account deactivation):** dedicated page at `/settings/account` — native Android opens that page in an authenticated in-app WebView sheet (`{serverUrl}/settings/account`). Browser `/settings` links to it; web lists sessions with per-session revoke.
 
 ## Bootstrap & health
 
@@ -35,17 +35,24 @@ Shared contract between the **web app**, **native Android app**, and any future 
 
 | Method | Path | Body | Response |
 |--------|------|------|----------|
-| POST | `/api/route/generate` | `{ startNodeId, destinationNodeId, waypointNodeId?, explorerMode?, surpriseMode?, preset?, forceGolden? }` | `{ token, route, pointPreview?, goldenHits?, goldenHitIds? }` |
-| POST | `/api/route/widen` | `{ token }` | `{ token, route, pointPreview?, goldenHits?, goldenHitIds?, tolerancePercent? }` |
-| POST | `/api/route/adjust` | `{ token, direction }` | `{ token, route, pointPreview?, goldenHits?, goldenHitIds? }` |
+| POST | `/api/route/generate` | `{ startNodeId?, destinationNodeId?, mustVisitNodeIds?, requiredSegmentIds?, excludedSegmentIds?, explorerMode?, surpriseMode?, preset?, forceGolden?, waypointNodeId? }` | `{ token, route, pointPreview?, goldenHits?, goldenHitIds?, lengthRelaxed?, lengthKm?, usingNetworkFallback? }` |
+| POST | `/api/route/widen` | `{ token }` | `{ token, route, pointPreview?, goldenHits?, goldenHitIds?, lengthRelaxed?, tolerancePercent? }` |
+| POST | `/api/route/adjust` | `{ token, direction }` | `{ token, route, pointPreview?, goldenHits?, goldenHitIds?, lengthRelaxed? }` |
 | POST | `/api/route/accept` | `{ token }` | `{ success: true }` | Active route stored server-side. |
 | POST | `/api/route/cancel` | `{ token }` | `{ success: true }` | |
-| POST | `/api/route/complete` | — | `{ walkId, pointsEarned, streakMultiplier, currentStreak, pointBreakdown, goldenHits?, celebrationTier?, … }` | Points ledger: stores breakdown + multiplier on `walk_log` once. First walk of the day uses streak+1 for the multiplier. Clears active route in the same transaction (double-complete → `no_active_route`). |
+| POST | `/api/route/complete` | `{ trackPoints? }` | `{ walkId, pointsEarned, streakMultiplier, currentStreak, pointBreakdown, goldenHits?, celebrationTier?, … }` | Optional GPX-like `trackPoints`: `{ lat, lng, ele?, time?, accuracy?, speed?, bearing? }[]` stored on `walk_log.track_json` / `walk_track`. Points ledger: stores breakdown + multiplier on `walk_log` once. First walk of the day uses streak+1 for the multiplier. Clears active route in the same transaction (double-complete → `no_active_route`). |
 | POST | `/api/route/discard` | — | `{ ok: true }` | |
 | GET | `/api/route/state` | — | active route or empty | |
 | POST | `/api/route/nickname` | `{ nickname }` | `{ ok: true }` | Active route label. |
+| POST | `/api/app/walks/rate` | `{ walkId, rating: 1–5 }` | `{ ok: true }` | Length taste after complete (`1–2` short, `3` normal, `4–5` long). Recomputes user taste medians after ≥3 ratings. |
 
-**Presets:** `preset` may be `"short"`, `"long"`, or `"surprise"` (bias toward segments not walked in 30+ days). `surpriseMode: true` is equivalent to `preset: "surprise"`. `forceGolden: true` requires the returned route to use at least one of today's golden segments (`404 no_golden_route` if none fit). `goldenHitIds` are canonical segment ids on the route that are golden today.
+**Generate constraints:** `mustVisitNodeIds` (ordered; prefer over deprecated `waypointNodeId`). `requiredSegmentIds` must appear (or reverse pair). `excludedSegmentIds` hard-dropped for this search only (distinct from soft avoid). Session stores constraints + `preset` + `forceGolden`; widen/adjust honor them.
+
+**Presets:** `short` \| `normal` \| `long` \| `surprise`. Length band from per-user taste after 3 rated walks; else network `suggest_min_km` / `suggest_max_km`. Impossible band → shortest/closest feasible under constraints with `lengthRelaxed: true` + `lengthKm` (never 404 for km alone). `usingNetworkFallback: true` on the generate response means the band came from network defaults (fewer than 3 length ratings) rather than personal taste (from `lengthBandForUser`). `surpriseMode: true` ≡ `preset: "surprise"`. `forceGolden: true` requires ≥1 of today's golden segments (`404 no_golden_route` if none fit).
+
+**Generation engine (Phase L):** the primary finder is a **shortest-path (Dijkstra) leg** engine (`src/lib/routeSearch.ts`): shortest legs `start → each must-visit → destination` (loop when `start === destination`), `excludedSegmentIds` hard-dropped from the graph, `requiredSegmentIds` stitched in as forced hops, and mid-node detours / Yen-like alternate legs to build a pool that `scoreRoutes` / `pickBest` then rank. The legacy shuffled DFS is kept only as a **last-resort fallback** when that pool is empty. Home-access connectors are ignored **for generation scoring only** (prefer ≤1 distinct connector — leave and return the same way); when actually walked they count like any other path in stats / points / usage.
+
+**Errors:** `400 no_home_node` when start omitted and home unset; `429 rate_limited` on generate (20/min/user). `goldenHitIds` are canonical segment ids on the route that are golden today. Home-access connectors (segments incident to `home_node_id`) are walkable and ignored **only for generation scoring / point preview**; once walked they count normally in stats / points / usage (Phase L reverted the 0.41 stats exclusion).
 
 `pointPreview` on generate/adjust/widen responses: `{ base, golden, exploration, diversity, total }` (preview only; balances use the ledger).
 
@@ -166,5 +173,11 @@ Distinct from GPX split proposals (`/api/app/proposals`).
 | Method | Path | Notes |
 |--------|------|-------|
 | POST | `/api/admin/backup` | Admin-only DB download (POST only — not CSRF-friendly GET). |
+| GET | `/api/admin/track-geometry/walks` | Walks with uploaded `track_json` / `walk_track`. |
+| GET | `/api/admin/track-geometry/walk/[walkId]` | Split track vs official segment geometry; outlier-filtered suggestions. |
+| POST | `/api/admin/track-geometry/accept` | `{ walkId, segmentId }` — backup to `segment_geometry_history`, then `updateSegmentGeometry`. |
+| POST | `/api/admin/track-geometry/discard` | `{ walkId, segmentId }` — dismiss suggestion for that walk/segment. |
+
+**Network settings:** `golden_percent` (1–25, default 5) via admin stepper on `/settings` — live `(picked/total)` preview; does not re-roll today's goldens.
 
 Browser-only flows (password change, TOTP) live on `/settings/account` — native app opens that page in an authenticated in-app WebView sheet. Locale/theme/network remain on `/settings`.

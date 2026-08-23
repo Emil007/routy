@@ -3,9 +3,13 @@
 import { useEffect, useState } from "react";
 import { t, type Locale } from "@/lib/i18n";
 import type { LatLng } from "@/lib/geo";
+import { abbreviateStreetTypes } from "@/lib/streetAbbrev";
 
 interface NamePartChip {
-  text: string;
+  /** Full speak text stored in the part / input field. */
+  speakText: string;
+  /** Abbreviated label shown on the chip and in preview. */
+  displayText: string;
 }
 
 /**
@@ -44,16 +48,31 @@ export function NamePartsInput({
       body: JSON.stringify({ lat: point.lat, lng: point.lng }),
     })
       .then((res) => (res.ok ? res.json() : null))
-      .then((data: { osmText?: string | null; nearbyParts?: { id: number; text: string }[] } | null) => {
-        if (cancelled || !data) return;
-        const options: NamePartChip[] = [];
-        if (data.osmText) options.push({ text: data.osmText });
-        for (const p of data.nearbyParts ?? []) {
-          if (!options.some((o) => o.text === p.text)) options.push({ text: p.text });
-        }
-        setChips(options);
-        if (data.osmText && !part1) onPart1(data.osmText);
-      })
+      .then(
+        (
+          data: {
+            osmSpeakText?: string | null;
+            osmDisplayText?: string | null;
+            osmText?: string | null;
+            nearbyParts?: { id: number; text: string; displayText?: string; speakText?: string }[];
+          } | null,
+        ) => {
+          if (cancelled || !data) return;
+          const options: NamePartChip[] = [];
+          const osmSpeak = data.osmSpeakText ?? data.osmText;
+          const osmDisplay = data.osmDisplayText ?? osmSpeak;
+          if (osmSpeak && osmDisplay) options.push({ speakText: osmSpeak, displayText: osmDisplay });
+          for (const p of data.nearbyParts ?? []) {
+            const speakText = p.speakText ?? p.text;
+            const displayText = p.displayText ?? p.text;
+            if (!options.some((o) => o.speakText === speakText)) {
+              options.push({ speakText, displayText });
+            }
+          }
+          setChips(options);
+          if (osmSpeak && !part1) onPart1(osmSpeak);
+        },
+      )
       .catch(() => {});
     return () => {
       cancelled = true;
@@ -61,15 +80,28 @@ export function NamePartsInput({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [point.lat, point.lng]);
 
-  const composedPreview = part2 ? `${part1}/${part2}` : part1;
+  function abbreviateForPreview(text: string): string {
+    const chip = chips.find((c) => c.speakText === text);
+    return chip?.displayText ?? abbreviateStreetTypes(text);
+  }
+
+  const composedPreview = part2
+    ? `${abbreviateForPreview(part1)}/${abbreviateForPreview(part2)}`
+    : abbreviateForPreview(part1);
 
   function renderChipRow(onPick: (text: string) => void) {
     if (chips.length === 0) return null;
     return (
       <div className="btn-row" style={{ flexWrap: "wrap", gap: "0.3rem" }}>
         {chips.map((chip) => (
-          <button key={chip.text} type="button" className="chip" style={{ cursor: "pointer", border: "none" }} onClick={() => onPick(chip.text)}>
-            {chip.text}
+          <button
+            key={chip.speakText}
+            type="button"
+            className="chip"
+            style={{ cursor: "pointer", border: "none" }}
+            onClick={() => onPick(chip.speakText)}
+          >
+            {chip.displayText}
           </button>
         ))}
       </div>

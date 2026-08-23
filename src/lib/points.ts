@@ -161,12 +161,22 @@ export function computeRoutePointPreview(
   usageMap: Map<number, number>,
   goldenMap: Map<number, number>,
   canonicalOf: Map<number, number>,
+  ignoreSegmentIds: Set<number> = new Set(),
 ): PointPreviewBreakdown {
+  const scoredIds = segmentIds.filter((id) => !ignoreSegmentIds.has(id));
+  const scoredLengthM =
+    ignoreSegmentIds.size === 0
+      ? lengthM
+      : (() => {
+          // Approximate length for ignored connectors using share of segment count.
+          if (segmentIds.length === 0) return lengthM;
+          return Math.round((lengthM * scoredIds.length) / segmentIds.length);
+        })();
   const canonicalUsage = toCanonicalUsageMap(usageMap, canonicalOf);
-  const base = Math.round(lengthM / 100) + 50;
+  const base = Math.round(scoredLengthM / 100) + 50;
   let golden = 0;
   const seenGolden = new Set<number>();
-  for (const id of segmentIds) {
+  for (const id of scoredIds) {
     const canon = canonicalOf.get(id) ?? id;
     if (seenGolden.has(canon)) continue;
     const mult = goldenMap.get(canon) ?? goldenMap.get(id);
@@ -175,7 +185,7 @@ export function computeRoutePointPreview(
       golden += Math.round(base * 0.1 * (mult - 1));
     }
   }
-  const routeCanons = [...new Set(segmentIds.map((id) => canonicalOf.get(id) ?? id))];
+  const routeCanons = [...new Set(scoredIds.map((id) => canonicalOf.get(id) ?? id))];
   const unexplored = routeCanons.filter((c) => (canonicalUsage.get(c) ?? 0) === 0).length;
   const exploration = unexplored * 8;
   const usageValues = [...canonicalUsage.values()].sort((a, b) => a - b);

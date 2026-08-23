@@ -1,6 +1,7 @@
 import { db } from "./db";
 import { directedPairIds, listSegments } from "./segments";
 import { canonicalSegmentId } from "./points";
+import { getSettings } from "./settings";
 
 const GOLDEN_MULTIPLIER = 3;
 
@@ -13,10 +14,23 @@ export interface GoldenSegment {
   multiplier: number;
 }
 
-/** ~5% of the network, at least 1 when any routes exist (never a fixed 5). */
-export function goldenCountForNetwork(canonicalCount: number): number {
+/** Count of golden picks for a network size given percent (default from settings). */
+export function goldenCountForNetwork(canonicalCount: number, percent?: number): number {
   if (canonicalCount <= 0) return 0;
-  return Math.max(1, Math.round(canonicalCount * 0.05));
+  const pct = percent ?? getSettings().golden_percent ?? 5;
+  const clamped = Math.min(25, Math.max(1, pct));
+  return Math.max(1, Math.round((canonicalCount * clamped) / 100));
+}
+
+/** Live preview: how many goldens would be picked at this percent (does not re-roll today). */
+export function previewGoldenPick(percent: number): { picked: number; total: number } {
+  const canonical = new Set<number>();
+  for (const s of listSegments()) {
+    if (s.deletedAt || (s.lockedUntil && s.lockedUntil > new Date().toISOString())) continue;
+    canonical.add(canonicalSegmentId(s));
+  }
+  const total = canonical.size;
+  return { picked: goldenCountForNetwork(total, percent), total };
 }
 
 /** Pick golden segments from the lowest-usage quartile, weighted toward even lower usage. */

@@ -5,13 +5,29 @@ import { getSettings } from "@/lib/settings";
 import { getUsageMap, getDailyUsageMap, listSegments } from "@/lib/segments";
 import { getRouteScoringContext } from "@/lib/routeScoring";
 import { loadGraphContext } from "@/lib/routeContext";
-import { findDirectRoutes, findWaypointRoutes, scoreRoutes, pickBest, toleranceRange } from "@/lib/routing";
+import {
+  searchRoutesWithConstraints,
+  scoreRoutes,
+  pickBest,
+  toleranceRange,
+  type RouteResult,
+  type ScoredRoute,
+} from "@/lib/routing";
 import { updateRouteSession, assertRouteSessionOwner } from "@/lib/routeSessions";
 import { buildRouteDisplay } from "@/lib/routeDisplay";
 import { getGoldenMultiplierMap } from "@/lib/goldenSegments";
-import { computeRoutePointPreview, canonicalSegmentId, goldenHitCanonicalIds } from "@/lib/points";
+import { computeRoutePointPreview, canonicalSegmentId, countGoldenHits, goldenHitCanonicalIds } from "@/lib/points";
+import { getHomeAccessSegmentIds } from "@/lib/homeAccess";
 
 const bodySchema = z.object({ token: z.string().min(1) });
+
+function withGoldenHits(
+  scored: ScoredRoute[],
+  goldenMap: Map<number, number>,
+  canonicalOf: Map<number, number>,
+): ScoredRoute[] {
+  return scored.filter((s) => countGoldenHits(s.route.segmentIds, goldenMap, canonicalOf) > 0);
+}
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();
@@ -37,35 +53,31 @@ export async function POST(request: Request) {
   const { minValue, maxValue } = toleranceRange(session.targetValue, effectiveTolerance);
   const goldenMap = getGoldenMultiplierMap();
   const canonicalOf = new Map(listSegments().map((s) => [s.id, canonicalSegmentId(s)]));
+  const homeAccess = getHomeAccessSegmentIds(user.id);
+  const mustVisit = session.mustVisitNodeIds?.length
+    ? session.mustVisitNodeIds
+    : session.waypointNodeId != null
+      ? [session.waypointNodeId]
+      : [];
+  const excluded = new Set(session.excludedSegmentIds ?? []);
 
-  const candidates =
-    session.waypointNodeId &&
-    session.waypointNodeId !== session.startNodeId &&
-    session.waypointNodeId !== session.destinationNodeId
-      ? findWaypointRoutes(
-          graph,
-          pairOf,
-          session.startNodeId,
-          session.waypointNodeId,
-          session.destinationNodeId,
-          session.mode,
-          minValue,
-          maxValue,
-        )
-      : findDirectRoutes(
-          graph,
-          pairOf,
-          session.startNodeId,
-          session.destinationNodeId,
-          session.mode,
-          minValue,
-          maxValue,
-        );
+  const { routes: candidates, lengthRelaxed } = searchRoutesWithConstraints({
+    graph,
+    pairOf,
+    start: session.startNodeId,
+    destination: session.destinationNodeId,
+    mustVisitNodeIds: mustVisit,
+    requiredSegmentIds: session.requiredSegmentIds ?? [],
+    excludedSegmentIds: excluded,
+    mode: session.mode,
+    minValue,
+    maxValue,
+  });
 
   const usageMap = getUsageMap();
   const dailyMap = getDailyUsageMap();
   const geometryOf = new Map([...segmentsById].map(([id, s]) => [id, s.geometry]));
-  const scored = scoreRoutes(
+  let scored = scoreRoutes(
     candidates,
     pairOf,
     usageMap,
@@ -79,7 +91,11 @@ export async function POST(request: Request) {
     conditionCounts,
     staleSegmentIds,
     goldenMap,
+    homeAccess,
   );
+  if (session.forceGolden) {
+    scored = withGoldenHits(scored, goldenMap, canonicalOf);
+  }
   const best = pickBest(scored, session.seenKeys, session.explorerMode, session.surpriseMode);
 
   if (!best) {
@@ -116,6 +132,7 @@ export async function POST(request: Request) {
     usageMap,
     goldenMap,
     canonicalOf,
+    homeAccess,
   );
   const goldenHitIds = goldenHitCanonicalIds(best.route.segmentIds, goldenMap, canonicalOf);
 
@@ -126,5 +143,6 @@ export async function POST(request: Request) {
     pointPreview,
     goldenHits: goldenHitIds.length,
     goldenHitIds,
+    lengthRelaxed,
   });
 }
