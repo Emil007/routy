@@ -22,6 +22,7 @@ import { getGoldenMultiplierMap, getTodayGoldenSegmentIds } from "@/lib/goldenSe
 import { computeRoutePointPreview, canonicalSegmentId, countGoldenHits, goldenHitCanonicalIds } from "@/lib/points";
 import { getHomeAccessSegmentIds } from "@/lib/homeAccess";
 import { lengthBandForUser } from "@/lib/lengthTaste";
+import { routeQualityFromScored } from "@/lib/routeQuality";
 
 const bodySchema = z.object({
   startNodeId: z.number().int().positive().optional(),
@@ -35,6 +36,8 @@ const bodySchema = z.object({
   surpriseMode: z.boolean().default(false),
   preset: z.enum(["short", "normal", "long", "surprise"]).optional(),
   forceGolden: z.boolean().default(false),
+  /** When true, keep must-visit tap order; default optimizes order on the graph. */
+  preserveMustVisitOrder: z.boolean().default(false),
 });
 
 function withGoldenHits(
@@ -101,7 +104,8 @@ export async function POST(request: Request) {
   if (!parsed.success) {
     return NextResponse.json({ error: "invalid_body", issues: parsed.error.issues }, { status: 400 });
   }
-  const { explorerMode, preset, forceGolden, requiredSegmentIds = [], excludedSegmentIds = [] } = parsed.data;
+  const { explorerMode, preset, forceGolden, requiredSegmentIds = [], excludedSegmentIds = [], preserveMustVisitOrder } =
+    parsed.data;
   const surpriseMode = parsed.data.surpriseMode || preset === "surprise";
   const mustVisitNodeIds =
     parsed.data.mustVisitNodeIds ??
@@ -130,7 +134,7 @@ export async function POST(request: Request) {
   const canonicalOf = new Map(listSegments().map((s) => [s.id, canonicalSegmentId(s)]));
   const homeAccess = getHomeAccessSegmentIds(user.id);
 
-  let { routes: candidates, lengthRelaxed } = searchRoutesWithConstraints({
+  let { routes: candidates, lengthRelaxed, mustVisitOrder } = searchRoutesWithConstraints({
     graph,
     pairOf,
     start: startNodeId,
@@ -141,6 +145,7 @@ export async function POST(request: Request) {
     mode,
     minValue,
     maxValue,
+    preserveMustVisitOrder,
   });
 
   function score(cands: RouteResult[]) {
@@ -199,10 +204,12 @@ export async function POST(request: Request) {
       mode,
       minValue: 0,
       maxValue: Number.POSITIVE_INFINITY,
+      preserveMustVisitOrder,
     });
     if (open.routes.length > 0) {
       candidates = open.routes;
       lengthRelaxed = true;
+      mustVisitOrder = open.mustVisitOrder;
       scored = score(candidates);
       scoredPool = withGoldenHits(scored, goldenMap, canonicalOf);
     }
@@ -229,8 +236,8 @@ export async function POST(request: Request) {
     targetValue: band.targetM,
     startNodeId,
     destinationNodeId,
-    waypointNodeId: mustVisitNodeIds[0] ?? null,
-    mustVisitNodeIds,
+    waypointNodeId: mustVisitOrder[0] ?? null,
+    mustVisitNodeIds: mustVisitOrder,
     requiredSegmentIds,
     excludedSegmentIds,
     explorerMode,
@@ -266,6 +273,7 @@ export async function POST(request: Request) {
     homeAccess,
   );
   const goldenHitIds = goldenHitCanonicalIds(best.route.segmentIds, goldenMap, canonicalOf);
+  const routeQuality = routeQualityFromScored(best);
 
   return NextResponse.json({
     token,
@@ -276,5 +284,7 @@ export async function POST(request: Request) {
     lengthRelaxed,
     lengthKm: best.route.lengthM / 1000,
     usingNetworkFallback: band.usingNetworkFallback,
+    mustVisitOrder,
+    routeQuality,
   });
 }

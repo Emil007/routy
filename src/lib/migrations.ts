@@ -383,6 +383,24 @@ export const MIGRATIONS: Migration[] = [
       `);
     },
   },
+  {
+    id: 6,
+    name: "one_way_and_dismissal_resolution",
+    up: (db) => {
+      addColumnIfMissing(
+        db,
+        "segments",
+        "one_way",
+        "ALTER TABLE segments ADD COLUMN one_way INTEGER NOT NULL DEFAULT 0",
+      );
+      addColumnIfMissing(
+        db,
+        "track_geometry_dismissals",
+        "resolution",
+        "ALTER TABLE track_geometry_dismissals ADD COLUMN resolution TEXT NOT NULL DEFAULT 'discarded'",
+      );
+    },
+  },
 ];
 
 export function runAllMigrations(db: Database.Database): void {

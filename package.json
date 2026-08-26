@@ -1,6 +1,6 @@
 {
   "name": "routy",
-  "version": "0.42s",
+  "version": "0.44s",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -13,7 +13,7 @@
     "better-sqlite3": "^13.0.3",
     "fast-xml-parser": "^5.11.0",
     "leaflet": "^1.9.4",
-    "next": "16.3.1",
+    "next": "16.3.2",
     "otpauth": "^9.5.1",
     "qrcode": "^1.5.4",
     "react": "19.2.8",

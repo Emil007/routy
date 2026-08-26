@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { avgDistanceToPath, nodeIndicesOnTrack, durationMinFromTrackPoints } from "./trackGeometry";
+import {
+  avgDistanceToPath,
+  nodeIndicesOnTrack,
+  durationMinFromTrackPoints,
+  trimSuggestionTrack,
+  type TrackPoint,
+} from "./trackGeometry";
 import type { LatLng } from "./geo";
+import { filterRoutableEdges } from "./routeContext";
 
 describe("trackGeometry", () => {
   it("finds node indices in order along a track", () => {
@@ -24,8 +31,6 @@ describe("trackGeometry", () => {
       { lat: 50.001, lng: 8 },
       { lat: 50.002, lng: 8 },
     ];
-    // Mock listNodes via splitTrackByRoute using real DB would need integration test;
-    // test avgDistanceToPath instead for unit scope.
     expect(avgDistanceToPath([{ lat: 50, lng: 8 }], track)).toBeLessThan(5);
   });
 
@@ -35,5 +40,29 @@ describe("trackGeometry", () => {
       { lat: 0, lng: 0.001, time: "2026-01-01T10:12:00.000Z" },
     ]);
     expect(duration).toBe(12);
+  });
+
+  it("trims long standstills from suggestion tracks", () => {
+    const points: TrackPoint[] = [
+      { lat: 50, lng: 8, time: "2026-01-01T10:00:00.000Z" },
+      { lat: 50.00001, lng: 8, time: "2026-01-01T10:01:00.000Z" },
+      { lat: 50.00002, lng: 8, time: "2026-01-01T10:02:30.000Z" },
+      { lat: 50.001, lng: 8, time: "2026-01-01T10:03:00.000Z" },
+    ];
+    const trimmed = trimSuggestionTrack(points);
+    expect(trimmed.length).toBeLessThan(points.length);
+    expect(trimmed[0].lat).toBe(50);
+    expect(trimmed[trimmed.length - 1].lat).toBe(50.001);
+  });
+});
+
+describe("filterRoutableEdges one-way", () => {
+  it("excludes reverse sibling when forward is one-way", () => {
+    const segments = [
+      { id: 1, reverseOf: 2, oneWay: true, lockedUntil: null, startNodeId: 10, endNodeId: 20, lengthM: 100, durationMin: 2 },
+      { id: 2, reverseOf: 1, oneWay: false, lockedUntil: null, startNodeId: 20, endNodeId: 10, lengthM: 100, durationMin: 2 },
+    ];
+    const edges = filterRoutableEdges(segments);
+    expect(edges.map((e) => e.id)).toEqual([1]);
   });
 });

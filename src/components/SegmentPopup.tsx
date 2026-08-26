@@ -45,6 +45,8 @@ export function SegmentPopup({
   const [restrictDays, setRestrictDays] = useState(7);
   const [restrictReason, setRestrictReason] = useState("muddy");
   const [restrictStatus, setRestrictStatus] = useState<"idle" | "saving" | "error">("idle");
+  const [oneWay, setOneWay] = useState(segment.oneWay);
+  const [oneWayStatus, setOneWayStatus] = useState<"idle" | "saving" | "error">("idle");
   const locked = isLocked(segment);
 
   async function saveRename() {
@@ -90,6 +92,22 @@ export function SegmentPopup({
       router.refresh();
     } else {
       setRestrictStatus("error");
+    }
+  }
+
+  async function toggleOneWay(next: boolean) {
+    setOneWayStatus("saving");
+    const res = await fetch("/api/segments/one-way", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ segmentId: segment.id, oneWay: next }),
+    });
+    if (res.ok) {
+      setOneWay(next);
+      setOneWayStatus("idle");
+      router.refresh();
+    } else {
+      setOneWayStatus("error");
     }
   }
 
@@ -209,16 +227,28 @@ export function SegmentPopup({
             {status === "error" && <div className="alert alert-error">{t(locale, "common.error")}</div>}
           </div>
         ) : (
-          <div className="btn-row">
-            <button type="button" className="btn-secondary" onClick={onEditShape}>
-              {t(locale, "edit.editShapeButton")}
-            </button>
-            <button type="button" className="btn-secondary" onClick={() => setRenaming(true)}>
-              {t(locale, "map.rename")}
-            </button>
-            <button type="button" className="btn-danger" onClick={handleDelete}>
-              {t(locale, "map.delete")}
-            </button>
+          <div className="stack" style={{ gap: "0.4rem" }}>
+            <label className="checkbox">
+              <input
+                type="checkbox"
+                checked={oneWay}
+                disabled={oneWayStatus === "saving"}
+                onChange={(e) => void toggleOneWay(e.target.checked)}
+              />
+              {t(locale, "edit.oneWay")}
+            </label>
+            {oneWayStatus === "error" && <div className="alert alert-error">{t(locale, "common.error")}</div>}
+            <div className="btn-row">
+              <button type="button" className="btn-secondary" onClick={onEditShape}>
+                {t(locale, "edit.editShapeButton")}
+              </button>
+              <button type="button" className="btn-secondary" onClick={() => setRenaming(true)}>
+                {t(locale, "map.rename")}
+              </button>
+              <button type="button" className="btn-danger" onClick={handleDelete}>
+                {t(locale, "map.delete")}
+              </button>
+            </div>
           </div>
         ))}
     </div>

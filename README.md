@@ -6,9 +6,9 @@ Built as a hobby project by a sysadmin, not a product team. It works well for ou
 
 This repository is the **server** (web UI + API + database). There is also a companion **[Android app](https://github.com/Emil007/routy-android)** — same login, same path network, but native map, GPS recording while you walk, and offline cache. Use the browser alone or pair it with the app; the app cannot run without this server.
 
-**Server** (this repo) · **0.42s** · [`Emil007/routy`](https://github.com/Emil007/routy)
-**Android app** · **0.42a** · [`Emil007/routy-android`](https://github.com/Emil007/routy-android)
-*(Aligned release batch: same number, `s` / `a` suffix by repo — tags `v0.42s` / `v0.42a`.)*
+**Server** (this repo) · **0.44s** · [`Emil007/routy`](https://github.com/Emil007/routy)
+**Android app** · **0.44a** · [`Emil007/routy-android`](https://github.com/Emil007/routy-android)
+*(Aligned release batch: same number, `s` / `a` suffix by repo — tags `v0.44s` / `v0.44a`.)*
 
 ---
 
@@ -104,7 +104,13 @@ Server and Android share the **same numeric part** for a release batch; only the
 
 | Component | Tag example | Shown as | Where |
 |-----------|-------------|----------|-------|
-| Server | `v0.42s` | **0.42s** | `package.json` |
-| Android | `v0.42a` | **0.42a** | `app/build.gradle.kts` |
+| Server | `v0.44s` | **0.44s** | `package.json` |
+| Android | `v0.44a` | **0.44a** | `app/build.gradle.kts` |
 
 Pattern is always `0.<number>s` / `0.<number>a` — never swap suffixes, never use `b` / semver patch like `0.35.2`.
+
+---
+
+## Acknowledgments
+
+Must-visit ordering and the explicit route-quality snapshot were inspired by ideas from **[Kōji](https://github.com/TurtIeSocks/Koji)** (TurtIeSocks) — Pokemon mapping / geofence routing. Implemented natively in Routy’s TypeScript graph stack; **no Kōji code was ported**.
