@@ -72,8 +72,8 @@ export function pickGoldenSegmentIds(
   return picked;
 }
 
-/** Seed daily golden canonical segments weighted toward low global usage. */
-export function ensureTodayGoldenSegments(): GoldenSegment[] {
+/** Seed daily golden canonical segments weighted toward low per-user usage. */
+export function ensureTodayGoldenSegments(userId?: number): GoldenSegment[] {
   const date = utcDateString();
   const existing = db
     .prepare("SELECT segment_id, multiplier FROM golden_segments WHERE utc_date = ?")
@@ -82,10 +82,15 @@ export function ensureTodayGoldenSegments(): GoldenSegment[] {
     return existing.map((r) => ({ segmentId: r.segment_id, multiplier: r.multiplier }));
   }
 
-  const usageRows = db.prepare("SELECT segment_id, usage_count FROM segment_usage").all() as {
-    segment_id: number;
-    usage_count: number;
-  }[];
+  const usageRows =
+    userId != null
+      ? (db
+          .prepare("SELECT segment_id, usage_count FROM user_segment_usage WHERE user_id = ?")
+          .all(userId) as { segment_id: number; usage_count: number }[])
+      : (db.prepare("SELECT segment_id, usage_count FROM user_segment_usage").all() as {
+          segment_id: number;
+          usage_count: number;
+        }[]);
   const usageMap = new Map(usageRows.map((r) => [r.segment_id, r.usage_count]));
 
   const canonical = new Map<number, number>();

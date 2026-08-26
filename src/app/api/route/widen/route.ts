@@ -73,8 +73,8 @@ export async function POST(request: Request) {
     maxValue,
   });
 
-  const usageMap = getUsageMap();
-  const dailyMap = getDailyUsageMap();
+  const usageMap = getUsageMap(user.id);
+  const dailyMap = getDailyUsageMap(user.id);
   const geometryOf = new Map([...segmentsById].map(([id, s]) => [id, s.geometry]));
   let scored = scoreRoutes(
     candidates,

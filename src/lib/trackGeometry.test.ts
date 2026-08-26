@@ -4,6 +4,7 @@ import {
   nodeIndicesOnTrack,
   durationMinFromTrackPoints,
   trimSuggestionTrack,
+  orientSliceToCanonical,
   type TrackPoint,
 } from "./trackGeometry";
 import type { LatLng } from "./geo";
@@ -40,6 +41,28 @@ describe("trackGeometry", () => {
       { lat: 0, lng: 0.001, time: "2026-01-01T10:12:00.000Z" },
     ]);
     expect(duration).toBe(12);
+  });
+
+  it("derives duration after reversing a reverse-hop slice (times go high→low)", () => {
+    const walkedReverse: TrackPoint[] = [
+      { lat: 0, lng: 0.001, time: "2026-01-01T10:12:00.000Z" },
+      { lat: 0, lng: 0, time: "2026-01-01T10:00:00.000Z" },
+    ];
+    const oriented = orientSliceToCanonical(walkedReverse, true);
+    expect(oriented[0]!.lng).toBe(0);
+    expect(oriented[oriented.length - 1]!.lng).toBe(0.001);
+    expect(durationMinFromTrackPoints(oriented)).toBe(12);
+  });
+
+  it("orients reverse-walked GPS to canonical direction", () => {
+    const reverseHop: TrackPoint[] = [
+      { lat: 50.002, lng: 8, time: "t2" },
+      { lat: 50.001, lng: 8, time: "t1" },
+      { lat: 50, lng: 8, time: "t0" },
+    ];
+    const oriented = orientSliceToCanonical(reverseHop, true);
+    expect(oriented.map((p) => p.lat)).toEqual([50, 50.001, 50.002]);
+    expect(orientSliceToCanonical(reverseHop, false)).toEqual(reverseHop);
   });
 
   it("trims long standstills from suggestion tracks", () => {

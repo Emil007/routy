@@ -25,24 +25,25 @@ function withGoldenHits(
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+  const userId = user.id;
 
   const json = await request.json().catch(() => null);
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) return NextResponse.json({ error: "invalid_body" }, { status: 400 });
   const { token, direction } = parsed.data;
 
-  const access = assertRouteSessionOwner(token, user.id);
+  const access = assertRouteSessionOwner(token, userId);
   if (access === "missing") return NextResponse.json({ error: "session_expired" }, { status: 410 });
   if (access === "forbidden") return NextResponse.json({ error: "forbidden" }, { status: 403 });
   const session = access;
 
   const settings = getSettings();
   const { graph, pairOf, nodesById, segmentsById } = loadGraphContext();
-  const { avoidSegmentIds, conditionCounts, staleSegmentIds } = getRouteScoringContext(user.id, session.surpriseMode);
+  const { avoidSegmentIds, conditionCounts, staleSegmentIds } = getRouteScoringContext(userId, session.surpriseMode);
   const currentValue = session.mode === "km" ? session.current.lengthM : session.current.durationMin;
   const goldenMap = getGoldenMultiplierMap();
   const canonicalOf = new Map(listSegments().map((s) => [s.id, canonicalSegmentId(s)]));
-  const homeAccess = getHomeAccessSegmentIds(user.id);
+  const homeAccess = getHomeAccessSegmentIds(userId);
   const mustVisit = session.mustVisitNodeIds?.length
     ? session.mustVisitNodeIds
     : session.waypointNodeId != null
@@ -73,8 +74,8 @@ export async function POST(request: Request) {
       maxValue,
     });
 
-    const usageMap = getUsageMap();
-    const dailyMap = getDailyUsageMap();
+    const usageMap = getUsageMap(userId);
+    const dailyMap = getDailyUsageMap(userId);
     const geometryOf = new Map([...segmentsById].map(([id, s]) => [id, s.geometry]));
     let scored = scoreRoutes(
       candidates,
@@ -131,7 +132,7 @@ export async function POST(request: Request) {
     segmentsById,
   );
 
-  const usageMap = getUsageMap();
+  const usageMap = getUsageMap(userId);
   const pointPreview = computeRoutePointPreview(
     best.route.segmentIds,
     best.route.lengthM,

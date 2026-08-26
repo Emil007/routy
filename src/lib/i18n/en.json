@@ -131,6 +131,7 @@
     "favoriteNamePlaceholder": "Route name",
     "favoriteSaved": "Favorite saved.",
     "favoritesTitle": "Favorite routes",
+    "favoritesEmpty": "No favorites yet",
     "favoriteTake": "Take this route",
     "favoriteDeleteConfirm": "Delete this favorite route?",
     "favoriteStale": "Route includes segments that have since been deleted — can't be taken anymore.",
