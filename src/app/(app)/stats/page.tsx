@@ -52,7 +52,7 @@ export default async function StatsPage() {
   const streakStats = getStreakStats(user.id);
   const achievements = computeAchievements(user.id, locale);
   const recentWalks = getRecentWalks(user.id, 8);
-  const usageStats = getSegmentUsageStats();
+  const usageStats = getSegmentUsageStats(user.id);
   const leaderboard = getWeeklyLeaderboard();
   const userPoints = computeUserPoints(user.id);
   const pointsLeaderboard = getPointsLeaderboard();

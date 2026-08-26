@@ -126,8 +126,8 @@ export async function POST(request: Request) {
   const excluded = new Set(excludedSegmentIds);
 
   const { graph, pairOf, nodesById, segmentsById } = loadGraphContext();
-  const usageMap = getUsageMap();
-  const dailyMap = getDailyUsageMap();
+  const usageMap = getUsageMap(user.id);
+  const dailyMap = getDailyUsageMap(user.id);
   const { avoidSegmentIds, conditionCounts, staleSegmentIds } = getRouteScoringContext(user.id, surpriseMode);
   const geometryOf = new Map([...segmentsById].map(([id, s]) => [id, s.geometry]));
   const goldenMap = getGoldenMultiplierMap();

@@ -19,7 +19,7 @@ export async function GET() {
     achievements: computeAchievements(user.id, locale),
     recentWalks: getRecentWalks(user.id, 8),
     points: computeUserPoints(user.id),
-    networkUsage: getSegmentUsageStats(),
+    networkUsage: getSegmentUsageStats(user.id),
     nodes: listNodes().map((n) => ({ id: n.id, name: n.name })),
   });
 }

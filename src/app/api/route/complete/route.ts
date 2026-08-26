@@ -57,7 +57,7 @@ export async function POST(request: Request) {
   const streakForMult = streakForPointsMultiplier(user.id);
   const multiplier = streakMultiplier(streakForMult);
 
-  const usageMap = getUsageMap();
+  const usageMap = getUsageMap(user.id);
   const goldenMap = getGoldenMultiplierMap();
   const canonicalOf = new Map(listSegments().map((s) => [s.id, canonicalSegmentId(s)]));
   const breakdown = computeRoutePointPreview(active.segmentIds, active.lengthM, usageMap, goldenMap, canonicalOf);

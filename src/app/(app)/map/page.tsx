@@ -22,7 +22,7 @@ export default async function MapPage({
   const { deleteError } = await searchParams;
   const nodes = listNodes();
   const segments = listSegments();
-  const usage = getUsageMap();
+  const usage = getUsageMap(user.id);
   const canonicalSegments = segments.filter(isCanonicalSegment);
   const userNames = new Map(listAllUsers().map((u) => [u.id, u.displayName]));
   const settings = getSettings();

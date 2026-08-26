@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { type LatLng, haversineMeters, closestPointOnPath, pathLengthMeters } from "./geo";
+import { type LatLng, haversineMeters, closestPointOnPath, pathLengthMeters, reversePoints } from "./geo";
 import {
   getSegment,
   canonicalSegmentId,
@@ -72,8 +72,14 @@ export function durationMinFromTrackPoints(points: TrackPoint[]): number | null 
   const t1Raw = points[points.length - 1]?.time;
   const t0 = t0Raw ? Date.parse(t0Raw) : NaN;
   const t1 = t1Raw ? Date.parse(t1Raw) : NaN;
-  if (Number.isNaN(t0) || Number.isNaN(t1) || t1 <= t0) return null;
-  return Math.max(1, Math.round((t1 - t0) / 60000));
+  if (Number.isNaN(t0) || Number.isNaN(t1) || t0 === t1) return null;
+  return Math.max(1, Math.round(Math.abs(t1 - t0) / 60000));
+}
+
+/** Orient a hop slice to the canonical segment direction (reverse GPS when walked reverse). */
+export function orientSliceToCanonical(points: TrackPoint[], walkedReverse: boolean): TrackPoint[] {
+  if (!walkedReverse) return points;
+  return reversePoints(points) as TrackPoint[];
 }
 
 /**
@@ -328,8 +334,10 @@ function priorRecordingsForSegment(canonicalId: number): LatLng[][] {
     if (track.length < 2) continue;
     const slices = splitTrackByRoute(track, walk.nodeChain, walk.segmentIds);
     for (const [segId, points] of slices) {
-      if (canonicalSegmentId(getSegment(segId) ?? { id: segId, reverseOf: null }) !== canonicalId) continue;
-      const trimmed = trimSuggestionTrack(points as TrackPoint[]);
+      const hop = getSegment(segId);
+      if (!hop || canonicalSegmentId(hop) !== canonicalId) continue;
+      const oriented = orientSliceToCanonical(points as TrackPoint[], !isCanonicalSegment(hop));
+      const trimmed = trimSuggestionTrack(oriented);
       const { isOutlier } = isOutlierSuggestion(trimmed, official, recordings[0] ?? null);
       if (!isOutlier) recordings.push(trimmed);
     }
@@ -363,21 +371,25 @@ export function getWalkTrackSuggestions(walkId: number): SegmentTrackSuggestion[
   const suggestions: SegmentTrackSuggestion[] = [];
 
   const seenCanonical = new Set<number>();
+  let outlierCount = 0;
   for (const [segmentId, points] of slices) {
     const segment = getSegment(segmentId);
     if (!segment) continue;
     const canonId = canonicalSegmentId(segment);
-    if (!isCanonicalSegment(segment)) continue;
     if (seenCanonical.has(canonId)) continue;
     seenCanonical.add(canonId);
 
-    const trimmed = trimSuggestionTrack(points as TrackPoint[]);
+    const walkedReverse = !isCanonicalSegment(segment);
+    const oriented = orientSliceToCanonical(points as TrackPoint[], walkedReverse);
+    const trimmed = trimSuggestionTrack(oriented);
     if (trimmed.length < 2) continue;
 
-    const official = segment.geometry;
+    const officialSeg = getSegment(canonId) ?? segment;
+    const official = officialSeg.geometry;
     const prior = priorRecordingsForSegment(canonId);
     const firstRecording = prior[0] ?? null;
     const { isOutlier, avgOfficial, avgFirst } = isOutlierSuggestion(trimmed, official, firstRecording);
+    if (isOutlier) outlierCount++;
 
     const dismissal = getDismissal(walkId, canonId);
     let resolution: SuggestionResolution = "pending";
@@ -388,7 +400,7 @@ export function getWalkTrackSuggestions(walkId: number): SegmentTrackSuggestion[
       walkId,
       segmentId: canonId,
       canonicalSegmentId: canonId,
-      segmentName: segment.name,
+      segmentName: officialSeg.name,
       points: trimmed,
       firstRecordingGeometry: firstRecording,
       recordedAt: walkRow.accepted_at,
@@ -399,6 +411,7 @@ export function getWalkTrackSuggestions(walkId: number): SegmentTrackSuggestion[
     });
   }
 
+  void outlierCount;
   return suggestions.sort((a, b) => a.segmentId - b.segmentId);
 }
 
@@ -441,9 +454,24 @@ export function acceptTrackSuggestion(
     const nodeChain = JSON.parse(nodeChainRow.node_chain) as number[];
     const segmentIds = JSON.parse(nodeChainRow.segment_ids) as number[];
     const slices = splitTrackByRoute(fullTrack, nodeChain, segmentIds);
-    const slice = slices.get(segmentId);
+    let slice: LatLng[] | undefined = slices.get(segmentId);
+    let walkedReverse = false;
+    if (!slice) {
+      for (const [hopId, pts] of slices) {
+        const hop = getSegment(hopId);
+        if (!hop || canonicalSegmentId(hop) !== segmentId) continue;
+        slice = pts;
+        walkedReverse = !isCanonicalSegment(hop);
+        break;
+      }
+    } else {
+      const hop = getSegment(segmentId);
+      walkedReverse = hop ? !isCanonicalSegment(hop) : false;
+    }
     if (slice && slice.length >= 2) {
-      gpsPoints = trimSuggestionTrack(slice as TrackPoint[]);
+      gpsPoints = trimSuggestionTrack(
+        orientSliceToCanonical(slice as TrackPoint[], walkedReverse),
+      );
     }
   }
 

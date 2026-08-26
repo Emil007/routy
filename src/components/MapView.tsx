@@ -1,12 +1,12 @@
 "use client";
 
-import { type ReactNode, useEffect, useMemo, useState } from "react";
+import { type ReactNode, useEffect, useMemo } from "react";
 import { MapContainer, TileLayer, Marker, Polyline, Circle, Popup, Tooltip, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { t, type Locale } from "@/lib/i18n";
+import type { Locale } from "@/lib/i18n";
 
-const TILE_LAYERS = [
+export const TILE_LAYERS = [
   {
     id: "streets",
     url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
@@ -30,7 +30,7 @@ const TRAILS_OVERLAY = {
   attribution: 'Wanderwege: &copy; <a href="https://waymarkedtrails.org">Waymarked Trails</a>',
 };
 
-type BaseLayerId = (typeof TILE_LAYERS)[number]["id"];
+export type BaseLayerId = (typeof TILE_LAYERS)[number]["id"];
 
 export interface MapMarker {
   id: number | string;
@@ -111,7 +111,7 @@ export function MapView({
   lines = [],
   circles = [],
   height = 360,
-  locale = "de",
+  locale: _locale = "de",
   onMarkerClick,
   onMarkerDragEnd,
   onMapClick,
@@ -121,11 +121,14 @@ export function MapView({
   initialView,
   onViewChange,
   className,
+  baseLayerId = "streets",
+  showTrails = false,
 }: {
   markers?: MapMarker[];
   lines?: MapLine[];
   circles?: MapCircle[];
   height?: number;
+  /** Kept for host API compatibility; layer labels live in options menus. */
   locale?: Locale;
   onMarkerClick?: (id: number | string) => void;
   onMarkerDragEnd?: (id: number | string, lat: number, lng: number) => void;
@@ -136,10 +139,9 @@ export function MapView({
   initialView?: MapViewState;
   onViewChange?: (view: MapViewState) => void;
   className?: string;
+  baseLayerId?: BaseLayerId | string;
+  showTrails?: boolean;
 }) {
-  const [baseLayerId, setBaseLayerId] = useState<BaseLayerId>("streets");
-  const [showTrails, setShowTrails] = useState(false);
-
   const defaultCenter = useMemo<[number, number]>(() => {
     if (initialView) return initialView.center;
     if (markers[0]) return [markers[0].lat, markers[0].lng];
@@ -152,24 +154,6 @@ export function MapView({
 
   return (
     <div className={`map-box ${className ?? ""}`} style={{ height, position: "relative" }}>
-      <div className="map-layer-controls">
-        <select
-          className="map-layer-select"
-          value={baseLayerId}
-          onChange={(e) => setBaseLayerId(e.target.value as BaseLayerId)}
-          aria-label={t(locale, "map.layerBaseLabel")}
-        >
-          {TILE_LAYERS.map((layer) => (
-            <option key={layer.id} value={layer.id}>
-              {t(locale, `map.layer.${layer.id}`)}
-            </option>
-          ))}
-        </select>
-        <label className="map-layer-trails">
-          <input type="checkbox" checked={showTrails} onChange={(e) => setShowTrails(e.target.checked)} />
-          {t(locale, "map.layer.hikingTrails")}
-        </label>
-      </div>
       <MapContainer
         center={defaultCenter}
         zoom={initialView?.zoom ?? 14}

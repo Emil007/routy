@@ -72,7 +72,7 @@ export function pickGoldenSegmentIds(
   return picked;
 }
 
-/** Seed daily golden canonical segments weighted toward low global usage. */
+/** Seed shared daily goldens from network-wide usage (SUM across all users). */
 export function ensureTodayGoldenSegments(): GoldenSegment[] {
   const date = utcDateString();
   const existing = db
@@ -82,18 +82,24 @@ export function ensureTodayGoldenSegments(): GoldenSegment[] {
     return existing.map((r) => ({ segmentId: r.segment_id, multiplier: r.multiplier }));
   }
 
-  const usageRows = db.prepare("SELECT segment_id, usage_count FROM segment_usage").all() as {
-    segment_id: number;
-    usage_count: number;
-  }[];
-  const usageMap = new Map(usageRows.map((r) => [r.segment_id, r.usage_count]));
+  const usageRows = db
+    .prepare(
+      `SELECT segment_id, SUM(usage_count) AS usage_count
+       FROM user_segment_usage
+       GROUP BY segment_id`,
+    )
+    .all() as { segment_id: number; usage_count: number }[];
+  const usageMap = new Map(usageRows.map((r) => [r.segment_id, Number(r.usage_count)]));
 
   const canonical = new Map<number, number>();
   for (const s of listSegments()) {
     if (s.deletedAt || (s.lockedUntil && s.lockedUntil > new Date().toISOString())) continue;
     const canon = canonicalSegmentId(s);
     if (!canonical.has(canon)) {
-      canonical.set(canon, usageMap.get(s.id) ?? usageMap.get(s.reverseOf ?? -1) ?? 0);
+      const forward = usageMap.get(s.id) ?? 0;
+      const reverse = s.reverseOf != null ? (usageMap.get(s.reverseOf) ?? 0) : 0;
+      // Prefer summing both directions for the physical path when both have rows.
+      canonical.set(canon, forward + reverse);
     }
   }
 

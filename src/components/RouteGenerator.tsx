@@ -12,7 +12,7 @@ import {
 } from "@/lib/voiceAnnounce";
 import { MapViewLazy } from "./MapViewLazy";
 import { RouteCompletionDialog, type RouteCompletionData } from "./RouteCompletionDialog";
-import type { MapLine, MapMarker } from "./MapView";
+import { TILE_LAYERS, type BaseLayerId, type MapLine, type MapMarker } from "./MapView";
 import type { NodeRow } from "@/lib/nodes";
 import type { RouteDisplay } from "@/lib/routeDisplay";
 
@@ -81,6 +81,8 @@ export function RouteGenerator({
     [initialFavorites, deletedFavoriteIds],
   );
   const [favoritesOpen, setFavoritesOpen] = useState(false);
+  const [baseLayerId, setBaseLayerId] = useState<BaseLayerId>("streets");
+  const [showTrails, setShowTrails] = useState(false);
 
   const [startNodeId, setStartNodeId] = useState<number | "">(homeNodeId ?? "");
   const [isLoop, setIsLoop] = useState(true);
@@ -718,6 +720,8 @@ export function RouteGenerator({
           onMarkerClick={mode === "suggesting" && !result ? handleMarkerClick : undefined}
           onLineClick={mode === "suggesting" && !result ? handleLineClick : undefined}
           height={360}
+          baseLayerId={baseLayerId}
+          showTrails={showTrails}
         />
         {result && routeChips && (
           <div className="route-action-bar" style={{ marginTop: "0.45rem" }}>
@@ -840,6 +844,28 @@ export function RouteGenerator({
                   {t(locale, "route.forceGolden")}
                 </label>
               </div>
+              <div className="btn-row" style={{ marginTop: "0.45rem", alignItems: "center" }}>
+                <label className="field" style={{ margin: 0 }}>
+                  <span className="hint" style={{ display: "block", marginBottom: "0.15rem" }}>
+                    {t(locale, "map.layerBaseLabel")}
+                  </span>
+                  <select
+                    value={baseLayerId}
+                    onChange={(e) => setBaseLayerId(e.target.value as BaseLayerId)}
+                    aria-label={t(locale, "map.layerBaseLabel")}
+                  >
+                    {TILE_LAYERS.map((layer) => (
+                      <option key={layer.id} value={layer.id}>
+                        {t(locale, `map.layer.${layer.id}`)}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="checkbox">
+                  <input type="checkbox" checked={showTrails} onChange={(e) => setShowTrails(e.target.checked)} />
+                  {t(locale, "map.layer.hikingTrails")}
+                </label>
+              </div>
             </details>
 
             <div className="route-action-bar">
@@ -855,15 +881,15 @@ export function RouteGenerator({
                   {usingNetworkFallback ? t(locale, "route.lengthTasteNetwork") : t(locale, "route.lengthTastePersonal")}
                 </span>
               )}
-              {favorites.length > 0 && (
-                <button
-                  type="button"
-                  className="btn-secondary btn-compact"
-                  onClick={() => setFavoritesOpen((o) => !o)}
-                >
-                  {t(locale, "route.favoritesTitle")} ({favorites.length})
-                </button>
-              )}
+              <button
+                type="button"
+                className="btn-secondary btn-compact"
+                onClick={() => setFavoritesOpen((o) => !o)}
+              >
+                {favorites.length > 0
+                  ? `${t(locale, "route.favoritesTitle")} (${favorites.length})`
+                  : t(locale, "route.favoritesTitle")}
+              </button>
               {(["short", "normal", "long", "surprise"] as const).map((preset) => (
                 <button
                   key={preset}
@@ -877,30 +903,36 @@ export function RouteGenerator({
                 </button>
               ))}
             </div>
-            {favoritesOpen && favorites.length > 0 && (
+            {favoritesOpen && (
               <div className="card route-panel-compact" style={{ marginTop: "0.35rem" }}>
-                {favorites.map((fav) => (
-                  <div key={fav.id} className="route-favorite-row">
-                    <span className="chip">
-                      {fav.name} · {(fav.display.lengthM / 1000).toFixed(2)} {t(locale, "common.km")}
-                    </span>
-                    <button
-                      type="button"
-                      className="btn-secondary btn-compact"
-                      onClick={() => handleLoadFavorite(fav)}
-                      disabled={status === "loading"}
-                    >
-                      {t(locale, "route.favoriteTake")}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-danger btn-compact"
-                      onClick={() => handleDeleteFavorite(fav.id)}
-                    >
-                      {t(locale, "map.delete")}
-                    </button>
-                  </div>
-                ))}
+                {favorites.length === 0 ? (
+                  <p className="hint" style={{ margin: 0 }}>
+                    {t(locale, "route.favoritesEmpty")}
+                  </p>
+                ) : (
+                  favorites.map((fav) => (
+                    <div key={fav.id} className="route-favorite-row">
+                      <span className="chip">
+                        {fav.name} · {(fav.display.lengthM / 1000).toFixed(2)} {t(locale, "common.km")}
+                      </span>
+                      <button
+                        type="button"
+                        className="btn-secondary btn-compact"
+                        onClick={() => handleLoadFavorite(fav)}
+                        disabled={status === "loading"}
+                      >
+                        {t(locale, "route.favoriteTake")}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-danger btn-compact"
+                        onClick={() => handleDeleteFavorite(fav.id)}
+                      >
+                        {t(locale, "map.delete")}
+                      </button>
+                    </div>
+                  ))
+                )}
               </div>
             )}
           </div>

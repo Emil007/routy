@@ -13,7 +13,7 @@ import { WalkSpeedTips } from "@/components/WalkSpeedTips";
 
 const STEP: Partial<Record<keyof Settings, number>> = {
   daily_diversity_weight: 0.5,
-  walk_speed_kmh: 0.5,
+  walk_speed_kmh: 0.1,
   suggest_min_km: 0.5,
   suggest_max_km: 0.5,
   adjust_step_percent: 5,
@@ -85,7 +85,7 @@ export default async function SettingsPage() {
               id="walkSpeedKmh"
               name="walkSpeedKmh"
               type="number"
-              step={0.5}
+              step="any"
               min={0}
               defaultValue={user.walkSpeedKmh ?? ""}
               placeholder={String(settings.walk_speed_kmh)}

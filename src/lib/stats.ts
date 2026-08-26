@@ -213,11 +213,10 @@ export interface SegmentUsageStat {
   usageCount: number;
 }
 
-/** Network-wide usage per physical path (both directions combined).
- * Home-access connectors are ranked like every other path (Phase L revert). */
-export function getSegmentUsageStats(): SegmentUsageStat[] {
+/** Personal usage per physical path (both directions combined). */
+export function getSegmentUsageStats(userId: number): SegmentUsageStat[] {
   const segments = listSegments();
-  const usage = getUsageMap();
+  const usage = getUsageMap(userId);
   const byCanon = new Map<number, { representative: SegmentRow; total: number }>();
 
   for (const s of segments) {

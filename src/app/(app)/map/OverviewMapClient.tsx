@@ -10,7 +10,8 @@ import { DrawPathWizard } from "@/components/DrawPathWizard";
 import { GpxImportWizard } from "@/components/GpxImportWizard";
 import { RecordTrackWizard } from "@/components/RecordTrackWizard";
 import { SegmentGeometryEditor } from "@/components/SegmentGeometryEditor";
-import type { MapMarker, MapLine, MapViewState } from "@/components/MapView";
+import type { MapMarker, MapLine, MapViewState, BaseLayerId } from "@/components/MapView";
+import { TILE_LAYERS } from "@/components/MapView";
 import type { NodeRow } from "@/lib/nodes";
 import type { SegmentRow } from "@/lib/segments";
 import { canEdit } from "@/lib/ownership";
@@ -176,6 +177,8 @@ export function OverviewMapClient({
   // reset to a fresh fit-to-content on every switch. Remembering the last pan/zoom here
   // lets the next mode's map restore it instead.
   const [lastView, setLastView] = useState<MapViewState | undefined>(undefined);
+  const [baseLayerId, setBaseLayerId] = useState<BaseLayerId>("streets");
+  const [showTrails, setShowTrails] = useState(false);
 
   const nodesById = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
 
@@ -367,6 +370,8 @@ export function OverviewMapClient({
         className="map-box-large"
         initialView={lastView}
         onViewChange={setLastView}
+        baseLayerId={baseLayerId}
+        showTrails={showTrails}
       />
       <div className="record-map-bar">
         <button type="button" className="btn-secondary btn-compact" onClick={() => setMode("draw")}>
@@ -379,6 +384,31 @@ export function OverviewMapClient({
           {t(locale, "overview.recordMode")}
         </button>
       </div>
+      <details className="route-more-options" style={{ marginTop: "0.35rem" }}>
+        <summary>{t(locale, "route.moreOptions")}</summary>
+        <div className="btn-row" style={{ marginTop: "0.45rem", alignItems: "center" }}>
+          <label className="field" style={{ margin: 0 }}>
+            <span className="hint" style={{ display: "block", marginBottom: "0.15rem" }}>
+              {t(locale, "map.layerBaseLabel")}
+            </span>
+            <select
+              value={baseLayerId}
+              onChange={(e) => setBaseLayerId(e.target.value as BaseLayerId)}
+              aria-label={t(locale, "map.layerBaseLabel")}
+            >
+              {TILE_LAYERS.map((layer) => (
+                <option key={layer.id} value={layer.id}>
+                  {t(locale, `map.layer.${layer.id}`)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="checkbox">
+            <input type="checkbox" checked={showTrails} onChange={(e) => setShowTrails(e.target.checked)} />
+            {t(locale, "map.layer.hikingTrails")}
+          </label>
+        </div>
+      </details>
       <p className="hint-compact">{t(locale, "overview.interactionHint")}</p>
       <details className="card" style={{ marginTop: "0.5rem" }}>
         <summary>{t(locale, "map.lockProposalsTitle")} ({lockProposalsLoading ? "…" : lockProposals.length})</summary>

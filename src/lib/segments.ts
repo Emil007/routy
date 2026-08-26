@@ -231,7 +231,6 @@ export function createSegmentWithReverse(input: NewSegmentInput): { forwardId: n
         input.submittedBy,
       );
     const forwardId = Number(forward.lastInsertRowid);
-    db.prepare("INSERT INTO segment_usage (segment_id, usage_count) VALUES (?, 0)").run(forwardId);
 
     const reversePts = reversePoints(input.points);
     const reverseElevation: ElevationStats | null = input.elevation
@@ -264,7 +263,6 @@ export function createSegmentWithReverse(input: NewSegmentInput): { forwardId: n
         input.submittedBy,
       );
     const reverseId = Number(reverse.lastInsertRowid);
-    db.prepare("INSERT INTO segment_usage (segment_id, usage_count) VALUES (?, 0)").run(reverseId);
     db.prepare("UPDATE segments SET reverse_of = ? WHERE id = ?").run(reverseId, forwardId);
 
     return { forwardId, reverseId };
@@ -273,20 +271,21 @@ export function createSegmentWithReverse(input: NewSegmentInput): { forwardId: n
   return tx();
 }
 
-export function getUsageMap(): Map<number, number> {
-  const rows = db.prepare("SELECT segment_id, usage_count FROM segment_usage").all() as {
-    segment_id: number;
-    usage_count: number;
-  }[];
+/** Per-user lifetime walk counts by segment id. */
+export function getUsageMap(userId: number): Map<number, number> {
+  const rows = db
+    .prepare("SELECT segment_id, usage_count FROM user_segment_usage WHERE user_id = ?")
+    .all(userId) as { segment_id: number; usage_count: number }[];
   return new Map(rows.map((r) => [r.segment_id, r.usage_count]));
 }
 
-export function getDailyUsageMap(): Map<number, number> {
+/** Per-user segment hits from walks accepted today (local SQLite date). */
+export function getDailyUsageMap(userId: number): Map<number, number> {
   const rows = db
     .prepare(
-      `SELECT segment_ids FROM walk_log WHERE date(accepted_at) = date('now')`,
+      `SELECT segment_ids FROM walk_log WHERE user_id = ? AND date(accepted_at) = date('now')`,
     )
-    .all() as { segment_ids: string }[];
+    .all(userId) as { segment_ids: string }[];
   const map = new Map<number, number>();
   for (const row of rows) {
     const ids = JSON.parse(row.segment_ids) as number[];
@@ -371,9 +370,13 @@ export function recordWalkWithPoints(
           .run(userId, JSON.stringify(nodeChain), JSON.stringify(segmentIds), lengthM, durationMin, nickname);
 
     const bump = db.prepare(
-      "UPDATE segment_usage SET usage_count = usage_count + 1, last_used_at = datetime('now') WHERE segment_id = ?",
+      `INSERT INTO user_segment_usage (user_id, segment_id, usage_count, last_used_at)
+       VALUES (?, ?, 1, datetime('now'))
+       ON CONFLICT(user_id, segment_id) DO UPDATE SET
+         usage_count = usage_count + 1,
+         last_used_at = datetime('now')`,
     );
-    for (const id of segmentIds) bump.run(id);
+    for (const id of segmentIds) bump.run(userId, id);
 
     return Number(info.lastInsertRowid);
   })();
@@ -407,7 +410,7 @@ export function restoreSegment(id: number): void {
 /**
  * Irreversible. Because the forward/reverse pair reference each other via
  * `reverse_of` (both `ON DELETE CASCADE`), deleting either row automatically
- * deletes its counterpart and both `segment_usage` rows.
+ * deletes its counterpart (and cascades usage / history rows).
  */
 export function purgeSegment(id: number): void {
   db.prepare("DELETE FROM segments WHERE id = ?").run(id);
@@ -430,9 +433,11 @@ export function deleteWalkLogEntry(id: number, userId: number): boolean {
   const tx = db.transaction(() => {
     db.prepare("DELETE FROM walk_log WHERE id = ?").run(id);
     const decrement = db.prepare(
-      "UPDATE segment_usage SET usage_count = MAX(0, usage_count - 1) WHERE segment_id = ?",
+      `UPDATE user_segment_usage
+       SET usage_count = MAX(0, usage_count - 1)
+       WHERE user_id = ? AND segment_id = ?`,
     );
-    for (const segId of segmentIds) decrement.run(segId);
+    for (const segId of segmentIds) decrement.run(userId, segId);
   });
   tx();
   return true;
