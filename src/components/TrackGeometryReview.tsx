@@ -23,9 +23,19 @@ interface SuggestionRow {
   isOutlier: boolean;
   avgDistanceToOfficialM: number;
   avgDistanceToFirstRecordingM: number | null;
+  resolution: "pending" | "accepted" | "discarded";
 }
 
 type OverlayMode = "official" | "suggestion" | "both" | "first";
+
+function pickNextPending(list: SuggestionRow[], afterSegmentId: number | null): number | null {
+  const pending = list.filter((s) => s.resolution === "pending" && !s.isOutlier);
+  if (pending.length === 0) return null;
+  if (afterSegmentId == null) return pending[0].segmentId;
+  const idx = pending.findIndex((s) => s.segmentId === afterSegmentId);
+  if (idx >= 0 && idx + 1 < pending.length) return pending[idx + 1].segmentId;
+  return pending[0]?.segmentId ?? null;
+}
 
 export function TrackGeometryReview({ locale }: { locale: Locale }) {
   const [walks, setWalks] = useState<WalkRow[]>([]);
@@ -33,7 +43,7 @@ export function TrackGeometryReview({ locale }: { locale: Locale }) {
   const [suggestions, setSuggestions] = useState<SuggestionRow[]>([]);
   const [selectedSegmentId, setSelectedSegmentId] = useState<number | null>(null);
   const [overlayMode, setOverlayMode] = useState<OverlayMode>("both");
-  const [status, setStatus] = useState<"idle" | "loading" | "accepting" | "discarding">("idle");
+  const [status, setStatus] = useState<"idle" | "loading" | "accepting" | "discarding" | "removing">("idle");
   const [message, setMessage] = useState<string | null>(null);
 
   const loadWalks = useCallback(async () => {
@@ -62,9 +72,9 @@ export function TrackGeometryReview({ locale }: { locale: Locale }) {
       const res = await fetch(`/api/admin/track-geometry/walk/${selectedWalkId}`);
       if (!cancelled && res.ok) {
         const data = (await res.json()) as { suggestions: SuggestionRow[] };
-        const pending = data.suggestions.filter((s) => !s.isOutlier);
-        setSuggestions(pending);
-        setSelectedSegmentId(pending[0]?.segmentId ?? null);
+        const list = data.suggestions.filter((s) => !s.isOutlier);
+        setSuggestions(list);
+        setSelectedSegmentId(pickNextPending(list, null));
         setOverlayMode("both");
       }
       if (!cancelled) setStatus("idle");
@@ -73,6 +83,12 @@ export function TrackGeometryReview({ locale }: { locale: Locale }) {
       cancelled = true;
     };
   }, [selectedWalkId]);
+
+  const orderedSuggestions = useMemo(() => {
+    const pending = suggestions.filter((s) => s.resolution === "pending");
+    const resolved = suggestions.filter((s) => s.resolution !== "pending");
+    return [...pending, ...resolved];
+  }, [suggestions]);
 
   const selected = useMemo(
     () => suggestions.find((s) => s.segmentId === selectedSegmentId) ?? null,
@@ -111,24 +127,29 @@ export function TrackGeometryReview({ locale }: { locale: Locale }) {
     return first ? [official, suggestion, first] : [official, suggestion];
   }, [selected, overlayMode]);
 
+  async function reloadSuggestions(resolvedSegmentId: number) {
+    if (selectedWalkId === null) return;
+    const detailRes = await fetch(`/api/admin/track-geometry/walk/${selectedWalkId}`);
+    if (!detailRes.ok) return;
+    const data = (await detailRes.json()) as { suggestions: SuggestionRow[] };
+    const list = data.suggestions.filter((s) => !s.isOutlier);
+    setSuggestions(list);
+    setSelectedSegmentId(pickNextPending(list, resolvedSegmentId));
+  }
+
   async function handleAccept() {
-    if (!selected || selectedWalkId === null) return;
+    if (!selected || selectedWalkId === null || selected.resolution !== "pending") return;
+    const segmentId = selected.segmentId;
     setStatus("accepting");
     setMessage(null);
     const res = await fetch("/api/admin/track-geometry/accept", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ walkId: selectedWalkId, segmentId: selected.segmentId }),
+      body: JSON.stringify({ walkId: selectedWalkId, segmentId }),
     });
     if (res.ok) {
       setMessage(t(locale, "admin.trackGeometryAccepted"));
-      const detailRes = await fetch(`/api/admin/track-geometry/walk/${selectedWalkId}`);
-      if (detailRes.ok) {
-        const data = (await detailRes.json()) as { suggestions: SuggestionRow[] };
-        const pending = data.suggestions.filter((s) => !s.isOutlier);
-        setSuggestions(pending);
-        setSelectedSegmentId(pending[0]?.segmentId ?? null);
-      }
+      await reloadSuggestions(segmentId);
       void loadWalks();
     } else {
       setMessage(t(locale, "common.error"));
@@ -137,23 +158,40 @@ export function TrackGeometryReview({ locale }: { locale: Locale }) {
   }
 
   async function handleDiscard() {
-    if (!selected || selectedWalkId === null) return;
+    if (!selected || selectedWalkId === null || selected.resolution !== "pending") return;
+    const segmentId = selected.segmentId;
     setStatus("discarding");
     setMessage(null);
     const res = await fetch("/api/admin/track-geometry/discard", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ walkId: selectedWalkId, segmentId: selected.segmentId }),
+      body: JSON.stringify({ walkId: selectedWalkId, segmentId }),
     });
     if (res.ok) {
       setMessage(t(locale, "admin.trackGeometryDiscarded"));
-      const detailRes = await fetch(`/api/admin/track-geometry/walk/${selectedWalkId}`);
-      if (detailRes.ok) {
-        const data = (await detailRes.json()) as { suggestions: SuggestionRow[] };
-        const pending = data.suggestions.filter((s) => !s.isOutlier);
-        setSuggestions(pending);
-        setSelectedSegmentId(pending[0]?.segmentId ?? null);
-      }
+      await reloadSuggestions(segmentId);
+      void loadWalks();
+    } else {
+      setMessage(t(locale, "common.error"));
+    }
+    setStatus("idle");
+  }
+
+  async function handleRemoveRecording() {
+    if (selectedWalkId === null) return;
+    if (!window.confirm(t(locale, "admin.trackGeometryRemoveRecordingConfirm"))) return;
+    setStatus("removing");
+    setMessage(null);
+    const res = await fetch("/api/admin/track-geometry/remove-recording", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ walkId: selectedWalkId }),
+    });
+    if (res.ok) {
+      setMessage(t(locale, "admin.trackGeometryRemoveRecordingDone"));
+      setSelectedWalkId(null);
+      setSuggestions([]);
+      setSelectedSegmentId(null);
       void loadWalks();
     } else {
       setMessage(t(locale, "common.error"));
@@ -212,24 +250,35 @@ export function TrackGeometryReview({ locale }: { locale: Locale }) {
       {selectedWalkId !== null && (
         <div className="card">
           <h2>{t(locale, "admin.trackGeometrySuggestionsHeading")}</h2>
-          {suggestions.length === 0 ? (
+          <p className="hint-compact">{t(locale, "admin.trackGeometryScopeHint")}</p>
+          {orderedSuggestions.length === 0 ? (
             <p className="hint">{t(locale, "admin.trackGeometryNoSuggestions")}</p>
           ) : (
             <>
               <div className="btn-row" style={{ flexWrap: "wrap", gap: "0.35rem", marginBottom: "0.5rem" }}>
-                {suggestions.map((s) => (
-                  <button
-                    key={s.segmentId}
-                    type="button"
-                    className={selectedSegmentId === s.segmentId ? "btn-primary btn-compact" : "btn-secondary btn-compact"}
-                    onClick={() => {
-                      setSelectedSegmentId(s.segmentId);
-                      setOverlayMode("both");
-                    }}
-                  >
-                    {s.segmentName || t(locale, "map.proposalSegment", { id: s.segmentId })}
-                  </button>
-                ))}
+                {orderedSuggestions.map((s) => {
+                  const resolved = s.resolution !== "pending";
+                  const selectedChip = selectedSegmentId === s.segmentId;
+                  return (
+                    <button
+                      key={s.segmentId}
+                      type="button"
+                      className={selectedChip ? "btn-primary btn-compact" : "btn-secondary btn-compact"}
+                      style={resolved ? { opacity: 0.45 } : undefined}
+                      onClick={() => {
+                        setSelectedSegmentId(s.segmentId);
+                        setOverlayMode("both");
+                      }}
+                    >
+                      {s.segmentName || t(locale, "map.proposalSegment", { id: s.segmentId })}
+                      {s.resolution === "accepted"
+                        ? ` · ${t(locale, "admin.trackGeometryResolvedAccepted")}`
+                        : s.resolution === "discarded"
+                          ? ` · ${t(locale, "admin.trackGeometryResolvedDiscarded")}`
+                          : ""}
+                    </button>
+                  );
+                })}
               </div>
 
               {selected && (
@@ -261,28 +310,48 @@ export function TrackGeometryReview({ locale }: { locale: Locale }) {
                     })}
                   </p>
                   <MapViewLazy locale={locale} lines={mapLines} height={420} fitKey={`${selected.segmentId}-${overlayMode}`} />
-                  <div className="btn-row" style={{ marginTop: "0.5rem" }}>
-                    <button
-                      type="button"
-                      className="btn-primary btn-compact"
-                      onClick={() => void handleAccept()}
-                      disabled={status === "accepting" || status === "discarding"}
-                    >
-                      {status === "accepting" ? t(locale, "common.loading") : t(locale, "admin.trackGeometryAccept")}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-secondary btn-compact"
-                      onClick={() => void handleDiscard()}
-                      disabled={status === "accepting" || status === "discarding"}
-                    >
-                      {status === "discarding" ? t(locale, "common.loading") : t(locale, "admin.trackGeometryDiscard")}
-                    </button>
-                  </div>
+                  {selected.resolution === "pending" ? (
+                    <div className="btn-row" style={{ marginTop: "0.5rem" }}>
+                      <button
+                        type="button"
+                        className="btn-primary btn-compact"
+                        onClick={() => void handleAccept()}
+                        disabled={status === "accepting" || status === "discarding"}
+                        title={t(locale, "admin.trackGeometryAcceptHint")}
+                      >
+                        {status === "accepting" ? t(locale, "common.loading") : t(locale, "admin.trackGeometryAccept")}
+                      </button>
+                      <button
+                        type="button"
+                        className="btn-secondary btn-compact"
+                        onClick={() => void handleDiscard()}
+                        disabled={status === "accepting" || status === "discarding"}
+                        title={t(locale, "admin.trackGeometryDiscardHint")}
+                      >
+                        {status === "discarding" ? t(locale, "common.loading") : t(locale, "admin.trackGeometryDiscard")}
+                      </button>
+                    </div>
+                  ) : (
+                    <p className="hint" style={{ marginTop: "0.5rem" }}>
+                      {selected.resolution === "accepted"
+                        ? t(locale, "admin.trackGeometryAlreadyAccepted")
+                        : t(locale, "admin.trackGeometryAlreadyDiscarded")}
+                    </p>
+                  )}
                 </>
               )}
             </>
           )}
+          <div className="btn-row" style={{ marginTop: "0.75rem" }}>
+            <button
+              type="button"
+              className="btn-danger btn-compact"
+              onClick={() => void handleRemoveRecording()}
+              disabled={status === "removing"}
+            >
+              {status === "removing" ? t(locale, "common.loading") : t(locale, "admin.trackGeometryRemoveRecording")}
+            </button>
+          </div>
           {message && <p className="hint" style={{ marginTop: "0.5rem" }}>{message}</p>}
         </div>
       )}
