@@ -501,6 +501,7 @@ th {
   z-index: 1000;
   display: flex;
   flex-direction: row;
+  flex-wrap: wrap;
   align-items: center;
   gap: 0.45rem;
   background: var(--surface);
@@ -509,7 +510,8 @@ th {
   padding: 0.35rem 0.5rem;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.12);
   font-size: 0.78rem;
-  height: 2rem;
+  height: auto;
+  min-height: 2rem;
   max-width: calc(100% - 20px);
 }
 
@@ -526,7 +528,8 @@ th {
   align-items: center;
   gap: 0.35rem;
   cursor: pointer;
-  white-space: nowrap;
+  white-space: normal;
+  line-height: 1.2;
 }
 
 .row-selected td {

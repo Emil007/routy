@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { type LatLng, haversineMeters, closestPointOnPath } from "./geo";
+import { type LatLng, haversineMeters, closestPointOnPath, pathLengthMeters } from "./geo";
 import {
   getSegment,
   canonicalSegmentId,
@@ -29,6 +29,8 @@ export interface WalkWithTrackRow {
   pointCount: number;
 }
 
+export type SuggestionResolution = "pending" | "accepted" | "discarded";
+
 export interface SegmentTrackSuggestion {
   walkId: number;
   segmentId: number;
@@ -40,10 +42,16 @@ export interface SegmentTrackSuggestion {
   isOutlier: boolean;
   avgDistanceToOfficialM: number;
   avgDistanceToFirstRecordingM: number | null;
+  /** pending = open; accepted/discarded = resolved for this walk+segment. */
+  resolution: SuggestionResolution;
 }
 
 const OUTLIER_THRESHOLD_M = 50;
 const NODE_MATCH_MAX_M = 80;
+const STANDSTILL_MIN_SEC = 60;
+const STANDSTILL_RADIUS_M = 20;
+const SHORT_REVERSE_MAX_SPUR_M = 50;
+const SHORT_REVERSE_RETURN_M = 15;
 
 function parseTrack(raw: string | null): TrackPoint[] {
   if (!raw) return [];
@@ -68,11 +76,94 @@ export function durationMinFromTrackPoints(points: TrackPoint[]): number | null 
   return Math.max(1, Math.round((t1 - t0) / 60000));
 }
 
-function isDismissed(walkId: number, segmentId: number): boolean {
+/**
+ * Drop interior points of standstill clusters (≥60 s within a small radius).
+ * Used only for suggestion geometry — never mutates stored walk tracks.
+ */
+export function trimStandstills(
+  points: TrackPoint[],
+  minDurationSec = STANDSTILL_MIN_SEC,
+  radiusM = STANDSTILL_RADIUS_M,
+): TrackPoint[] {
+  if (points.length < 3) return points;
+  const keep = new Array(points.length).fill(true);
+  let i = 0;
+  while (i < points.length) {
+    const start = points[i];
+    const t0 = start.time ? Date.parse(start.time) : NaN;
+    if (Number.isNaN(t0)) {
+      i++;
+      continue;
+    }
+    let j = i + 1;
+    while (j < points.length) {
+      if (haversineMeters(start, points[j]) > radiusM) break;
+      j++;
+    }
+    if (j - i >= 3) {
+      const tEnd = points[j - 1].time ? Date.parse(points[j - 1].time!) : NaN;
+      if (!Number.isNaN(tEnd) && (tEnd - t0) / 1000 >= minDurationSec) {
+        for (let k = i + 1; k < j - 1; k++) keep[k] = false;
+      }
+    }
+    i = j > i + 1 ? j - 1 : i + 1;
+  }
+  return points.filter((_, idx) => keep[idx]);
+}
+
+/**
+ * Remove short out-and-back spikes (brief reverses / GPS noise).
+ * Used only for suggestion geometry.
+ */
+export function trimShortReverses(
+  points: TrackPoint[],
+  maxSpurM = SHORT_REVERSE_MAX_SPUR_M,
+  returnWithinM = SHORT_REVERSE_RETURN_M,
+): TrackPoint[] {
+  if (points.length < 4) return points;
+  const out = [...points];
+  let changed = true;
+  let guard = 0;
+  while (changed && guard++ < 50) {
+    changed = false;
+    for (let i = 1; i < out.length - 1; i++) {
+      let spurLen = 0;
+      for (let j = i + 1; j < out.length; j++) {
+        spurLen += haversineMeters(out[j - 1], out[j]);
+        if (spurLen > maxSpurM * 2) break;
+        if (haversineMeters(out[j], out[i - 1]) <= returnWithinM && spurLen <= maxSpurM * 2) {
+          out.splice(i, j - i);
+          changed = true;
+          break;
+        }
+      }
+      if (changed) break;
+    }
+  }
+  return out;
+}
+
+/** Auto-trim standstills and short reverses for suggestion slices only. */
+export function trimSuggestionTrack(points: TrackPoint[]): TrackPoint[] {
+  if (points.length < 3) return points;
+  const trimmed = trimShortReverses(trimStandstills(points));
+  return trimmed.length >= 2 ? trimmed : points;
+}
+
+type DismissalRow = { resolution: string };
+
+function getDismissal(walkId: number, segmentId: number): DismissalRow | null {
   const row = db
-    .prepare("SELECT 1 FROM track_geometry_dismissals WHERE walk_id = ? AND segment_id = ?")
-    .get(walkId, segmentId);
-  return row != null;
+    .prepare("SELECT resolution FROM track_geometry_dismissals WHERE walk_id = ? AND segment_id = ?")
+    .get(walkId, segmentId) as DismissalRow | undefined;
+  return row ?? null;
+}
+
+function writeDismissal(walkId: number, segmentId: number, resolution: "accepted" | "discarded"): void {
+  db.prepare(
+    `INSERT INTO track_geometry_dismissals (walk_id, segment_id, resolution) VALUES (?, ?, ?)
+     ON CONFLICT(walk_id, segment_id) DO UPDATE SET resolution = excluded.resolution, dismissed_at = datetime('now')`,
+  ).run(walkId, segmentId, resolution);
 }
 
 function loadWalkTrack(walkId: number, trackJson: string | null): TrackPoint[] {
@@ -238,8 +329,9 @@ function priorRecordingsForSegment(canonicalId: number): LatLng[][] {
     const slices = splitTrackByRoute(track, walk.nodeChain, walk.segmentIds);
     for (const [segId, points] of slices) {
       if (canonicalSegmentId(getSegment(segId) ?? { id: segId, reverseOf: null }) !== canonicalId) continue;
-      const { isOutlier } = isOutlierSuggestion(points, official, recordings[0] ?? null);
-      if (!isOutlier) recordings.push(points);
+      const trimmed = trimSuggestionTrack(points as TrackPoint[]);
+      const { isOutlier } = isOutlierSuggestion(trimmed, official, recordings[0] ?? null);
+      if (!isOutlier) recordings.push(trimmed);
     }
   }
   return recordings;
@@ -279,35 +371,43 @@ export function getWalkTrackSuggestions(walkId: number): SegmentTrackSuggestion[
     if (seenCanonical.has(canonId)) continue;
     seenCanonical.add(canonId);
 
+    const trimmed = trimSuggestionTrack(points as TrackPoint[]);
+    if (trimmed.length < 2) continue;
+
     const official = segment.geometry;
     const prior = priorRecordingsForSegment(canonId);
     const firstRecording = prior[0] ?? null;
-    const { isOutlier, avgOfficial, avgFirst } = isOutlierSuggestion(points, official, firstRecording);
-    if (isDismissed(walkId, canonId)) continue;
+    const { isOutlier, avgOfficial, avgFirst } = isOutlierSuggestion(trimmed, official, firstRecording);
+
+    const dismissal = getDismissal(walkId, canonId);
+    let resolution: SuggestionResolution = "pending";
+    if (dismissal?.resolution === "accepted") resolution = "accepted";
+    else if (dismissal) resolution = "discarded";
 
     suggestions.push({
       walkId,
       segmentId: canonId,
       canonicalSegmentId: canonId,
       segmentName: segment.name,
-      points,
+      points: trimmed,
       firstRecordingGeometry: firstRecording,
       recordedAt: walkRow.accepted_at,
       isOutlier,
       avgDistanceToOfficialM: Math.round(avgOfficial),
       avgDistanceToFirstRecordingM: avgFirst !== null ? Math.round(avgFirst) : null,
+      resolution,
     });
   }
 
   return suggestions.sort((a, b) => a.segmentId - b.segmentId);
 }
 
-/** Pending = latest non-outlier suggestion per canonical segment across all walks. */
+/** Pending = latest non-outlier, non-resolved suggestion per canonical segment across all walks. */
 export function listPendingSegmentSuggestions(): SegmentTrackSuggestion[] {
   const byCanonical = new Map<number, SegmentTrackSuggestion>();
   for (const walk of listWalksWithTrack()) {
     for (const s of getWalkTrackSuggestions(walk.id)) {
-      if (s.isOutlier) continue;
+      if (s.isOutlier || s.resolution !== "pending") continue;
       const existing = byCanonical.get(s.canonicalSegmentId);
       if (!existing || s.recordedAt > existing.recordedAt) {
         byCanonical.set(s.canonicalSegmentId, s);
@@ -325,6 +425,7 @@ export function acceptTrackSuggestion(
   const suggestions = getWalkTrackSuggestions(walkId);
   const suggestion = suggestions.find((s) => s.segmentId === segmentId);
   if (!suggestion) return { error: "not_found" };
+  if (suggestion.resolution !== "pending") return { error: "already_resolved" };
   if (suggestion.isOutlier) return { error: "outlier" };
   if (suggestion.points.length < 2) return { error: "too_few_points" };
 
@@ -335,13 +436,15 @@ export function acceptTrackSuggestion(
   const nodeChainRow = db.prepare("SELECT node_chain, segment_ids FROM walk_log WHERE id = ?").get(walkId) as
     | { node_chain: string; segment_ids: string }
     | undefined;
-  let gpsPoints: TrackPoint[] = suggestion.points;
+  let gpsPoints: TrackPoint[] = suggestion.points as TrackPoint[];
   if (nodeChainRow) {
     const nodeChain = JSON.parse(nodeChainRow.node_chain) as number[];
     const segmentIds = JSON.parse(nodeChainRow.segment_ids) as number[];
     const slices = splitTrackByRoute(fullTrack, nodeChain, segmentIds);
     const slice = slices.get(segmentId);
-    if (slice && slice.length >= 2) gpsPoints = slice as TrackPoint[];
+    if (slice && slice.length >= 2) {
+      gpsPoints = trimSuggestionTrack(slice as TrackPoint[]);
+    }
   }
 
   const gpsDuration = durationMinFromTrackPoints(gpsPoints);
@@ -356,6 +459,9 @@ export function acceptTrackSuggestion(
     );
   }
 
+  // Resolve this walk+segment so the chip leaves the pending set (same as discard).
+  writeDismissal(walkId, segmentId, "accepted");
+
   const segment = getSegment(segmentId);
   if (!segment) return { error: "not_found" };
   return { ok: true, segment };
@@ -363,11 +469,26 @@ export function acceptTrackSuggestion(
 
 export function discardTrackSuggestion(walkId: number, segmentId: number): { ok: true } | { error: string } {
   const suggestions = getWalkTrackSuggestions(walkId);
-  if (!suggestions.some((s) => s.segmentId === segmentId)) return { error: "not_found" };
-  db.prepare(
-    `INSERT INTO track_geometry_dismissals (walk_id, segment_id) VALUES (?, ?)
-     ON CONFLICT(walk_id, segment_id) DO NOTHING`,
-  ).run(walkId, segmentId);
+  const suggestion = suggestions.find((s) => s.segmentId === segmentId);
+  if (!suggestion) return { error: "not_found" };
+  if (suggestion.resolution !== "pending") return { error: "already_resolved" };
+  writeDismissal(walkId, segmentId, "discarded");
+  return { ok: true };
+}
+
+/**
+ * Admin hygiene: delete GPS recording for a walk without wiping walk_log stats.
+ * Clears walk_track and walk_log.track_json only.
+ */
+export function removeWalkRecording(walkId: number): { ok: true } | { error: string } {
+  const walk = db.prepare("SELECT id FROM walk_log WHERE id = ?").get(walkId) as { id: number } | undefined;
+  if (!walk) return { error: "not_found" };
+  const tx = db.transaction(() => {
+    db.prepare("DELETE FROM walk_track WHERE walk_id = ?").run(walkId);
+    db.prepare("UPDATE walk_log SET track_json = NULL WHERE id = ?").run(walkId);
+    db.prepare("DELETE FROM track_geometry_dismissals WHERE walk_id = ?").run(walkId);
+  });
+  tx();
   return { ok: true };
 }
 
@@ -390,4 +511,60 @@ export function persistHopTimingsFromWalk(walkId: number): void {
     if (duration == null) continue;
     applyGpsHopDurationIfMissing(segId, duration);
   }
+}
+
+export interface TimedWalkSpeedTips {
+  timedCount: number;
+  avgAllKmh: number | null;
+  avgLast3Kmh: number | null;
+}
+
+/**
+ * Average walking speed from timed GPS tracks (first→last timestamp + walk length).
+ * Uses GPS elapsed time, not planned route duration.
+ */
+export function timedWalkSpeedTips(userId: number): TimedWalkSpeedTips {
+  const rows = db
+    .prepare(
+      `SELECT w.length_m, w.accepted_at, w.track_json, wt.points_json AS wt_points
+       FROM walk_log w
+       LEFT JOIN walk_track wt ON wt.walk_id = w.id
+       WHERE w.user_id = ? AND (w.track_json IS NOT NULL OR wt.walk_id IS NOT NULL)
+       ORDER BY w.accepted_at DESC`,
+    )
+    .all(userId) as {
+    length_m: number;
+    accepted_at: string;
+    track_json: string | null;
+    wt_points: string | null;
+  }[];
+
+  const speeds: number[] = [];
+  for (const r of rows) {
+    const track = r.wt_points ? parseTrack(r.wt_points) : parseTrack(r.track_json);
+    if (track.length < 2 || r.length_m <= 0) continue;
+    const t0 = track[0].time ? Date.parse(track[0].time) : NaN;
+    const t1 = track[track.length - 1].time ? Date.parse(track[track.length - 1].time!) : NaN;
+    if (Number.isNaN(t0) || Number.isNaN(t1) || t1 <= t0) continue;
+    const hours = (t1 - t0) / 3_600_000;
+    if (hours <= 0) continue;
+    const kmh = r.length_m / 1000 / hours;
+    if (kmh > 0 && kmh < 20) speeds.push(kmh);
+  }
+
+  if (speeds.length === 0) {
+    return { timedCount: 0, avgAllKmh: null, avgLast3Kmh: null };
+  }
+
+  const avg = (arr: number[]) => Math.round((arr.reduce((a, b) => a + b, 0) / arr.length) * 10) / 10;
+  return {
+    timedCount: speeds.length,
+    avgAllKmh: avg(speeds),
+    avgLast3Kmh: speeds.length > 3 ? avg(speeds.slice(0, 3)) : null,
+  };
+}
+
+/** Exposed for tests that need path length on trimmed slices. */
+export function suggestionTrackLengthM(points: LatLng[]): number {
+  return pathLengthMeters(points);
 }

@@ -1,9 +1,9 @@
 import { haversineMeters } from "./geo";
 import { t, type Locale } from "./i18n";
 
-const MAX_ANNOUNCE_RADIUS_M = 40;
-const MIN_ANNOUNCE_RADIUS_M = 12;
-const DISTANCE_FRACTION = 0.35;
+const MAX_ANNOUNCE_RADIUS_M = 22;
+const MIN_ANNOUNCE_RADIUS_M = 9;
+const DISTANCE_FRACTION = 0.28;
 
 export interface VoiceStation {
   name: string | null;
@@ -13,7 +13,7 @@ export interface VoiceStation {
   viaSegmentName?: string | null;
 }
 
-/** Spec D4: min(40 m, 0.35 × distance to next station), floor 12 m. Last station uses 40 m. */
+/** Adaptive announce radius: min(22 m, 0.28 × distance to next station), floor 9 m. Last station uses 22 m. */
 export function voiceAnnounceRadiusM(stationIndex: number, stations: VoiceStation[]): number {
   const next = stations[stationIndex + 1];
   if (!next) return MAX_ANNOUNCE_RADIUS_M;

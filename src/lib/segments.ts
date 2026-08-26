@@ -18,6 +18,8 @@ export interface SegmentRow {
   deletedAt: string | null;
   lockedUntil: string | null;
   lockedReason: string | null;
+  /** When true, only this directed edge is used in routing (sibling reverse is excluded). */
+  oneWay: boolean;
   createdAt: string;
 }
 
@@ -39,6 +41,7 @@ interface SegmentDbRow {
   deleted_at: string | null;
   locked_until: string | null;
   locked_reason: string | null;
+  one_way?: number | null;
   created_at: string;
 }
 
@@ -61,6 +64,7 @@ function mapSegment(row: SegmentDbRow): SegmentRow {
     deletedAt: row.deleted_at,
     lockedUntil: row.locked_until,
     lockedReason: row.locked_reason,
+    oneWay: row.one_way === 1,
     createdAt: row.created_at,
   };
 }
@@ -151,6 +155,32 @@ export function unlockSegment(segmentId: number): void {
     }
   });
   tx();
+}
+
+/**
+ * Mark a directed segment as one-way for routing.
+ * When `oneWay` is true: this row gets one_way=1 and its reverse sibling one_way=0.
+ * When false: both rows of the pair are cleared.
+ */
+export function setSegmentOneWay(segmentId: number, oneWay: boolean): { ok: true } | { error: string } {
+  const segment = getSegment(segmentId);
+  if (!segment || segment.deletedAt) return { error: "not_found" };
+  const siblingId = segment.reverseOf;
+  const tx = db.transaction(() => {
+    if (oneWay) {
+      db.prepare("UPDATE segments SET one_way = 1 WHERE id = ?").run(segment.id);
+      if (siblingId != null) {
+        db.prepare("UPDATE segments SET one_way = 0 WHERE id = ?").run(siblingId);
+      }
+    } else {
+      db.prepare("UPDATE segments SET one_way = 0 WHERE id = ?").run(segment.id);
+      if (siblingId != null) {
+        db.prepare("UPDATE segments SET one_way = 0 WHERE id = ?").run(siblingId);
+      }
+    }
+  });
+  tx();
+  return { ok: true };
 }
 
 /** Other canonical segments connecting the exact same two nodes (either direction) — the "which one did I mean" case. */

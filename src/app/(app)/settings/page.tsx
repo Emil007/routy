@@ -8,6 +8,8 @@ import { ThemeSelectForm } from "@/components/ThemeSelectForm";
 import { GoldenPercentStepper } from "@/components/GoldenPercentStepper";
 import { saveSettingsAction, saveWalkSpeedAction } from "./actions";
 import { previewGoldenPick } from "@/lib/goldenSegments";
+import { timedWalkSpeedTips } from "@/lib/trackGeometry";
+import { WalkSpeedTips } from "@/components/WalkSpeedTips";
 
 const STEP: Partial<Record<keyof Settings, number>> = {
   daily_diversity_weight: 0.5,
@@ -54,6 +56,7 @@ export default async function SettingsPage() {
   const locale = await resolveLocale(user.locale);
   const settings = getSettings();
   const goldenPreview = previewGoldenPick(settings.golden_percent);
+  const speedTips = timedWalkSpeedTips(user.id);
 
   return (
     <>
@@ -93,6 +96,7 @@ export default async function SettingsPage() {
             {t(locale, "common.save")}
           </button>
         </form>
+        <WalkSpeedTips locale={locale} tips={speedTips} />
       </div>
 
       <details id="account" className="card settings-collapsible">

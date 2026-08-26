@@ -5,6 +5,7 @@ import { type LatLng, countSelfIntersections } from "./geo";
 import { computeRoutePointPreview, canonicalSegmentId } from "./points";
 import { listSegments } from "./segments";
 import { generateRoutePool } from "./routeSearch";
+import { optimizeMustVisitOrder } from "./mustVisitOrder";
 
 export interface SegmentEdge {
   id: number;
@@ -336,7 +337,9 @@ export function searchRoutesWithConstraints(opts: {
   minValue: number;
   maxValue: number;
   maxResults?: number;
-}): { routes: RouteResult[]; lengthRelaxed: boolean } {
+  /** Keep tap order for must-visits (default: optimize via graph TSP). */
+  preserveMustVisitOrder?: boolean;
+}): { routes: RouteResult[]; lengthRelaxed: boolean; mustVisitOrder: number[] } {
   const {
     graph,
     pairOf,
@@ -347,9 +350,17 @@ export function searchRoutesWithConstraints(opts: {
     maxValue,
     maxResults = 300,
   } = opts;
-  const mustVisit = opts.mustVisitNodeIds ?? [];
-  const required = opts.requiredSegmentIds ?? [];
   const excluded = opts.excludedSegmentIds ?? new Set<number>();
+  const mustVisit = optimizeMustVisitOrder({
+    graph,
+    start,
+    destination,
+    mustVisitNodeIds: opts.mustVisitNodeIds ?? [],
+    mode,
+    excludedSegmentIds: excluded,
+    preserveOrder: opts.preserveMustVisitOrder === true,
+  });
+  const required = opts.requiredSegmentIds ?? [];
 
   const inBand = (r: RouteResult): boolean => {
     const v = mode === "km" ? r.lengthM : r.durationMin;
@@ -372,9 +383,15 @@ export function searchRoutesWithConstraints(opts: {
   });
   const feasiblePool = filterRequiredSegments(pool, required, pairOf);
   const bandPool = feasiblePool.filter(inBand);
-  if (bandPool.length > 0) return { routes: bandPool.slice(0, maxResults), lengthRelaxed: false };
+  if (bandPool.length > 0) {
+    return { routes: bandPool.slice(0, maxResults), lengthRelaxed: false, mustVisitOrder: mustVisit };
+  }
   if (feasiblePool.length > 0) {
-    return { routes: closestFeasible(feasiblePool, mode, minValue, maxValue), lengthRelaxed: true };
+    return {
+      routes: closestFeasible(feasiblePool, mode, minValue, maxValue),
+      lengthRelaxed: true,
+      mustVisitOrder: mustVisit,
+    };
   }
 
   // --- Last-resort fallback: legacy shuffled DFS (documented in L4) ---
@@ -391,7 +408,7 @@ export function searchRoutesWithConstraints(opts: {
     excluded,
   );
   routes = filterRequiredSegments(routes, required, pairOf);
-  if (routes.length > 0) return { routes, lengthRelaxed: false };
+  if (routes.length > 0) return { routes, lengthRelaxed: false, mustVisitOrder: mustVisit };
 
   const open = findMultiWaypointRoutes(
     graph,
@@ -406,8 +423,12 @@ export function searchRoutesWithConstraints(opts: {
     excluded,
   );
   const feasible = filterRequiredSegments(open, required, pairOf);
-  if (feasible.length === 0) return { routes: [], lengthRelaxed: false };
-  return { routes: closestFeasible(feasible, mode, minValue, maxValue), lengthRelaxed: true };
+  if (feasible.length === 0) return { routes: [], lengthRelaxed: false, mustVisitOrder: mustVisit };
+  return {
+    routes: closestFeasible(feasible, mode, minValue, maxValue),
+    lengthRelaxed: true,
+    mustVisitOrder: mustVisit,
+  };
 }
 
 // --- Scoring & selection (fairness: least-used segments, daily diversity, session variety) ---
