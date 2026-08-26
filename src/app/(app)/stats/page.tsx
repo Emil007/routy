@@ -56,7 +56,7 @@ export default async function StatsPage() {
   const leaderboard = getWeeklyLeaderboard();
   const userPoints = computeUserPoints(user.id);
   const pointsLeaderboard = getPointsLeaderboard();
-  const goldenToday = ensureTodayGoldenSegments(user.id);
+  const goldenToday = ensureTodayGoldenSegments();
   const nodes = listNodes();
   const segments = listSegments();
   const nodesById = new Map(nodes.map((n) => [n.id, n]));

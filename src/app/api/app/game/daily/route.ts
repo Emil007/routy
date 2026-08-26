@@ -12,7 +12,7 @@ export async function GET() {
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const locale = await resolveLocale(user.locale);
-  const golden = ensureTodayGoldenSegments(user.id);
+  const golden = ensureTodayGoldenSegments();
   const segmentsById = new Map(listSegments().map((s) => [s.id, s]));
   const nodesById = new Map(listNodes().map((n) => [n.id, n]));
   const points = computeUserPoints(user.id);
