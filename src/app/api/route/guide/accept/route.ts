@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { deleteRouteSession, assertRouteSessionOwner } from "@/lib/routeSessions";
 import { setActiveRoute } from "@/lib/activeRoute";
+import { GUIDE_POINTS_MULTIPLIER } from "@/lib/points";
 
 const bodySchema = z.object({ token: z.string().min(1) });
 
@@ -19,18 +20,19 @@ export async function POST(request: Request) {
   if (access === "forbidden") return NextResponse.json({ error: "forbidden" }, { status: 403 });
   const session = access;
 
-  // Accepting doesn't record the walk yet — it becomes this profile's active
-  // route (persisted, visible on any device that profile signs in on) until
-  // explicitly confirmed as walked or discarded.
+  if (session.walkMode !== "guide") {
+    return NextResponse.json({ error: "not_guide_session" }, { status: 400 });
+  }
+
   setActiveRoute(user.id, {
     nodeChain: session.current.nodeChain,
     segmentIds: session.current.segmentIds,
     lengthM: session.current.lengthM,
     durationMin: session.current.durationMin,
-    walkMode: session.walkMode ?? "route",
-    guideNodeIds: session.guideNodeIds ?? null,
+    walkMode: "guide",
+    guideNodeIds: session.guideNodeIds ?? session.mustVisitNodeIds,
   });
   deleteRouteSession(parsed.data.token);
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, guideMode: true, pointsMultiplier: GUIDE_POINTS_MULTIPLIER });
 }

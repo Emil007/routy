@@ -10,6 +10,8 @@ export interface RouteQuality {
   crossing: number;
   homeConnectors: number;
   unexplored: number;
+  coreLengthM?: number;
+  extensionLengthM?: number;
 }
 
 export function routeQualityFromScored(scored: ScoredRoute): RouteQuality {
@@ -19,5 +21,7 @@ export function routeQualityFromScored(scored: ScoredRoute): RouteQuality {
     crossing: scored.crossing,
     homeConnectors: scored.homeConnectors,
     unexplored: scored.unexplored,
+    coreLengthM: scored.route.coreLengthM,
+    extensionLengthM: scored.route.extensionLengthM,
   };
 }

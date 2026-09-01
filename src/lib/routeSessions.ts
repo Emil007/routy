@@ -25,6 +25,8 @@ export interface RouteSessionState {
   seenKeys: Set<string>;
   seenUnion: Set<number>;
   widenSteps: number;
+  walkMode?: "route" | "guide";
+  guideNodeIds?: number[] | null;
   createdAt: number;
 }
 

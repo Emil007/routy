@@ -1,6 +1,8 @@
 import { isCanonicalSegment, type SegmentRow } from "./segments";
 import type { NodeRow } from "./nodes";
 import { getDisplayName, getNamePart, getSpeakName } from "./nameParts";
+import { guideLoopBack, guideNodeChain } from "./guideRoute";
+import type { ActiveRouteRow } from "./activeRoute";
 
 export interface RouteStation {
   nodeId: number;
@@ -118,6 +120,29 @@ function buildShortStationGroups(stations: RouteStation[]): ShortStationGroup[] 
   return groups;
 }
 
+/** Visit-only stations for node guide mode (no graph junctions). */
+export function buildVisitStations(
+  visitNodeIds: number[],
+  loopBack: boolean,
+  nodesById: Map<number, NodeRow>,
+): RouteStation[] {
+  return guideNodeChain(visitNodeIds, loopBack).map((id) => {
+    const node = nodesById.get(id);
+    const displayName = node ? getDisplayName(node) : null;
+    return {
+      nodeId: id,
+      name: displayName ?? node?.name ?? null,
+      speakName: node ? getSpeakName(node) : null,
+      lat: node?.lat ?? 0,
+      lng: node?.lng ?? 0,
+      namePart1Id: node?.namePart1Id ?? null,
+      namePart2Id: node?.namePart2Id ?? null,
+      nameSeparator: node?.nameSeparator ?? "/",
+      viaSegmentName: null,
+    };
+  });
+}
+
 export function buildRouteDisplay(
   nodeChain: number[],
   segmentIds: number[],
@@ -125,7 +150,14 @@ export function buildRouteDisplay(
   durationMin: number,
   nodesById: Map<number, NodeRow>,
   segmentsById: Map<number, SegmentRow>,
+  options?: { visitNodeIds?: number[]; loopBack?: boolean },
 ): RouteDisplay {
+  if (options?.visitNodeIds?.length) {
+    const visitStations = buildVisitStations(options.visitNodeIds, options.loopBack ?? true, nodesById);
+    const base = buildRouteDisplay(nodeChain, segmentIds, lengthM, durationMin, nodesById, segmentsById);
+    return { ...base, stations: visitStations, shortStationGroups: buildShortStationGroups(visitStations) };
+  }
+
   const stations: RouteStation[] = nodeChain.map((id, idx) => {
     const node = nodesById.get(id);
     const arrivingSegment = idx > 0 ? segmentsById.get(segmentIds[idx - 1]) : undefined;
@@ -174,4 +206,19 @@ export function buildRouteDisplay(
     elevation: hasElevation ? { gainM: Math.round(gainM), lossM: Math.round(lossM) } : null,
     geometry,
   };
+}
+
+/** Active route display — guide sessions expose visit stations only for progress/voice/UI. */
+export function buildActiveRouteDisplay(
+  active: ActiveRouteRow,
+  nodesById: Map<number, NodeRow>,
+  segmentsById: Map<number, SegmentRow>,
+): RouteDisplay {
+  if (active.walkMode === "guide" && active.guideNodeIds?.length) {
+    return buildRouteDisplay(active.nodeChain, active.segmentIds, active.lengthM, active.durationMin, nodesById, segmentsById, {
+      visitNodeIds: active.guideNodeIds,
+      loopBack: guideLoopBack(active.guideNodeIds, active.nodeChain),
+    });
+  }
+  return buildRouteDisplay(active.nodeChain, active.segmentIds, active.lengthM, active.durationMin, nodesById, segmentsById);
 }

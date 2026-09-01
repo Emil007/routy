@@ -2,6 +2,8 @@ import { db } from "./db";
 import { listSegments, type SegmentRow } from "./segments";
 import { getStreakStats } from "./stats";
 
+export const GUIDE_POINTS_MULTIPLIER = 0.7;
+
 export interface UserPoints {
   totalPoints: number;
   weeklyPoints: number;
@@ -77,8 +79,13 @@ export function computeBasePoints(rows: WalkRow[], canonicalOf?: Map<number, num
 }
 
 /** Points for one completed walk: preview total × streak multiplier (matches generate preview). */
-export function computeWalkPointsEarned(breakdown: PointPreviewBreakdown, streakMult: number): number {
-  return Math.round(breakdown.total * streakMult);
+export function computeWalkPointsEarned(
+  breakdown: PointPreviewBreakdown,
+  streakMult: number,
+  guideMode = false,
+): number {
+  const base = Math.round(breakdown.total * streakMult);
+  return guideMode ? Math.round(base * GUIDE_POINTS_MULTIPLIER) : base;
 }
 
 /**

@@ -6,6 +6,9 @@ export interface LatLng {
 
 const EARTH_RADIUS_M = 6371000;
 
+/** Node reposition: moves beyond this distance trigger off-path handling + admin confirm. */
+export const REPOSITION_OFF_PATH_THRESHOLD_M = 25;
+
 export function haversineMeters(a: LatLng, b: LatLng): number {
   const phi1 = (a.lat * Math.PI) / 180;
   const phi2 = (b.lat * Math.PI) / 180;

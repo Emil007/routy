@@ -11,6 +11,7 @@ import {
   countGoldenHits,
   canonicalSegmentId,
   streakForPointsMultiplier,
+  GUIDE_POINTS_MULTIPLIER,
 } from "@/lib/points";
 import { recordWalkWithPoints, getUsageMap, listSegments } from "@/lib/segments";
 import { getStreakStats } from "@/lib/stats";
@@ -61,7 +62,8 @@ export async function POST(request: Request) {
   const goldenMap = getGoldenMultiplierMap();
   const canonicalOf = new Map(listSegments().map((s) => [s.id, canonicalSegmentId(s)]));
   const breakdown = computeRoutePointPreview(active.segmentIds, active.lengthM, usageMap, goldenMap, canonicalOf);
-  const pointsEarned = computeWalkPointsEarned(breakdown, multiplier);
+  const guideMode = active.walkMode === "guide";
+  const pointsEarned = computeWalkPointsEarned(breakdown, multiplier, guideMode);
   const goldenHits = countGoldenHits(active.segmentIds, goldenMap, canonicalOf);
   const celebrationTier = celebrationTierForWalk(goldenHits, streakForMult, pointsEarned);
 
@@ -117,5 +119,7 @@ export async function POST(request: Request) {
     pointBreakdown: breakdown,
     goldenHits,
     celebrationTier,
+    guideMode,
+    pointsMultiplier: guideMode ? GUIDE_POINTS_MULTIPLIER : 1,
   });
 }

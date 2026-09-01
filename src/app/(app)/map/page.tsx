@@ -8,6 +8,8 @@ import { getSettings, effectiveWalkSpeedKmh } from "@/lib/settings";
 import { listActiveConditions } from "@/lib/segmentConditions";
 import { listAvoidSegmentIds } from "@/lib/avoidList";
 import { getTodayGoldenSegmentIds } from "@/lib/goldenSegments";
+import { loadGraphContext } from "@/lib/routeContext";
+import { disconnectedCanonicalSegmentIds } from "@/lib/graphReachability";
 import { OverviewMapClient } from "./OverviewMapClient";
 import { SegmentsTable } from "./SegmentsTable";
 import { TrashPanel } from "./TrashPanel";
@@ -26,6 +28,13 @@ export default async function MapPage({
   const canonicalSegments = segments.filter(isCanonicalSegment);
   const userNames = new Map(listAllUsers().map((u) => [u.id, u.displayName]));
   const settings = getSettings();
+  const { graph } = loadGraphContext();
+  const disconnectedSegmentIds = disconnectedCanonicalSegmentIds(
+    graph,
+    user.homeNodeId,
+    canonicalSegments.map((s) => s.id),
+    new Map(canonicalSegments.map((s) => [s.id, { startNodeId: s.startNodeId, endNodeId: s.endNodeId }])),
+  );
 
   const deletedNodes = listDeletedNodes().filter((n) => user.role === "admin" || n.createdBy === user.id);
   const deletedSegments = listDeletedSegments()
@@ -67,6 +76,7 @@ export default async function MapPage({
         }))}
         personalAvoidSegmentIds={listAvoidSegmentIds(user.id)}
         goldenSegmentIds={getTodayGoldenSegmentIds()}
+        disconnectedSegmentIds={disconnectedSegmentIds}
       />
 
       <details className="card">

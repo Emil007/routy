@@ -6,10 +6,12 @@ import { getSettings, type Settings } from "@/lib/settings";
 import { LocaleSelectForm } from "@/components/LocaleSelectForm";
 import { ThemeSelectForm } from "@/components/ThemeSelectForm";
 import { GoldenPercentStepper } from "@/components/GoldenPercentStepper";
-import { saveSettingsAction, saveWalkSpeedAction } from "./actions";
+import { saveSettingsAction } from "./actions";
 import { previewGoldenPick } from "@/lib/goldenSegments";
 import { timedWalkSpeedTips } from "@/lib/trackGeometry";
 import { WalkSpeedTips } from "@/components/WalkSpeedTips";
+import { WalkSpeedSaveForm } from "@/components/WalkSpeedSaveForm";
+import { MapPreferencesForm } from "@/components/MapPreferencesForm";
 
 const STEP: Partial<Record<keyof Settings, number>> = {
   daily_diversity_weight: 0.5,
@@ -76,26 +78,19 @@ export default async function SettingsPage() {
       </div>
 
       <div className="card">
+        <h2>{t(locale, "settings.mapPreferencesTitle")}</h2>
+        <p className="hint-compact">{t(locale, "settings.mapPreferencesSubtitle")}</p>
+        <MapPreferencesForm locale={locale} />
+      </div>
+
+      <div className="card">
         <h2>{t(locale, "settings.walkSpeedTitle")}</h2>
         <p className="hint-compact">{t(locale, "settings.walkSpeedSubtitle")}</p>
-        <form action={saveWalkSpeedAction} className="stack">
-          <div className="field">
-            <label htmlFor="walkSpeedKmh">{t(locale, "settings.walk_speed_kmh")}</label>
-            <input
-              id="walkSpeedKmh"
-              name="walkSpeedKmh"
-              type="number"
-              step="any"
-              min={0}
-              defaultValue={user.walkSpeedKmh ?? ""}
-              placeholder={String(settings.walk_speed_kmh)}
-            />
-            <span className="hint">{t(locale, "settings.walkSpeedHint", { default: settings.walk_speed_kmh })}</span>
-          </div>
-          <button type="submit" className="btn-secondary btn-compact">
-            {t(locale, "common.save")}
-          </button>
-        </form>
+        <WalkSpeedSaveForm
+          locale={locale}
+          defaultSpeed={user.walkSpeedKmh != null ? String(user.walkSpeedKmh) : ""}
+          networkDefault={settings.walk_speed_kmh}
+        />
         <WalkSpeedTips locale={locale} tips={speedTips} />
       </div>
 

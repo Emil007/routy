@@ -23,6 +23,10 @@ export interface NodeRow {
   namePart1Text: string | null;
   namePart2Text: string | null;
   deletedAt: string | null;
+  /** Minutes from midnight when the node opens (local time); null = no restriction. */
+  openFromMinutes: number | null;
+  /** Minutes from midnight when the node closes (local time); null = no restriction. */
+  openUntilMinutes: number | null;
 }
 
 interface NodeDbRow {
@@ -38,6 +42,8 @@ interface NodeDbRow {
   name_part_1_text: string | null;
   name_part_2_text: string | null;
   deleted_at: string | null;
+  open_from_minutes: number | null;
+  open_until_minutes: number | null;
 }
 
 function mapNode(row: NodeDbRow): NodeRow {
@@ -54,12 +60,14 @@ function mapNode(row: NodeDbRow): NodeRow {
     namePart1Text: row.name_part_1_text,
     namePart2Text: row.name_part_2_text,
     deletedAt: row.deleted_at,
+    openFromMinutes: row.open_from_minutes,
+    openUntilMinutes: row.open_until_minutes,
   };
 }
 
 const NODE_COLUMNS = `
   n.id, n.name, n.lat, n.lng, n.is_home, n.created_by, n.name_part_1_id, n.name_part_2_id, n.name_separator,
-  n.deleted_at,
+  n.deleted_at, n.open_from_minutes, n.open_until_minutes,
   COALESCE(p1.speak_text, p1.text) as name_part_1_text,
   COALESCE(p2.speak_text, p2.text) as name_part_2_text
 `;
@@ -161,6 +169,17 @@ export function renameNode(id: number, name: string, nameParts?: NodeNameParts):
 
 export function updateNodePosition(id: number, point: LatLng): void {
   db.prepare("UPDATE nodes SET lat = ?, lng = ? WHERE id = ?").run(point.lat, point.lng, id);
+}
+
+export function setNodeOpeningHours(
+  id: number,
+  hours: { openFromMinutes: number | null; openUntilMinutes: number | null },
+): void {
+  db.prepare("UPDATE nodes SET open_from_minutes = ?, open_until_minutes = ? WHERE id = ?").run(
+    hours.openFromMinutes,
+    hours.openUntilMinutes,
+    id,
+  );
 }
 
 /** Also soft-deletes every currently-active segment touching this node, mirroring the FK cascade a hard delete would do. */

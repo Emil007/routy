@@ -11,8 +11,9 @@ import {
   voiceAnnounceRadiusM,
 } from "@/lib/voiceAnnounce";
 import { MapViewLazy } from "./MapViewLazy";
+import { useMapPreferences } from "@/lib/useMapPreferences";
 import { RouteCompletionDialog, type RouteCompletionData } from "./RouteCompletionDialog";
-import { TILE_LAYERS, type BaseLayerId, type MapLine, type MapMarker } from "./MapView";
+import { type MapLine, type MapMarker } from "./MapView";
 import type { NodeRow } from "@/lib/nodes";
 import type { RouteDisplay } from "@/lib/routeDisplay";
 
@@ -25,6 +26,9 @@ interface GenerateResponse {
   lengthRelaxed?: boolean;
   lengthKm?: number;
   usingNetworkFallback?: boolean;
+  closedNodeWarnings?: number[];
+  guideMode?: boolean;
+  pointsMultiplier?: number;
 }
 
 interface FavoriteEntry {
@@ -36,10 +40,15 @@ interface FavoriteEntry {
 
 type LengthPreset = "short" | "normal" | "long" | "surprise";
 
+/**
+ * Unified restrict vocabulary (0.46 F5): segment constraints here use the same
+ * labels as map SegmentPopup — Required / Excluded / Clear.
+ */
+
 const PRESET_LABEL_KEYS: Record<LengthPreset, string> = {
-  short: "route.presetShort",
-  normal: "route.presetNormal",
-  long: "route.presetLong",
+  short: "route.presetShortBtn",
+  normal: "route.presetNormalBtn",
+  long: "route.presetLongBtn",
   surprise: "route.presetSurprise",
 };
 
@@ -61,6 +70,8 @@ export function RouteGenerator({
   canonicalSegmentIds,
   segmentNames,
   initialUsingNetworkFallback,
+  disconnectedSegmentIds = [],
+  isAdmin = false,
 }: {
   locale: Locale;
   nodes: NodeRow[];
@@ -72,6 +83,8 @@ export function RouteGenerator({
   canonicalSegmentIds: number[];
   segmentNames: Record<number, string | null>;
   initialUsingNetworkFallback: boolean;
+  disconnectedSegmentIds?: number[];
+  isAdmin?: boolean;
 }) {
   const router = useRouter();
   const nodesById = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
@@ -81,8 +94,9 @@ export function RouteGenerator({
     [initialFavorites, deletedFavoriteIds],
   );
   const [favoritesOpen, setFavoritesOpen] = useState(false);
-  const [baseLayerId, setBaseLayerId] = useState<BaseLayerId>("streets");
-  const [showTrails, setShowTrails] = useState(false);
+  const mapPrefs = useMapPreferences();
+  const disconnectedSet = useMemo(() => new Set(disconnectedSegmentIds), [disconnectedSegmentIds]);
+  const [lengthPreset, setLengthPreset] = useState<LengthPreset>("short");
 
   const [startNodeId, setStartNodeId] = useState<number | "">(homeNodeId ?? "");
   const [isLoop, setIsLoop] = useState(true);
@@ -113,6 +127,8 @@ export function RouteGenerator({
   const [goldenSegmentIds, setGoldenSegmentIds] = useState<number[]>([]);
   const [completionData, setCompletionData] = useState<RouteCompletionData | null>(null);
   const [usingNetworkFallback, setUsingNetworkFallback] = useState<boolean | null>(initialUsingNetworkFallback);
+  const [repositionCandidates, setRepositionCandidates] = useState<number[] | null>(null);
+  const [gpsAccuracyM, setGpsAccuracyM] = useState<number>(35);
   const announcedStationIndexRef = useRef(0);
   const waitingToLeaveIndexRef = useRef<number | null>(null);
   const followEnabled = watchId !== null;
@@ -198,20 +214,19 @@ export function RouteGenerator({
     const hitIds = new Set(
       result.goldenHitIds ?? result.route.segmentIds.filter((id) => goldenSet.has(id)),
     );
-    for (const segmentId of goldenSegmentIds) {
+    for (const segmentId of hitIds) {
       const points = segmentGeometries[segmentId];
       if (!points?.length) continue;
-      const onRoute = hitIds.has(segmentId);
       lines.push({
         id: `golden-${segmentId}`,
         points,
         color: "#c99a2e",
         dashed: true,
-        weight: onRoute ? 7 : 5,
+        weight: 7,
       });
     }
     return lines;
-  }, [result, goldenSet, goldenSegmentIds, segmentGeometries]);
+  }, [result, goldenSet, segmentGeometries]);
 
   const networkMapLines = useMemo((): MapLine[] => {
     if (mode !== "suggesting" || result) return [];
@@ -222,16 +237,17 @@ export function RouteGenerator({
       const isRequired = requiredSet.has(segmentId);
       const isExcluded = excludedSet.has(segmentId);
       const isGolden = goldenSet.has(segmentId);
+      const isDisconnected = disconnectedSet.has(segmentId);
       lines.push({
         id: segmentId,
         points,
-        color: isExcluded ? "#c53030" : isRequired ? "#2b6cb0" : isGolden ? "#c99a2e" : "#6b9080",
-        weight: isRequired || isGolden ? 6 : 4,
-        dashed: isExcluded || isGolden,
+        color: isDisconnected ? "#c53030" : isExcluded ? "#c53030" : isRequired ? "#2b6cb0" : isGolden ? "#c99a2e" : "#6b9080",
+        weight: isRequired || isGolden || isDisconnected ? 6 : 4,
+        dashed: isExcluded || isGolden || isDisconnected,
       });
     }
     return lines;
-  }, [mode, result, canonicalSegmentIds, segmentGeometries, requiredSet, excludedSet, goldenSet]);
+  }, [mode, result, canonicalSegmentIds, segmentGeometries, requiredSet, excludedSet, goldenSet, disconnectedSet]);
 
   const planningMarkers = useMemo((): MapMarker[] => {
     if (mode !== "suggesting" || result) return [];
@@ -290,6 +306,7 @@ export function RouteGenerator({
     if (data?.error === "no_home_node") return t(locale, "route.noHomeNode");
     if (data?.error === "no_golden_route") return t(locale, "route.noGoldenRoute");
     if (data?.error === "constraints_impossible") return t(locale, "route.constraintsImpossible");
+    if (data?.error === "unreachable_guide_leg") return t(locale, "route.unreachableGuideLeg");
     return t(locale, "route.noRouteFound");
   }
 
@@ -371,7 +388,10 @@ export function RouteGenerator({
     }
     if (typeof navigator === "undefined" || !navigator.geolocation) return;
     const id = navigator.geolocation.watchPosition(
-      (pos) => setMyLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      (pos) => {
+        setMyLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setGpsAccuracyM(pos.coords.accuracy || 35);
+      },
       () => setMyLocation(null),
       { enableHighAccuracy: true, maximumAge: 5000 },
     );
@@ -422,11 +442,29 @@ export function RouteGenerator({
           false,
         );
       }
+      if (data.closedNodeWarnings && data.closedNodeWarnings.length > 0) {
+        flashMessage(t(locale, "route.closedNodesWarning"), false);
+      }
     } else {
       setResult(null);
       setUsingNetworkFallback(null);
       setStatus("error");
       flashMessage(await readApiError(res), true);
+    }
+  }
+
+  async function handleReverse() {
+    if (!result?.token) return;
+    setStatus("loading");
+    const res = await callApi("/api/route/reverse", { token: result.token });
+    if (res.ok) {
+      const data = (await res.json()) as GenerateResponse;
+      setResult(data);
+      setStatus("idle");
+      clearMessage();
+    } else {
+      setStatus("idle");
+      flashMessage(t(locale, "route.reverseFailed"), true);
     }
   }
 
@@ -465,6 +503,100 @@ export function RouteGenerator({
       setStatus("idle");
       flashMessage(t(locale, "route.noAlternative"), true);
     }
+  }
+
+  async function handleAcceptGuide(token: string) {
+    setStatus("loading");
+    const res = await callApi("/api/route/guide/accept", { token });
+    if (res.ok) {
+      setMode("active");
+      setStatus("idle");
+      clearMessage();
+      setNickname("");
+      announcedStationIndexRef.current = 0;
+      waitingToLeaveIndexRef.current = null;
+    } else {
+      setStatus("idle");
+      flashMessage(t(locale, "route.sessionExpired"), true);
+    }
+  }
+
+  async function handleStartGuide() {
+    const ordered = mustVisitNodeIds.length > 0 ? mustVisitNodeIds : startNodeId ? [Number(startNodeId)] : [];
+    if (ordered.length === 0) {
+      flashMessage(t(locale, "route.mapTapHint"), true);
+      return;
+    }
+    setStatus("loading");
+    const res = await callApi("/api/route/guide/start", { orderedNodeIds: ordered, loopBack: isLoop });
+    if (res.ok) {
+      const data = (await res.json()) as GenerateResponse;
+      setResult(data);
+      setStatus("idle");
+      clearMessage();
+      await handleAcceptGuide(data.token);
+    } else {
+      setStatus("idle");
+      flashMessage(await readApiError(res), true);
+    }
+  }
+
+  async function repositionNode(nodeId: number, lat: number, lng: number, accuracyM: number) {
+    const node = nodesById.get(nodeId);
+    if (node && isAdmin && haversineMeters(node, { lat, lng }) > 25) {
+      if (!window.confirm(t(locale, "route.repositionAdminConfirm"))) return;
+    }
+    setStatus("loading");
+    const res = await callApi("/api/route/reposition-node", { nodeId, lat, lng, accuracyM });
+    setRepositionCandidates(null);
+    if (res.ok) {
+      const data = (await res.json()) as { ok: boolean; offPathWarning?: boolean };
+      setStatus("idle");
+      flashMessage(
+        data.offPathWarning ? t(locale, "route.repositionOffPath") : t(locale, "route.repositionSuccess"),
+        !!data.offPathWarning,
+      );
+      router.refresh();
+    } else {
+      setStatus("idle");
+      flashMessage(t(locale, "common.error"), true);
+    }
+  }
+
+  function handleRepositionClick() {
+    if (!myLocation) {
+      if (!navigator.geolocation) {
+        flashMessage(t(locale, "record.locationError"), true);
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setMyLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          setGpsAccuracyM(pos.coords.accuracy || 35);
+          pickRepositionTarget({ lat: pos.coords.latitude, lng: pos.coords.longitude }, pos.coords.accuracy || 35);
+        },
+        () => flashMessage(t(locale, "record.locationError"), true),
+        { enableHighAccuracy: true },
+      );
+      return;
+    }
+    pickRepositionTarget(myLocation, gpsAccuracyM);
+  }
+
+  function pickRepositionTarget(loc: { lat: number; lng: number }, accuracyM: number) {
+    const maxDist = accuracyM + 30;
+    const nearby = nodes
+      .filter((n) => haversineMeters(n, loc) <= maxDist)
+      .sort((a, b) => haversineMeters(a, loc) - haversineMeters(b, loc));
+    if (nearby.length === 0) {
+      flashMessage(t(locale, "common.error"), true);
+      return;
+    }
+    if (nearby.length === 1) {
+      void repositionNode(nearby[0]!.id, loc.lat, loc.lng, accuracyM);
+      return;
+    }
+    setRepositionCandidates(nearby.map((n) => n.id));
   }
 
   async function handleAccept() {
@@ -659,12 +791,17 @@ export function RouteGenerator({
           <button type="button" className="btn-secondary btn-compact" onClick={() => handleAdjust("shorter")} disabled={status === "loading"}>
             {t(locale, "route.shorter")}
           </button>
+          <button type="button" className="btn-secondary btn-compact" onClick={handleAnother} disabled={status === "loading"}>
+            {t(locale, "route.again")}
+          </button>
           <button type="button" className="btn-secondary btn-compact" onClick={() => handleAdjust("longer")} disabled={status === "loading"}>
             {t(locale, "route.longer")}
           </button>
-          <button type="button" className="btn-secondary btn-compact" onClick={handleAnother} disabled={status === "loading"}>
-            {t(locale, "route.newRoute")}
-          </button>
+          {result.token ? (
+            <button type="button" className="btn-secondary btn-compact" onClick={handleReverse} disabled={status === "loading"}>
+              {t(locale, "route.reverse")}
+            </button>
+          ) : null}
           <button type="button" className="btn-primary btn-compact" onClick={handleAccept} disabled={status === "loading"}>
             {t(locale, "route.accept")}
           </button>
@@ -689,6 +826,9 @@ export function RouteGenerator({
               {t(locale, "route.voiceCheck")}
             </label>
           </div>
+          <button type="button" className="btn-secondary btn-compact" onClick={handleRepositionClick} disabled={status === "loading"} title={t(locale, "route.repositionNodeHint")}>
+            {t(locale, "route.repositionNode")}
+          </button>
           <button type="button" className="btn-primary btn-compact" onClick={handleComplete} disabled={status === "loading"}>
             {t(locale, "route.completeButton")}
           </button>
@@ -720,8 +860,8 @@ export function RouteGenerator({
           onMarkerClick={mode === "suggesting" && !result ? handleMarkerClick : undefined}
           onLineClick={mode === "suggesting" && !result ? handleLineClick : undefined}
           height={360}
-          baseLayerId={baseLayerId}
-          showTrails={showTrails}
+          baseLayerId={mapPrefs.baseLayerId}
+          showTrails={mapPrefs.showTrails}
         />
         {result && routeChips && (
           <div className="route-action-bar" style={{ marginTop: "0.45rem" }}>
@@ -750,7 +890,7 @@ export function RouteGenerator({
               <span className="chip">
                 {t(locale, "route.goldenOnRoute")}: {result!.goldenHits ?? result!.goldenHitIds!.length}
               </span>
-            ) : goldenSegmentIds.length > 0 ? (
+            ) : !result && goldenSegmentIds.length > 0 ? (
               <span className="chip">{t(locale, "route.goldenToday")}: {goldenSegmentIds.length}</span>
             ) : null}
           </div>
@@ -843,28 +983,22 @@ export function RouteGenerator({
                   <input type="checkbox" checked={forceGolden} onChange={(e) => setForceGolden(e.target.checked)} />
                   {t(locale, "route.forceGolden")}
                 </label>
+                <button
+                  type="button"
+                  className="btn-secondary btn-compact"
+                  disabled={status === "loading" || !startNodeId}
+                  onClick={() => generate("surprise")}
+                  title={t(locale, PRESET_HINT_KEYS.surprise)}
+                >
+                  {t(locale, "route.presetSurprise")}
+                </button>
               </div>
-              <div className="btn-row" style={{ marginTop: "0.45rem", alignItems: "center" }}>
-                <label className="field" style={{ margin: 0 }}>
-                  <span className="hint" style={{ display: "block", marginBottom: "0.15rem" }}>
-                    {t(locale, "map.layerBaseLabel")}
-                  </span>
-                  <select
-                    value={baseLayerId}
-                    onChange={(e) => setBaseLayerId(e.target.value as BaseLayerId)}
-                    aria-label={t(locale, "map.layerBaseLabel")}
-                  >
-                    {TILE_LAYERS.map((layer) => (
-                      <option key={layer.id} value={layer.id}>
-                        {t(locale, `map.layer.${layer.id}`)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="checkbox">
-                  <input type="checkbox" checked={showTrails} onChange={(e) => setShowTrails(e.target.checked)} />
-                  {t(locale, "map.layer.hikingTrails")}
-                </label>
+              <div className="stack" style={{ marginTop: "0.5rem", gap: "0.35rem" }}>
+                <strong style={{ fontSize: "0.85rem" }}>{t(locale, "route.nodeGuideTitle")}</strong>
+                <p className="hint-compact" style={{ margin: 0 }}>{t(locale, "route.nodeGuideHint")}</p>
+                <button type="button" className="btn-secondary btn-compact" disabled={status === "loading"} onClick={handleStartGuide}>
+                  {t(locale, "route.nodeGuideStart")}
+                </button>
               </div>
             </details>
 
@@ -890,18 +1024,28 @@ export function RouteGenerator({
                   ? `${t(locale, "route.favoritesTitle")} (${favorites.length})`
                   : t(locale, "route.favoritesTitle")}
               </button>
-              {(["short", "normal", "long", "surprise"] as const).map((preset) => (
+              {(["short", "normal", "long"] as const).map((preset) => (
                 <button
                   key={preset}
                   type="button"
-                  className={preset === "short" ? "btn-primary btn-compact" : "btn-secondary btn-compact"}
-                  disabled={status === "loading" || !startNodeId}
-                  onClick={() => generate(preset)}
+                  className={preset === lengthPreset ? "btn-primary btn-compact" : "btn-secondary btn-compact"}
+                  disabled={status === "loading"}
+                  onClick={() => setLengthPreset(preset)}
                   title={t(locale, PRESET_HINT_KEYS[preset])}
                 >
-                  {status === "loading" ? t(locale, "route.generating") : t(locale, PRESET_LABEL_KEYS[preset])}
+                  {t(locale, PRESET_LABEL_KEYS[preset])}
                 </button>
               ))}
+              <button
+                type="button"
+                className="btn-primary btn-compact route-generate-arrow"
+                disabled={status === "loading" || !startNodeId}
+                onClick={() => generate(lengthPreset)}
+                title={t(locale, "route.generateHint")}
+                aria-label={t(locale, "route.generateHint")}
+              >
+                {status === "loading" ? "…" : "↑"}
+              </button>
             </div>
             {favoritesOpen && (
               <div className="card route-panel-compact" style={{ marginTop: "0.35rem" }}>
@@ -958,6 +1102,27 @@ export function RouteGenerator({
 
       {completionData && (
         <RouteCompletionDialog locale={locale} data={completionData} onClose={() => setCompletionData(null)} />
+      )}
+
+      {repositionCandidates && myLocation && (
+        <div className="card" style={{ position: "fixed", bottom: "4.5rem", left: "50%", transform: "translateX(-50%)", zIndex: 1000, maxWidth: "90vw" }}>
+          <p className="hint-compact">{t(locale, "route.repositionPickNode")}</p>
+          <div className="btn-row">
+            {repositionCandidates.map((id) => (
+              <button
+                key={id}
+                type="button"
+                className="btn-secondary btn-compact"
+                onClick={() => void repositionNode(id, myLocation.lat, myLocation.lng, gpsAccuracyM)}
+              >
+                {nodeLabel(id)}
+              </button>
+            ))}
+            <button type="button" className="btn-secondary btn-compact" onClick={() => setRepositionCandidates(null)}>
+              {t(locale, "common.cancel")}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );

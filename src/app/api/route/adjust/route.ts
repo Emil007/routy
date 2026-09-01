@@ -49,6 +49,8 @@ export async function POST(request: Request) {
     : session.waypointNodeId != null
       ? [session.waypointNodeId]
       : [];
+  const required = session.requiredSegmentIds ?? [];
+  const constrainedTour = required.length > 0 || mustVisit.length > 0;
   const excluded = new Set(session.excludedSegmentIds ?? []);
 
   function band(stepPercent: number): { minValue: number; maxValue: number } {
@@ -61,22 +63,23 @@ export async function POST(request: Request) {
   }
 
   function search(minValue: number, maxValue: number) {
+    const geometryOf = new Map([...segmentsById].map(([id, s]) => [id, s.geometry]));
     const { routes: candidates } = searchRoutesWithConstraints({
       graph,
       pairOf,
       start: session.startNodeId,
       destination: session.destinationNodeId,
       mustVisitNodeIds: mustVisit,
-      requiredSegmentIds: session.requiredSegmentIds ?? [],
+      requiredSegmentIds: required,
       excludedSegmentIds: excluded,
       mode: session.mode,
       minValue,
       maxValue,
+      geometryOf,
     });
 
     const usageMap = getUsageMap(userId);
     const dailyMap = getDailyUsageMap(userId);
-    const geometryOf = new Map([...segmentsById].map(([id, s]) => [id, s.geometry]));
     let scored = scoreRoutes(
       candidates,
       pairOf,
@@ -96,7 +99,7 @@ export async function POST(request: Request) {
     if (session.forceGolden) {
       scored = withGoldenHits(scored, goldenMap, canonicalOf);
     }
-    return pickBest(scored, session.seenKeys, session.explorerMode, session.surpriseMode);
+    return pickBest(scored, session.seenKeys, session.explorerMode, session.surpriseMode, constrainedTour);
   }
 
   const initial = band(settings.adjust_step_percent);

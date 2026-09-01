@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { type LatLng, reversePoints, pathLengthMeters, estimateMinutes, elevationStats, closestPointOnPath } from "./geo";
+import { type LatLng, reversePoints, pathLengthMeters, estimateMinutes, elevationStats, closestPointOnPath, haversineMeters, REPOSITION_OFF_PATH_THRESHOLD_M } from "./geo";
 import type { ElevationStats } from "./geo";
 import { createNode, getNode, updateNodePosition, type NodeRow, type NodeNameParts } from "./nodes";
 
@@ -537,6 +537,8 @@ export function applyGpsHopDurationIfMissing(segmentId: number, durationMin: num
   db.prepare("UPDATE segments SET duration_min = ?, duration_from_gps = 1 WHERE id = ?").run(rounded, reverse.id);
 }
 
+export { REPOSITION_OFF_PATH_THRESHOLD_M } from "./geo";
+
 /**
  * Moves a node and drags along the touching end of every segment connected to
  * it, so the network stays visually consistent (no gap between a moved node
@@ -561,6 +563,46 @@ export function moveNode(nodeId: number, point: LatLng, walkSpeedKmh: number): {
   });
   tx();
   return { touchedSegments: touching.length };
+}
+
+/** On-path: adjust incident segment endpoints and lengths. Off-path: keep old anchor via connector vertex + warning. */
+export function repositionNode(
+  nodeId: number,
+  point: LatLng,
+  walkSpeedKmh: number,
+): { touchedSegments: number; offPathWarning: boolean; moveDistM: number } {
+  const node = getNode(nodeId);
+  if (!node) throw new Error("node_not_found");
+  const before = { lat: node.lat, lng: node.lng };
+  const moveDistM = haversineMeters(before, point);
+  const offPathWarning = moveDistM > REPOSITION_OFF_PATH_THRESHOLD_M;
+
+  const touching = listSegments()
+    .filter(isCanonicalSegment)
+    .filter((s) => s.startNodeId === nodeId || s.endNodeId === nodeId);
+
+  const tx = db.transaction(() => {
+    updateNodePosition(nodeId, point);
+    for (const s of touching) {
+      if (s.reverseOf === null) continue;
+      const reverse = getSegment(s.reverseOf);
+      if (!reverse) continue;
+      let geometry = [...s.geometry];
+      if (offPathWarning) {
+        if (s.startNodeId === nodeId) {
+          geometry = [point, before, ...geometry.slice(1)];
+        } else if (s.endNodeId === nodeId) {
+          geometry = [...geometry.slice(0, -1), before, point];
+        }
+      } else {
+        if (s.startNodeId === nodeId) geometry[0] = point;
+        if (s.endNodeId === nodeId) geometry[geometry.length - 1] = point;
+      }
+      writeSegmentGeometry(s, reverse, geometry, walkSpeedKmh);
+    }
+  });
+  tx();
+  return { touchedSegments: touching.length, offPathWarning, moveDistM: Math.round(moveDistM) };
 }
 
 /**

@@ -13,6 +13,8 @@
 // documented last-resort fallback for the rare case this pool comes back empty.
 
 import type { Graph, RouteMode, RouteResult, SegmentEdge } from "./routing";
+import { buildTourFromPlan, optimizeCoreTourPlan } from "./coreTour";
+import { extendCoreTour } from "./extendTour";
 
 /** Binary min-heap keyed by numeric priority; payload is a node id. */
 class MinHeap {
@@ -153,11 +155,49 @@ function canonicalBlock(segmentIds: number[], pairOf: Map<number, number>): Set<
 
 type Step = { kind: "node"; node: number } | { kind: "edge"; edge: SegmentEdge };
 
+/** Build core tour via TSP-ordered plan, then optional length extension. */
+function buildCoreTourRoute(
+  graph: Graph,
+  pairOf: Map<number, number>,
+  edgeById: Map<number, SegmentEdge>,
+  start: number,
+  destination: number,
+  mustVisit: number[],
+  requiredEdges: SegmentEdge[],
+  mode: RouteMode,
+  excluded: Set<number>,
+  minValue: number,
+  maxValue: number,
+  preserveMustVisitOrder = false,
+): RouteResult | null {
+  const plan = optimizeCoreTourPlan({
+    graph,
+    pairOf,
+    edgeById,
+    start,
+    destination,
+    mustVisit,
+    requiredEdges,
+    mode,
+    excluded,
+    preserveOrder: preserveMustVisitOrder,
+  });
+  const withDest =
+    destination === start || plan.some((s) => s.kind === "node" && s.node === destination)
+      ? plan
+      : [...plan, { kind: "node" as const, node: destination }];
+  const core = buildTourFromPlan(graph, pairOf, edgeById, start, withDest, mode, excluded);
+  if (!core) return null;
+  const extended = extendCoreTour(core, graph, pairOf, start, destination, mode, excluded, minValue, maxValue);
+  return {
+    ...extended.route,
+    coreLengthM: extended.coreLengthM,
+    extensionLengthM: extended.extensionLengthM,
+  };
+}
+
 /**
- * Build one skeleton route through the ordered must-visit nodes while forcing every
- * required edge to be traversed (in either direction). Required edges are ordered by a
- * greedy nearest-from-start heuristic, then stitched in: route to an endpoint, take the
- * edge, continue. Returns null if any leg is unreachable under `excluded`.
+ * Legacy skeleton builder — kept for Yen fallback paths that re-stitch with exclusions.
  */
 function buildSkeleton(
   graph: Graph,
@@ -285,6 +325,7 @@ export interface PoolParams {
   minValue: number;
   maxValue: number;
   maxResults?: number;
+  preserveMustVisitOrder?: boolean;
 }
 
 /**
@@ -330,7 +371,8 @@ export function generateRoutePool(p: PoolParams): RouteResult[] {
     pool.push(r);
   };
 
-  const isLoop = start === destination && mustVisit.length === 0 && requiredEdges.length === 0;
+  const hasConstraints = mustVisit.length > 0 || requiredEdges.length > 0;
+  const isLoop = start === destination && !hasConstraints;
   const midNodes = sampleMidNodes(nodeSet, new Set([start, destination, ...mustVisit]), 180);
 
   if (isLoop) {
@@ -339,11 +381,25 @@ export function generateRoutePool(p: PoolParams): RouteResult[] {
       if (pool.length >= maxPool) break;
     }
   } else {
-    add(buildSkeleton(graph, pairOf, edgeById, start, destination, mustVisit, requiredEdges, mode, excluded));
-    // Length expansion: append one extra mid-node via so a too-short skeleton can grow.
+    add(
+      buildCoreTourRoute(
+        graph,
+        pairOf,
+        edgeById,
+        start,
+        destination,
+        mustVisit,
+        requiredEdges,
+        mode,
+        excluded,
+        p.minValue,
+        p.maxValue,
+        p.preserveMustVisitOrder === true,
+      ),
+    );
     for (const m of midNodes) {
       add(
-        buildSkeleton(
+        buildCoreTourRoute(
           graph,
           pairOf,
           edgeById,
@@ -353,6 +409,9 @@ export function generateRoutePool(p: PoolParams): RouteResult[] {
           requiredEdges,
           mode,
           excluded,
+          p.minValue,
+          p.maxValue,
+          p.preserveMustVisitOrder === true,
         ),
       );
       if (pool.length >= maxPool) break;
@@ -377,7 +436,22 @@ export function generateRoutePool(p: PoolParams): RouteResult[] {
           add(loopVia(graph, pairOf, start, midOnRoute, mode, excl));
         }
       } else {
-        add(buildSkeleton(graph, pairOf, edgeById, start, destination, mustVisit, requiredEdges, mode, excl));
+        add(
+          buildCoreTourRoute(
+            graph,
+            pairOf,
+            edgeById,
+            start,
+            destination,
+            mustVisit,
+            requiredEdges,
+            mode,
+            excl,
+            p.minValue,
+            p.maxValue,
+            p.preserveMustVisitOrder === true,
+          ),
+        );
       }
     }
   }

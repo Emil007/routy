@@ -37,6 +37,8 @@ describe("routeQualityFromScored", () => {
       crossing: 1,
       homeConnectors: 3,
       unexplored: 4,
+      coreLengthM: undefined,
+      extensionLengthM: undefined,
     });
   });
 

@@ -4,17 +4,18 @@ import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { t, type Locale } from "@/lib/i18n";
 import { MapViewLazy } from "@/components/MapViewLazy";
+import { useMapPreferences } from "@/lib/useMapPreferences";
 import { NodePopup } from "@/components/NodePopup";
 import { SegmentPopup } from "@/components/SegmentPopup";
 import { DrawPathWizard } from "@/components/DrawPathWizard";
 import { GpxImportWizard } from "@/components/GpxImportWizard";
 import { RecordTrackWizard } from "@/components/RecordTrackWizard";
 import { SegmentGeometryEditor } from "@/components/SegmentGeometryEditor";
-import type { MapMarker, MapLine, MapViewState, BaseLayerId } from "@/components/MapView";
-import { TILE_LAYERS } from "@/components/MapView";
+import type { MapMarker, MapLine, MapViewState } from "@/components/MapView";
 import type { NodeRow } from "@/lib/nodes";
 import type { SegmentRow } from "@/lib/segments";
 import { canEdit } from "@/lib/ownership";
+import { haversineMeters, REPOSITION_OFF_PATH_THRESHOLD_M } from "@/lib/geo";
 
 type Mode = "view" | "draw" | "gpx" | "record" | "editShape";
 
@@ -64,6 +65,7 @@ export function OverviewMapClient({
   segmentConditions,
   personalAvoidSegmentIds,
   goldenSegmentIds = [],
+  disconnectedSegmentIds = [],
 }: {
   locale: Locale;
   nodes: NodeRow[];
@@ -77,6 +79,7 @@ export function OverviewMapClient({
   segmentConditions: SegmentConditionEntry[];
   personalAvoidSegmentIds: number[];
   goldenSegmentIds?: number[];
+  disconnectedSegmentIds?: number[];
 }) {
   const router = useRouter();
   const [proposals, setProposals] = useState<PathProposal[]>([]);
@@ -85,6 +88,7 @@ export function OverviewMapClient({
   const [lockProposalsLoading, setLockProposalsLoading] = useState(true);
   const personalAvoidSet = useMemo(() => new Set(personalAvoidSegmentIds), [personalAvoidSegmentIds]);
   const goldenSet = useMemo(() => new Set(goldenSegmentIds), [goldenSegmentIds]);
+  const disconnectedSet = useMemo(() => new Set(disconnectedSegmentIds), [disconnectedSegmentIds]);
 
   useEffect(() => {
     let cancelled = false;
@@ -177,8 +181,7 @@ export function OverviewMapClient({
   // reset to a fresh fit-to-content on every switch. Remembering the last pan/zoom here
   // lets the next mode's map restore it instead.
   const [lastView, setLastView] = useState<MapViewState | undefined>(undefined);
-  const [baseLayerId, setBaseLayerId] = useState<BaseLayerId>("streets");
-  const [showTrails, setShowTrails] = useState(false);
+  const mapPrefs = useMapPreferences();
 
   const nodesById = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
 
@@ -190,19 +193,31 @@ export function OverviewMapClient({
     () =>
       segments.map((s) => {
         const golden = goldenSet.has(s.id);
+        const disconnected = disconnectedSet.has(s.id);
         return {
           id: s.id,
           points: s.geometry.map((p): [number, number] => [p.lat, p.lng]),
-          color: golden ? "#c99a2e" : undefined,
-          weight: golden ? 6 : undefined,
-          dashed: golden || isLocked(s),
+          color: disconnected ? "#c53030" : golden ? "#c99a2e" : undefined,
+          weight: golden || disconnected ? 6 : undefined,
+          dashed: golden || isLocked(s) || disconnected,
         };
       }),
-    [segments, goldenSet],
+    [segments, goldenSet, disconnectedSet],
   );
 
   async function handleMarkerDragEnd(id: number | string, lat: number, lng: number) {
     if (typeof id !== "number") return;
+    const node = nodesById.get(id);
+    if (
+      node &&
+      currentUser.role === "admin" &&
+      haversineMeters(node, { lat, lng }) > REPOSITION_OFF_PATH_THRESHOLD_M &&
+      !window.confirm(t(locale, "route.repositionAdminConfirm"))
+    ) {
+      setMoveNodeId(null);
+      router.refresh();
+      return;
+    }
     setMoveStatus("saving");
     const res = await fetch("/api/nodes/move", {
       method: "POST",
@@ -248,12 +263,13 @@ export function OverviewMapClient({
     () =>
       segments.map((s) => {
         const golden = goldenSet.has(s.id);
+        const disconnected = disconnectedSet.has(s.id);
         return {
           id: s.id,
           points: s.geometry.map((p): [number, number] => [p.lat, p.lng]),
-          color: golden ? "#c99a2e" : undefined,
-          weight: golden ? 6 : undefined,
-          dashed: golden || isLocked(s),
+          color: disconnected ? "#c53030" : golden ? "#c99a2e" : undefined,
+          weight: golden || disconnected ? 6 : undefined,
+          dashed: golden || isLocked(s) || disconnected,
           popup: (
             <SegmentPopup
               locale={locale}
@@ -274,7 +290,7 @@ export function OverviewMapClient({
         };
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [segments, locale, currentUser, usage, userNames, nodesById, goldenSet, personalAvoidSet],
+    [segments, locale, currentUser, usage, userNames, nodesById, goldenSet, personalAvoidSet, disconnectedSet],
   );
 
   if (mode === "draw") {
@@ -370,8 +386,8 @@ export function OverviewMapClient({
         className="map-box-large"
         initialView={lastView}
         onViewChange={setLastView}
-        baseLayerId={baseLayerId}
-        showTrails={showTrails}
+        baseLayerId={mapPrefs.baseLayerId}
+        showTrails={mapPrefs.showTrails}
       />
       <div className="record-map-bar">
         <button type="button" className="btn-secondary btn-compact" onClick={() => setMode("draw")}>
@@ -384,31 +400,6 @@ export function OverviewMapClient({
           {t(locale, "overview.recordMode")}
         </button>
       </div>
-      <details className="route-more-options" style={{ marginTop: "0.35rem" }}>
-        <summary>{t(locale, "route.moreOptions")}</summary>
-        <div className="btn-row" style={{ marginTop: "0.45rem", alignItems: "center" }}>
-          <label className="field" style={{ margin: 0 }}>
-            <span className="hint" style={{ display: "block", marginBottom: "0.15rem" }}>
-              {t(locale, "map.layerBaseLabel")}
-            </span>
-            <select
-              value={baseLayerId}
-              onChange={(e) => setBaseLayerId(e.target.value as BaseLayerId)}
-              aria-label={t(locale, "map.layerBaseLabel")}
-            >
-              {TILE_LAYERS.map((layer) => (
-                <option key={layer.id} value={layer.id}>
-                  {t(locale, `map.layer.${layer.id}`)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="checkbox">
-            <input type="checkbox" checked={showTrails} onChange={(e) => setShowTrails(e.target.checked)} />
-            {t(locale, "map.layer.hikingTrails")}
-          </label>
-        </div>
-      </details>
       <p className="hint-compact">{t(locale, "overview.interactionHint")}</p>
       <details className="card" style={{ marginTop: "0.5rem" }}>
         <summary>{t(locale, "map.lockProposalsTitle")} ({lockProposalsLoading ? "…" : lockProposals.length})</summary>

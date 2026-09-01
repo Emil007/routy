@@ -6,9 +6,9 @@ Built as a hobby project by a sysadmin, not a product team. It works well for ou
 
 This repository is the **server** (web UI + API + database). There is also a companion **[Android app](https://github.com/Emil007/routy-android)** — same login, same path network, but native map, GPS recording while you walk, and offline cache. Use the browser alone or pair it with the app; the app cannot run without this server.
 
-**Server** (this repo) · **0.45s** · [`Emil007/routy`](https://github.com/Emil007/routy)
-**Android app** · **0.45a** · [`Emil007/routy-android`](https://github.com/Emil007/routy-android)
-*(Aligned release batch: same number, `s` / `a` suffix by repo — tags `v0.45s` / `v0.45a`.)*
+**Server** (this repo) · **0.46s** · [`Emil007/routy`](https://github.com/Emil007/routy)
+**Android app** · **0.46a** · [`Emil007/routy-android`](https://github.com/Emil007/routy-android)
+*(Aligned release batch: same number, `s` / `a` suffix by repo — tags `v0.46s` / `v0.46a`.)*
 
 ---
 
@@ -104,8 +104,8 @@ Server and Android share the **same numeric part** for a release batch; only the
 
 | Component | Tag example | Shown as | Where |
 |-----------|-------------|----------|-------|
-| Server | `v0.45s` | **0.45s** | `package.json` |
-| Android | `v0.45a` | **0.45a** | `app/build.gradle.kts` |
+| Server | `v0.46s` | **0.46s** | `package.json` |
+| Android | `v0.46a` | **0.46a** | `app/build.gradle.kts` |
 
 Pattern is always `0.<number>s` / `0.<number>a` — never swap suffixes, never use `b` / semver patch like `0.35.2`.
 
