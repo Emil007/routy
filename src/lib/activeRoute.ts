@@ -1,5 +1,7 @@
 import { db } from "./db";
 
+export type WalkMode = "route" | "guide";
+
 export interface ActiveRouteRow {
   userId: number;
   nodeChain: number[];
@@ -7,6 +9,8 @@ export interface ActiveRouteRow {
   lengthM: number;
   durationMin: number;
   nickname: string | null;
+  walkMode: WalkMode;
+  guideNodeIds: number[] | null;
   acceptedAt: string;
 }
 
@@ -17,6 +21,8 @@ interface ActiveRouteDbRow {
   length_m: number;
   duration_min: number;
   nickname: string | null;
+  walk_mode: string;
+  guide_node_ids: string | null;
   accepted_at: string;
 }
 
@@ -28,6 +34,8 @@ function mapRow(row: ActiveRouteDbRow): ActiveRouteRow {
     lengthM: row.length_m,
     durationMin: row.duration_min,
     nickname: row.nickname,
+    walkMode: row.walk_mode === "guide" ? "guide" : "route",
+    guideNodeIds: row.guide_node_ids ? (JSON.parse(row.guide_node_ids) as number[]) : null,
     acceptedAt: row.accepted_at,
   };
 }
@@ -39,19 +47,38 @@ export function getActiveRoute(userId: number): ActiveRouteRow | null {
 
 export function setActiveRoute(
   userId: number,
-  route: { nodeChain: number[]; segmentIds: number[]; lengthM: number; durationMin: number },
+  route: {
+    nodeChain: number[];
+    segmentIds: number[];
+    lengthM: number;
+    durationMin: number;
+    walkMode?: WalkMode;
+    guideNodeIds?: number[] | null;
+  },
 ): void {
+  const walkMode = route.walkMode ?? "route";
+  const guideNodeIds = route.guideNodeIds ?? null;
   db.prepare(
-    `INSERT INTO active_route (user_id, node_chain, segment_ids, length_m, duration_min, nickname)
-     VALUES (?, ?, ?, ?, ?, NULL)
+    `INSERT INTO active_route (user_id, node_chain, segment_ids, length_m, duration_min, nickname, walk_mode, guide_node_ids)
+     VALUES (?, ?, ?, ?, ?, NULL, ?, ?)
      ON CONFLICT(user_id) DO UPDATE SET
        node_chain = excluded.node_chain,
        segment_ids = excluded.segment_ids,
        length_m = excluded.length_m,
        duration_min = excluded.duration_min,
        nickname = NULL,
+       walk_mode = excluded.walk_mode,
+       guide_node_ids = excluded.guide_node_ids,
        accepted_at = datetime('now')`,
-  ).run(userId, JSON.stringify(route.nodeChain), JSON.stringify(route.segmentIds), route.lengthM, route.durationMin);
+  ).run(
+    userId,
+    JSON.stringify(route.nodeChain),
+    JSON.stringify(route.segmentIds),
+    route.lengthM,
+    route.durationMin,
+    walkMode,
+    guideNodeIds ? JSON.stringify(guideNodeIds) : null,
+  );
 }
 
 /** Names the currently active route (e.g. "Sonntagsrunde mit Oma") — purely a label,
@@ -66,8 +93,19 @@ export function clearActiveRoute(userId: number): void {
 
 /** Across all profiles — the shared path network shouldn't lose a node/segment someone is mid-walk on. */
 export function nodeUsedByActiveRoute(nodeId: number): boolean {
-  const rows = db.prepare("SELECT node_chain FROM active_route").all() as { node_chain: string }[];
-  return rows.some((r) => (JSON.parse(r.node_chain) as number[]).includes(nodeId));
+  const rows = db.prepare("SELECT node_chain, guide_node_ids FROM active_route").all() as {
+    node_chain: string;
+    guide_node_ids: string | null;
+  }[];
+  return rows.some((r) => {
+    const chain = JSON.parse(r.node_chain) as number[];
+    if (chain.includes(nodeId)) return true;
+    if (r.guide_node_ids) {
+      const guide = JSON.parse(r.guide_node_ids) as number[];
+      if (guide.includes(nodeId)) return true;
+    }
+    return false;
+  });
 }
 
 export function segmentUsedByActiveRoute(segmentIds: number[]): boolean {

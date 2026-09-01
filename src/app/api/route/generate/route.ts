@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { getSettings } from "@/lib/settings";
-import { getUserHomeNode } from "@/lib/nodes";
+import { getUserHomeNode, listNodes } from "@/lib/nodes";
 import { getUsageMap, getDailyUsageMap, listSegments } from "@/lib/segments";
 import { getRouteScoringContext } from "@/lib/routeScoring";
 import { loadGraphContext } from "@/lib/routeContext";
@@ -23,6 +23,7 @@ import { computeRoutePointPreview, canonicalSegmentId, countGoldenHits, goldenHi
 import { getHomeAccessSegmentIds } from "@/lib/homeAccess";
 import { lengthBandForUser } from "@/lib/lengthTaste";
 import { routeQualityFromScored } from "@/lib/routeQuality";
+import { closedNodeIds } from "@/lib/nodeOpeningHours";
 
 const bodySchema = z.object({
   startNodeId: z.number().int().positive().optional(),
@@ -278,6 +279,18 @@ export async function POST(request: Request) {
   const goldenHitIds = goldenHitCanonicalIds(best.route.segmentIds, goldenMap, canonicalOf);
   const routeQuality = routeQualityFromScored(best);
 
+  const allNodes = listNodes();
+  const closedSet = new Set(closedNodeIds(allNodes));
+  const touchedNodes = new Set([...best.route.nodeChain, ...mustVisitOrder]);
+  for (const segId of requiredSegmentIds) {
+    const seg = segmentsById.get(segId);
+    if (seg) {
+      touchedNodes.add(seg.startNodeId);
+      touchedNodes.add(seg.endNodeId);
+    }
+  }
+  const closedNodeWarnings = [...touchedNodes].filter((id) => closedSet.has(id));
+
   return NextResponse.json({
     token,
     route: display,
@@ -289,5 +302,6 @@ export async function POST(request: Request) {
     usingNetworkFallback: band.usingNetworkFallback,
     mustVisitOrder,
     routeQuality,
+    closedNodeWarnings,
   });
 }

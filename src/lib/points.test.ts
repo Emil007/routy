@@ -164,6 +164,12 @@ describe("computeWalkPointsEarned", () => {
     expect(computeWalkPointsEarned(breakdown, 1.25)).toBe(123);
     expect(computeWalkPointsEarned(breakdown, 1)).toBe(98);
   });
+
+  it("applies guide mode multiplier after streak", () => {
+    const breakdown = { base: 75, golden: 10, exploration: 8, diversity: 5, total: 100 };
+    expect(computeWalkPointsEarned(breakdown, 1, true)).toBe(70);
+    expect(computeWalkPointsEarned(breakdown, 2, true)).toBe(140);
+  });
 });
 
 describe("celebrationTierForWalk", () => {

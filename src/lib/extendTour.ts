@@ -53,6 +53,49 @@ function routeValue(r: RouteResult, mode: RouteMode): number {
   return mode === "km" ? r.lengthM : r.durationMin;
 }
 
+/** Remove a contiguous spur suffix when it matches a detected loop from anchor. */
+function removeSpurSuffix(route: RouteResult, spur: RouteResult): RouteResult | null {
+  const n = spur.segmentIds.length;
+  if (n === 0 || route.segmentIds.length < n) return null;
+  const tail = route.segmentIds.slice(-n);
+  if (tail.some((id, i) => id !== spur.segmentIds[i])) return null;
+  const dropNodes = spur.nodeChain.length - 1;
+  return {
+    nodeChain: route.nodeChain.slice(0, -dropNodes),
+    segmentIds: route.segmentIds.slice(0, -n),
+    lengthM: route.lengthM - spur.lengthM,
+    durationMin: route.durationMin - spur.durationMin,
+  };
+}
+
+/** Try removing spur loops from anchor when the tour exceeds maxValue. */
+function trimCoreWhenOverMax(
+  core: RouteResult,
+  graph: Graph,
+  pairOf: Map<number, number>,
+  start: number,
+  destination: number,
+  mode: RouteMode,
+  excluded: Set<number>,
+  maxValue: number,
+): RouteResult {
+  const anchor = start === destination ? start : destination;
+  const candidates = new Set<number>([anchor]);
+  for (const n of core.nodeChain) candidates.add(n);
+
+  let best = core;
+  for (const m of candidates) {
+    if (m === anchor) continue;
+    const spur = loopVia(graph, pairOf, anchor, m, mode, excluded);
+    if (!spur) continue;
+    const trimmed = removeSpurSuffix(best, spur);
+    if (!trimmed) continue;
+    if (routeValue(trimmed, mode) <= maxValue) return trimmed;
+    if (routeValue(trimmed, mode) < routeValue(best, mode)) best = trimmed;
+  }
+  return best;
+}
+
 /**
  * Extend a core tour when it is shorter than minValue by appending an out-and-back
  * spur from a node on the core (prefer the start/end for loops).
@@ -72,8 +115,10 @@ export function extendCoreTour(
   if (coreLen >= minValue && coreLen <= maxValue) {
     return { route: core, coreLengthM: core.lengthM, extensionLengthM: 0 };
   }
+  // Core alone exceeds the band — try trimming removable spur loops.
   if (coreLen > maxValue) {
-    return { route: core, coreLengthM: core.lengthM, extensionLengthM: 0 };
+    const trimmed = trimCoreWhenOverMax(core, graph, pairOf, start, destination, mode, excluded, maxValue);
+    return { route: trimmed, coreLengthM: trimmed.lengthM, extensionLengthM: 0 };
   }
 
   const anchor = start === destination ? start : destination;
@@ -90,12 +135,17 @@ export function extendCoreTour(
         ? concat(core, spur)
         : concat(core, dijkstra(graph, core.nodeChain[core.nodeChain.length - 1]!, anchor, mode, excluded) ?? spur);
     const val = routeValue(combined, mode);
-    if (val > maxValue * 1.35) continue;
+    if (val > maxValue) continue;
     const ext = combined.lengthM - core.lengthM;
     const candidate: ExtendedRoute = { route: combined, coreLengthM: core.lengthM, extensionLengthM: Math.max(0, ext) };
     if (!best || Math.abs(val - minValue) < Math.abs(routeValue(best.route, mode) - minValue)) {
       best = candidate;
     }
+  }
+
+  // Extension would exceed max — keep core only rather than overshooting the band.
+  if (best && routeValue(best.route, mode) > maxValue) {
+    return { route: core, coreLengthM: core.lengthM, extensionLengthM: 0 };
   }
 
   return best ?? { route: core, coreLengthM: core.lengthM, extensionLengthM: 0 };

@@ -5,7 +5,7 @@ Shared contract between the **web app**, **native Android app**, and any future 
 - **Base URL:** user-configured (e.g. `https://routy.example.com/`)
 - **Auth:** `Authorization: Bearer <token>` (Android) or session cookie (browser). Same token from `POST /api/auth/login`.
 - **Errors:** JSON `{ "error": "<code>" }` unless noted. Common: `unauthorized`, `invalid_json`.
-- **Version:** server display `0.42s` (`package.json` `"0.42s"`).
+- **Version:** server display `0.46s` (`package.json` `"0.46s"`).
 
 ## Auth & profile
 
@@ -35,12 +35,16 @@ Shared contract between the **web app**, **native Android app**, and any future 
 
 | Method | Path | Body | Response |
 |--------|------|------|----------|
-| POST | `/api/route/generate` | `{ startNodeId?, destinationNodeId?, mustVisitNodeIds?, requiredSegmentIds?, excludedSegmentIds?, explorerMode?, surpriseMode?, preset?, forceGolden?, waypointNodeId?, preserveMustVisitOrder? }` | `{ token, route, pointPreview?, goldenHits?, goldenHitIds?, lengthRelaxed?, lengthKm?, usingNetworkFallback?, mustVisitOrder?, routeQuality? }` |
+| POST | `/api/route/generate` | `{ startNodeId?, destinationNodeId?, mustVisitNodeIds?, requiredSegmentIds?, excludedSegmentIds?, explorerMode?, surpriseMode?, preset?, forceGolden?, waypointNodeId?, preserveMustVisitOrder? }` | `{ token, route, pointPreview?, goldenHits?, goldenHitIds?, lengthRelaxed?, lengthKm?, usingNetworkFallback?, mustVisitOrder?, routeQuality?, closedNodeWarnings? }` |
 | POST | `/api/route/widen` | `{ token }` | `{ token, route, pointPreview?, goldenHits?, goldenHitIds?, lengthRelaxed?, tolerancePercent? }` |
 | POST | `/api/route/adjust` | `{ token, direction }` | `{ token, route, pointPreview?, goldenHits?, goldenHitIds?, lengthRelaxed? }` |
-| POST | `/api/route/accept` | `{ token }` | `{ success: true }` | Active route stored server-side. |
+| POST | `/api/route/reverse` | `{ token }` | `{ token, route, pointPreview?, goldenHits?, goldenHitIds? }` | Flip node chain / segment directions (reverse pairs). `400 cannot_reverse` when not reversible. |
+| POST | `/api/route/guide/start` | `{ orderedNodeIds: number[] (max 12), loopBack?: boolean }` | `{ token, route, pointPreview?, guideMode: true, pointsMultiplier: 0.7, orderedNodeIds }` | Routeless node guide: Dijkstra legs between consecutive nodes (+ optional loop). Session `walkMode=guide`. |
+| POST | `/api/route/guide/accept` | `{ token }` | `{ success, guideMode: true, pointsMultiplier: 0.7 }` | Sets active route with `walk_mode='guide'`. |
+| POST | `/api/route/accept` | `{ token }` | `{ success: true }` | Active route stored server-side (honours session `walkMode`). |
+| POST | `/api/route/reposition-node` | `{ nodeId, lat, lng, accuracyM? }` | `{ ok, offPathWarning }` | Active route required. Owner/admin only. Node must be within `accuracyM+30` m of GPS (default 35 m → 65 m). `offPathWarning: true` when move >25 m. |
 | POST | `/api/route/cancel` | `{ token }` | `{ success: true }` | |
-| POST | `/api/route/complete` | `{ trackPoints? }` | `{ walkId, pointsEarned, streakMultiplier, currentStreak, pointBreakdown, goldenHits?, celebrationTier?, … }` | Optional GPX-like `trackPoints`: `{ lat, lng, ele?, time?, accuracy?, speed?, bearing? }[]` stored on `walk_log.track_json` / `walk_track`. Points ledger: stores breakdown + multiplier on `walk_log` once. First walk of the day uses streak+1 for the multiplier. Clears active route in the same transaction (double-complete → `no_active_route`). |
+| POST | `/api/route/complete` | `{ trackPoints? }` | `{ walkId, pointsEarned, streakMultiplier, currentStreak, pointBreakdown, goldenHits?, celebrationTier?, guideMode?, pointsMultiplier?, … }` | Optional GPX-like `trackPoints`: `{ lat, lng, ele?, time?, accuracy?, speed?, bearing? }[]` stored on `walk_log.track_json` / `walk_track`. Points ledger: stores breakdown + multiplier on `walk_log` once. First walk of the day uses streak+1 for the multiplier. **Guide mode** (`walk_mode='guide'`): points × `0.7` after streak multiplier. Clears active route in the same transaction (double-complete → `no_active_route`). |
 | POST | `/api/route/discard` | — | `{ ok: true }` | |
 | GET | `/api/route/state` | — | active route or empty | |
 | POST | `/api/route/nickname` | `{ nickname }` | `{ ok: true }` | Active route label. |
@@ -55,6 +59,8 @@ Shared contract between the **web app**, **native Android app**, and any future 
 **Errors:** `400 no_home_node` when start omitted and home unset; `429 rate_limited` on generate (20/min/user). `goldenHitIds` are canonical segment ids on the route that are golden today. Home-access connectors (segments incident to `home_node_id`) are walkable and ignored **only for generation scoring / point preview**; once walked they count normally in stats / points / usage (Phase L reverted the 0.41 stats exclusion).
 
 `pointPreview` on generate/adjust/widen responses: `{ base, golden, exploration, diversity, total }` (preview only; balances use the ledger).
+
+**Opening hours:** nodes may have `openFromMinutes` / `openUntilMinutes` (minutes from midnight, local time at check). Generate includes `closedNodeWarnings: number[]` when must-visits or required segments touch closed nodes.
 
 **Default start:** if `startNodeId` omitted, uses the current user's `homeNodeId` (`400 no_home_node` when unset).
 
@@ -141,6 +147,7 @@ Distinct from GPX split proposals (`/api/app/proposals`).
 |--------|------|-------|
 | GET | `/api/nodes` | All nodes. |
 | POST | `/api/nodes/move` | Reposition node + update segments. |
+| POST | `/api/nodes/opening-hours` | `{ nodeId, openFromMinutes?, openUntilMinutes?, clear? }` → `{ ok }` | Owner/admin. Minutes from midnight (local). `clear: true` removes hours. |
 | POST | `/api/nodes/rename` | |
 | POST | `/api/nodes/home` | Sets **current user’s** `homeNodeId` only (`{ ok, homeNodeId }`). Does not change other users or legacy `nodes.is_home`. |
 | POST | `/api/nodes/delete` | Soft delete. |

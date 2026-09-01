@@ -63,6 +63,8 @@ CREATE TABLE IF NOT EXISTS nodes (
   active INTEGER NOT NULL DEFAULT 1,
   deleted_at TEXT,
   updated_at TEXT,
+  open_from_minutes INTEGER,
+  open_until_minutes INTEGER,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
@@ -172,6 +174,8 @@ CREATE TABLE IF NOT EXISTS active_route (
   length_m INTEGER NOT NULL,
   duration_min INTEGER NOT NULL,
   nickname TEXT,
+  walk_mode TEXT NOT NULL DEFAULT 'route',
+  guide_node_ids TEXT,
   accepted_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

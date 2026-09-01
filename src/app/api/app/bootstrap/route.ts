@@ -30,7 +30,7 @@ function buildRouteState(userId: number) {
     display: buildRouteDisplay(f.nodeChain, f.segmentIds, f.lengthM, f.durationMin, nodesById, segmentsById),
   }));
 
-  return { activeRoute, nickname: active?.nickname ?? null, favorites };
+  return { activeRoute, nickname: active?.nickname ?? null, favorites, walkMode: active?.walkMode ?? "route" };
 }
 
 /** Single launch payload: user profile, network data, and route state. */

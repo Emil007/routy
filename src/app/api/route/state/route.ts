@@ -28,5 +28,5 @@ export async function GET() {
     display: buildRouteDisplay(f.nodeChain, f.segmentIds, f.lengthM, f.durationMin, nodesById, segmentsById),
   }));
 
-  return NextResponse.json({ activeRoute, nickname: active?.nickname ?? null, favorites });
+  return NextResponse.json({ activeRoute, nickname: active?.nickname ?? null, favorites, walkMode: active?.walkMode ?? "route" });
 }

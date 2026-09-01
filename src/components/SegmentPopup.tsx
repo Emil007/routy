@@ -12,6 +12,10 @@ function isLocked(segment: Pick<SegmentRow, "lockedUntil">): boolean {
 
 const RESTRICT_REASONS = ["muddy", "flooded", "construction", "dog", "icy", "overgrown"] as const;
 
+/**
+ * Unified restrict vocabulary (0.46 F5): align map popups with route planning —
+ * personal scope = "Excluded", global for non-owner = lock proposal, owner/admin = global lock.
+ */
 /** Leaflet popup for a segment — unified restrict dialog + owner edit actions. */
 export function SegmentPopup({
   locale,

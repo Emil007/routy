@@ -251,12 +251,13 @@ export function OverviewMapClient({
     () =>
       segments.map((s) => {
         const golden = goldenSet.has(s.id);
+        const disconnected = disconnectedSet.has(s.id);
         return {
           id: s.id,
           points: s.geometry.map((p): [number, number] => [p.lat, p.lng]),
-          color: golden ? "#c99a2e" : undefined,
-          weight: golden ? 6 : undefined,
-          dashed: golden || isLocked(s),
+          color: disconnected ? "#c53030" : golden ? "#c99a2e" : undefined,
+          weight: golden || disconnected ? 6 : undefined,
+          dashed: golden || isLocked(s) || disconnected,
           popup: (
             <SegmentPopup
               locale={locale}
@@ -277,7 +278,7 @@ export function OverviewMapClient({
         };
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [segments, locale, currentUser, usage, userNames, nodesById, goldenSet, personalAvoidSet],
+    [segments, locale, currentUser, usage, userNames, nodesById, goldenSet, personalAvoidSet, disconnectedSet],
   );
 
   if (mode === "draw") {

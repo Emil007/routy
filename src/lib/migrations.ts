@@ -64,6 +64,18 @@ function migrateUserSegmentUsage(db: Database.Database): void {
   ).run(soleUser.id);
 }
 
+function migrateOpeningHoursAndWalkMode(db: Database.Database): void {
+  addColumnIfMissing(db, "nodes", "open_from_minutes", "ALTER TABLE nodes ADD COLUMN open_from_minutes INTEGER");
+  addColumnIfMissing(db, "nodes", "open_until_minutes", "ALTER TABLE nodes ADD COLUMN open_until_minutes INTEGER");
+  addColumnIfMissing(
+    db,
+    "active_route",
+    "walk_mode",
+    "ALTER TABLE active_route ADD COLUMN walk_mode TEXT NOT NULL DEFAULT 'route'",
+  );
+  addColumnIfMissing(db, "active_route", "guide_node_ids", "ALTER TABLE active_route ADD COLUMN guide_node_ids TEXT");
+}
+
 export const MIGRATIONS: Migration[] = [
   { id: 1, name: "legacy_schema_hardening", up: noop },
   { id: 2, name: "per_user_home", up: noop },
@@ -72,6 +84,7 @@ export const MIGRATIONS: Migration[] = [
   { id: 5, name: "track_geometry_dismissals", up: noop },
   { id: 6, name: "one_way_and_dismissal_resolution", up: noop },
   { id: 7, name: "user_segment_usage", up: migrateUserSegmentUsage },
+  { id: 8, name: "opening_hours_and_walk_mode", up: migrateOpeningHoursAndWalkMode },
 ];
 
 export function runAllMigrations(db: Database.Database): void {

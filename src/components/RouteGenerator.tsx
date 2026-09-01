@@ -26,6 +26,9 @@ interface GenerateResponse {
   lengthRelaxed?: boolean;
   lengthKm?: number;
   usingNetworkFallback?: boolean;
+  closedNodeWarnings?: number[];
+  guideMode?: boolean;
+  pointsMultiplier?: number;
 }
 
 interface FavoriteEntry {
@@ -36,6 +39,11 @@ interface FavoriteEntry {
 }
 
 type LengthPreset = "short" | "normal" | "long" | "surprise";
+
+/**
+ * Unified restrict vocabulary (0.46 F5): segment constraints here use the same
+ * labels as map SegmentPopup — Required / Excluded / Clear.
+ */
 
 const PRESET_LABEL_KEYS: Record<LengthPreset, string> = {
   short: "route.presetShortBtn",
@@ -117,6 +125,8 @@ export function RouteGenerator({
   const [goldenSegmentIds, setGoldenSegmentIds] = useState<number[]>([]);
   const [completionData, setCompletionData] = useState<RouteCompletionData | null>(null);
   const [usingNetworkFallback, setUsingNetworkFallback] = useState<boolean | null>(initialUsingNetworkFallback);
+  const [repositionCandidates, setRepositionCandidates] = useState<number[] | null>(null);
+  const [gpsAccuracyM, setGpsAccuracyM] = useState<number>(35);
   const announcedStationIndexRef = useRef(0);
   const waitingToLeaveIndexRef = useRef<number | null>(null);
   const followEnabled = watchId !== null;
@@ -426,6 +436,9 @@ export function RouteGenerator({
           false,
         );
       }
+      if (data.closedNodeWarnings && data.closedNodeWarnings.length > 0) {
+        flashMessage(t(locale, "route.closedNodesWarning"), false);
+      }
     } else {
       setResult(null);
       setUsingNetworkFallback(null);
@@ -484,6 +497,96 @@ export function RouteGenerator({
       setStatus("idle");
       flashMessage(t(locale, "route.noAlternative"), true);
     }
+  }
+
+  async function handleAcceptGuide(token: string) {
+    setStatus("loading");
+    const res = await callApi("/api/route/guide/accept", { token });
+    if (res.ok) {
+      setMode("active");
+      setStatus("idle");
+      clearMessage();
+      setNickname("");
+      announcedStationIndexRef.current = 0;
+      waitingToLeaveIndexRef.current = null;
+    } else {
+      setStatus("idle");
+      flashMessage(t(locale, "route.sessionExpired"), true);
+    }
+  }
+
+  async function handleStartGuide() {
+    const ordered = mustVisitNodeIds.length > 0 ? mustVisitNodeIds : startNodeId ? [Number(startNodeId)] : [];
+    if (ordered.length === 0) {
+      flashMessage(t(locale, "route.mapTapHint"), true);
+      return;
+    }
+    setStatus("loading");
+    const res = await callApi("/api/route/guide/start", { orderedNodeIds: ordered, loopBack: isLoop });
+    if (res.ok) {
+      const data = (await res.json()) as GenerateResponse;
+      setResult(data);
+      setStatus("idle");
+      clearMessage();
+      await handleAcceptGuide(data.token);
+    } else {
+      setStatus("idle");
+      flashMessage(await readApiError(res), true);
+    }
+  }
+
+  async function repositionNode(nodeId: number, lat: number, lng: number, accuracyM: number) {
+    setStatus("loading");
+    const res = await callApi("/api/route/reposition-node", { nodeId, lat, lng, accuracyM });
+    setRepositionCandidates(null);
+    if (res.ok) {
+      const data = (await res.json()) as { ok: boolean; offPathWarning?: boolean };
+      setStatus("idle");
+      flashMessage(
+        data.offPathWarning ? t(locale, "route.repositionOffPath") : t(locale, "route.repositionSuccess"),
+        !!data.offPathWarning,
+      );
+      router.refresh();
+    } else {
+      setStatus("idle");
+      flashMessage(t(locale, "common.error"), true);
+    }
+  }
+
+  function handleRepositionClick() {
+    if (!myLocation) {
+      if (!navigator.geolocation) {
+        flashMessage(t(locale, "record.locationError"), true);
+        return;
+      }
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          setMyLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          setGpsAccuracyM(pos.coords.accuracy || 35);
+          pickRepositionTarget({ lat: pos.coords.latitude, lng: pos.coords.longitude }, pos.coords.accuracy || 35);
+        },
+        () => flashMessage(t(locale, "record.locationError"), true),
+        { enableHighAccuracy: true },
+      );
+      return;
+    }
+    pickRepositionTarget(myLocation, gpsAccuracyM);
+  }
+
+  function pickRepositionTarget(loc: { lat: number; lng: number }, accuracyM: number) {
+    const maxDist = accuracyM + 30;
+    const nearby = nodes
+      .filter((n) => haversineMeters(n, loc) <= maxDist)
+      .sort((a, b) => haversineMeters(a, loc) - haversineMeters(b, loc));
+    if (nearby.length === 0) {
+      flashMessage(t(locale, "common.error"), true);
+      return;
+    }
+    if (nearby.length === 1) {
+      void repositionNode(nearby[0]!.id, loc.lat, loc.lng, accuracyM);
+      return;
+    }
+    setRepositionCandidates(nearby.map((n) => n.id));
   }
 
   async function handleAccept() {
@@ -713,6 +816,9 @@ export function RouteGenerator({
               {t(locale, "route.voiceCheck")}
             </label>
           </div>
+          <button type="button" className="btn-secondary btn-compact" onClick={handleRepositionClick} disabled={status === "loading"} title={t(locale, "route.repositionNodeHint")}>
+            {t(locale, "route.repositionNode")}
+          </button>
           <button type="button" className="btn-primary btn-compact" onClick={handleComplete} disabled={status === "loading"}>
             {t(locale, "route.completeButton")}
           </button>
@@ -877,6 +983,13 @@ export function RouteGenerator({
                   {t(locale, "route.presetSurprise")}
                 </button>
               </div>
+              <div className="stack" style={{ marginTop: "0.5rem", gap: "0.35rem" }}>
+                <strong style={{ fontSize: "0.85rem" }}>{t(locale, "route.nodeGuideTitle")}</strong>
+                <p className="hint-compact" style={{ margin: 0 }}>{t(locale, "route.nodeGuideHint")}</p>
+                <button type="button" className="btn-secondary btn-compact" disabled={status === "loading"} onClick={handleStartGuide}>
+                  {t(locale, "route.nodeGuideStart")}
+                </button>
+              </div>
             </details>
 
             <div className="route-action-bar">
@@ -979,6 +1092,27 @@ export function RouteGenerator({
 
       {completionData && (
         <RouteCompletionDialog locale={locale} data={completionData} onClose={() => setCompletionData(null)} />
+      )}
+
+      {repositionCandidates && myLocation && (
+        <div className="card" style={{ position: "fixed", bottom: "4.5rem", left: "50%", transform: "translateX(-50%)", zIndex: 1000, maxWidth: "90vw" }}>
+          <p className="hint-compact">{t(locale, "route.repositionPickNode")}</p>
+          <div className="btn-row">
+            {repositionCandidates.map((id) => (
+              <button
+                key={id}
+                type="button"
+                className="btn-secondary btn-compact"
+                onClick={() => void repositionNode(id, myLocation.lat, myLocation.lng, gpsAccuracyM)}
+              >
+                {nodeLabel(id)}
+              </button>
+            ))}
+            <button type="button" className="btn-secondary btn-compact" onClick={() => setRepositionCandidates(null)}>
+              {t(locale, "common.cancel")}
+            </button>
+          </div>
+        </div>
       )}
     </div>
   );
