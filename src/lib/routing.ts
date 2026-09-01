@@ -47,6 +47,10 @@ export interface RouteResult {
   segmentIds: number[];
   lengthM: number;
   durationMin: number;
+  /** Phase-1 core tour length before length extension (0.46). */
+  coreLengthM?: number;
+  /** Added spur/detour length beyond core (0.46). */
+  extensionLengthM?: number;
 }
 
 interface SearchParams {
@@ -300,17 +304,31 @@ function closestFeasible(
   mode: RouteMode,
   minValue: number,
   maxValue: number,
+  preferShortest = false,
 ): RouteResult[] {
   const target = (minValue + maxValue) / 2;
   const sorted = [...feasible].sort((a, b) => {
     const aVal = mode === "km" ? a.lengthM : a.durationMin;
     const bVal = mode === "km" ? b.lengthM : b.durationMin;
+    if (preferShortest && aVal !== bVal) return aVal - bVal;
     const aDelta = Math.abs(aVal - target);
     const bDelta = Math.abs(bVal - target);
     if (aDelta !== bDelta) return aDelta - bDelta;
     return aVal - bVal;
   });
   return sorted.slice(0, Math.min(40, sorted.length));
+}
+
+function filterCleanShape(
+  routes: RouteResult[],
+  pairOf: Map<number, number>,
+  geometryOf: Map<number, LatLng[]> | undefined,
+): RouteResult[] {
+  return routes.filter((r) => {
+    if (backtrackScore(r.segmentIds, pairOf) > 0) return false;
+    if (geometryOf && crossingScore(r.segmentIds, geometryOf) > 0) return false;
+    return true;
+  });
 }
 
 /**
@@ -339,6 +357,8 @@ export function searchRoutesWithConstraints(opts: {
   maxResults?: number;
   /** Keep tap order for must-visits (default: optimize via graph TSP). */
   preserveMustVisitOrder?: boolean;
+  /** When set, hard-filter backtrack/crossing for constrained tours. */
+  geometryOf?: Map<number, LatLng[]>;
 }): { routes: RouteResult[]; lengthRelaxed: boolean; mustVisitOrder: number[] } {
   const {
     graph,
@@ -361,6 +381,7 @@ export function searchRoutesWithConstraints(opts: {
     preserveOrder: opts.preserveMustVisitOrder === true,
   });
   const required = opts.requiredSegmentIds ?? [];
+  const constrainedTour = required.length > 0 || mustVisit.length > 0;
 
   const inBand = (r: RouteResult): boolean => {
     const v = mode === "km" ? r.lengthM : r.durationMin;
@@ -380,15 +401,20 @@ export function searchRoutesWithConstraints(opts: {
     minValue,
     maxValue,
     maxResults,
+    preserveMustVisitOrder: opts.preserveMustVisitOrder,
   });
-  const feasiblePool = filterRequiredSegments(pool, required, pairOf);
+  let feasiblePool = filterRequiredSegments(pool, required, pairOf);
+  if (constrainedTour) {
+    const clean = filterCleanShape(feasiblePool, pairOf, opts.geometryOf);
+    if (clean.length > 0) feasiblePool = clean;
+  }
   const bandPool = feasiblePool.filter(inBand);
   if (bandPool.length > 0) {
     return { routes: bandPool.slice(0, maxResults), lengthRelaxed: false, mustVisitOrder: mustVisit };
   }
   if (feasiblePool.length > 0) {
     return {
-      routes: closestFeasible(feasiblePool, mode, minValue, maxValue),
+      routes: closestFeasible(feasiblePool, mode, minValue, maxValue, constrainedTour),
       lengthRelaxed: true,
       mustVisitOrder: mustVisit,
     };
@@ -599,6 +625,8 @@ export function pickBest(
   excludeKeys: Set<string>,
   explorerMode = false,
   surpriseMode = false,
+  /** When true (required segments / must-visits), prefer shorter clean core over home-connector bias. */
+  constrainedTour = false,
 ): ScoredRoute | null {
   let best: ScoredRoute | null = null;
   for (const s of scored) {
@@ -634,18 +662,36 @@ export function pickBest(
       best = s;
       continue;
     }
+    const shapeBetter = sShape < bestShape;
+    const shapeEqual = sShape === bestShape;
+    const deltaBetter = constrainedTour && shapeEqual && s.delta < best.delta;
+    const deltaEqual = s.delta === best.delta;
+    const homeBetter = shapeEqual && (constrainedTour ? deltaEqual : true) && sHome < bestHome;
     if (
-      sShape < bestShape ||
-      (sShape === bestShape &&
-        (sHome < bestHome ||
-          (sHome === bestHome &&
-            (s.avoidPenalty < best.avoidPenalty ||
-              (s.avoidPenalty === best.avoidPenalty &&
-                (s.conditionPenalty < best.conditionPenalty ||
-                  (s.conditionPenalty === best.conditionPenalty &&
-                    (s.weightedUsage < best.weightedUsage ||
-                      (s.weightedUsage === best.weightedUsage &&
-                        (s.overlap < best.overlap || (s.overlap === best.overlap && s.delta < best.delta)))))))))))
+      shapeBetter ||
+      deltaBetter ||
+      (shapeEqual &&
+        (constrainedTour
+          ? s.delta < best.delta ||
+            (deltaEqual &&
+              (sHome < bestHome ||
+                (sHome === bestHome &&
+                  (s.avoidPenalty < best.avoidPenalty ||
+                    (s.avoidPenalty === best.avoidPenalty &&
+                      (s.conditionPenalty < best.conditionPenalty ||
+                        (s.conditionPenalty === best.conditionPenalty &&
+                          (s.weightedUsage < best.weightedUsage ||
+                            (s.weightedUsage === best.weightedUsage &&
+                              (s.overlap < best.overlap || (s.overlap === best.overlap && s.delta < best.delta)))))))))))
+          : homeBetter ||
+            (sHome === bestHome &&
+              (s.avoidPenalty < best.avoidPenalty ||
+                (s.avoidPenalty === best.avoidPenalty &&
+                  (s.conditionPenalty < best.conditionPenalty ||
+                    (s.conditionPenalty === best.conditionPenalty &&
+                      (s.weightedUsage < best.weightedUsage ||
+                        (s.weightedUsage === best.weightedUsage &&
+                          (s.overlap < best.overlap || (s.overlap === best.overlap && s.delta < best.delta)))))))))))
     ) {
       best = s;
     }

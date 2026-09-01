@@ -146,7 +146,9 @@ export async function POST(request: Request) {
     minValue,
     maxValue,
     preserveMustVisitOrder,
+    geometryOf,
   });
+  const constrainedTour = requiredSegmentIds.length > 0 || mustVisitNodeIds.length > 0;
 
   function score(cands: RouteResult[]) {
     return scoreRoutes(
@@ -205,6 +207,7 @@ export async function POST(request: Request) {
       minValue: 0,
       maxValue: Number.POSITIVE_INFINITY,
       preserveMustVisitOrder,
+      geometryOf,
     });
     if (open.routes.length > 0) {
       candidates = open.routes;
@@ -225,7 +228,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "no_route" }, { status: 404 });
   }
 
-  const best = pickBest(scoredPool, new Set(), explorerMode, surpriseMode);
+  const best = pickBest(scoredPool, new Set(), explorerMode, surpriseMode, constrainedTour);
   if (!best) {
     return NextResponse.json({ error: forceGolden ? "no_golden_route" : "no_route" }, { status: 404 });
   }

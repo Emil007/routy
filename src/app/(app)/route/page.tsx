@@ -8,6 +8,7 @@ import { listSegments, isCanonicalSegment } from "@/lib/segments";
 import { loadGraphContext } from "@/lib/routeContext";
 import { buildRouteDisplay } from "@/lib/routeDisplay";
 import { lengthBandForUser } from "@/lib/lengthTaste";
+import { disconnectedCanonicalSegmentIds } from "@/lib/graphReachability";
 import { RouteGenerator } from "@/components/RouteGenerator";
 
 export default async function RoutePage() {
@@ -16,7 +17,7 @@ export default async function RoutePage() {
   const nodes = listNodes();
   const home = getUserHomeNode(user.id);
 
-  const { segmentsById, nodesById } = loadGraphContext();
+  const { graph, segmentsById, nodesById } = loadGraphContext();
 
   const active = getActiveRoute(user.id);
   const activeDisplay = active
@@ -44,6 +45,15 @@ export default async function RoutePage() {
   ) as Record<number, string | null>;
 
   const lengthBand = lengthBandForUser(user.id, "normal");
+  const segmentEndpoints = new Map(
+    [...segmentsById.values()].map((s) => [s.id, { startNodeId: s.startNodeId, endNodeId: s.endNodeId }]),
+  );
+  const disconnectedSegmentIds = disconnectedCanonicalSegmentIds(
+    graph,
+    home?.id ?? null,
+    canonicalSegmentIds,
+    segmentEndpoints,
+  );
 
   return (
     <>
@@ -66,6 +76,7 @@ export default async function RoutePage() {
           canonicalSegmentIds={canonicalSegmentIds}
           segmentNames={segmentNames}
           initialUsingNetworkFallback={lengthBand.usingNetworkFallback}
+          disconnectedSegmentIds={disconnectedSegmentIds}
         />
       )}
     </>

@@ -11,8 +11,9 @@ import {
   voiceAnnounceRadiusM,
 } from "@/lib/voiceAnnounce";
 import { MapViewLazy } from "./MapViewLazy";
+import { useMapPreferences } from "@/lib/useMapPreferences";
 import { RouteCompletionDialog, type RouteCompletionData } from "./RouteCompletionDialog";
-import { TILE_LAYERS, type BaseLayerId, type MapLine, type MapMarker } from "./MapView";
+import { type MapLine, type MapMarker } from "./MapView";
 import type { NodeRow } from "@/lib/nodes";
 import type { RouteDisplay } from "@/lib/routeDisplay";
 
@@ -37,9 +38,9 @@ interface FavoriteEntry {
 type LengthPreset = "short" | "normal" | "long" | "surprise";
 
 const PRESET_LABEL_KEYS: Record<LengthPreset, string> = {
-  short: "route.presetShort",
-  normal: "route.presetNormal",
-  long: "route.presetLong",
+  short: "route.presetShortBtn",
+  normal: "route.presetNormalBtn",
+  long: "route.presetLongBtn",
   surprise: "route.presetSurprise",
 };
 
@@ -61,6 +62,7 @@ export function RouteGenerator({
   canonicalSegmentIds,
   segmentNames,
   initialUsingNetworkFallback,
+  disconnectedSegmentIds = [],
 }: {
   locale: Locale;
   nodes: NodeRow[];
@@ -72,6 +74,7 @@ export function RouteGenerator({
   canonicalSegmentIds: number[];
   segmentNames: Record<number, string | null>;
   initialUsingNetworkFallback: boolean;
+  disconnectedSegmentIds?: number[];
 }) {
   const router = useRouter();
   const nodesById = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
@@ -81,8 +84,9 @@ export function RouteGenerator({
     [initialFavorites, deletedFavoriteIds],
   );
   const [favoritesOpen, setFavoritesOpen] = useState(false);
-  const [baseLayerId, setBaseLayerId] = useState<BaseLayerId>("streets");
-  const [showTrails, setShowTrails] = useState(false);
+  const mapPrefs = useMapPreferences();
+  const disconnectedSet = useMemo(() => new Set(disconnectedSegmentIds), [disconnectedSegmentIds]);
+  const [lengthPreset, setLengthPreset] = useState<LengthPreset>("short");
 
   const [startNodeId, setStartNodeId] = useState<number | "">(homeNodeId ?? "");
   const [isLoop, setIsLoop] = useState(true);
@@ -198,20 +202,19 @@ export function RouteGenerator({
     const hitIds = new Set(
       result.goldenHitIds ?? result.route.segmentIds.filter((id) => goldenSet.has(id)),
     );
-    for (const segmentId of goldenSegmentIds) {
+    for (const segmentId of hitIds) {
       const points = segmentGeometries[segmentId];
       if (!points?.length) continue;
-      const onRoute = hitIds.has(segmentId);
       lines.push({
         id: `golden-${segmentId}`,
         points,
         color: "#c99a2e",
         dashed: true,
-        weight: onRoute ? 7 : 5,
+        weight: 7,
       });
     }
     return lines;
-  }, [result, goldenSet, goldenSegmentIds, segmentGeometries]);
+  }, [result, goldenSet, segmentGeometries]);
 
   const networkMapLines = useMemo((): MapLine[] => {
     if (mode !== "suggesting" || result) return [];
@@ -222,16 +225,17 @@ export function RouteGenerator({
       const isRequired = requiredSet.has(segmentId);
       const isExcluded = excludedSet.has(segmentId);
       const isGolden = goldenSet.has(segmentId);
+      const isDisconnected = disconnectedSet.has(segmentId);
       lines.push({
         id: segmentId,
         points,
-        color: isExcluded ? "#c53030" : isRequired ? "#2b6cb0" : isGolden ? "#c99a2e" : "#6b9080",
-        weight: isRequired || isGolden ? 6 : 4,
-        dashed: isExcluded || isGolden,
+        color: isDisconnected ? "#c53030" : isExcluded ? "#c53030" : isRequired ? "#2b6cb0" : isGolden ? "#c99a2e" : "#6b9080",
+        weight: isRequired || isGolden || isDisconnected ? 6 : 4,
+        dashed: isExcluded || isGolden || isDisconnected,
       });
     }
     return lines;
-  }, [mode, result, canonicalSegmentIds, segmentGeometries, requiredSet, excludedSet, goldenSet]);
+  }, [mode, result, canonicalSegmentIds, segmentGeometries, requiredSet, excludedSet, goldenSet, disconnectedSet]);
 
   const planningMarkers = useMemo((): MapMarker[] => {
     if (mode !== "suggesting" || result) return [];
@@ -427,6 +431,21 @@ export function RouteGenerator({
       setUsingNetworkFallback(null);
       setStatus("error");
       flashMessage(await readApiError(res), true);
+    }
+  }
+
+  async function handleReverse() {
+    if (!result?.token) return;
+    setStatus("loading");
+    const res = await callApi("/api/route/reverse", { token: result.token });
+    if (res.ok) {
+      const data = (await res.json()) as GenerateResponse;
+      setResult(data);
+      setStatus("idle");
+      clearMessage();
+    } else {
+      setStatus("idle");
+      flashMessage(t(locale, "route.reverseFailed"), true);
     }
   }
 
@@ -659,12 +678,17 @@ export function RouteGenerator({
           <button type="button" className="btn-secondary btn-compact" onClick={() => handleAdjust("shorter")} disabled={status === "loading"}>
             {t(locale, "route.shorter")}
           </button>
+          <button type="button" className="btn-secondary btn-compact" onClick={handleAnother} disabled={status === "loading"}>
+            {t(locale, "route.again")}
+          </button>
           <button type="button" className="btn-secondary btn-compact" onClick={() => handleAdjust("longer")} disabled={status === "loading"}>
             {t(locale, "route.longer")}
           </button>
-          <button type="button" className="btn-secondary btn-compact" onClick={handleAnother} disabled={status === "loading"}>
-            {t(locale, "route.newRoute")}
-          </button>
+          {result.token ? (
+            <button type="button" className="btn-secondary btn-compact" onClick={handleReverse} disabled={status === "loading"}>
+              {t(locale, "route.reverse")}
+            </button>
+          ) : null}
           <button type="button" className="btn-primary btn-compact" onClick={handleAccept} disabled={status === "loading"}>
             {t(locale, "route.accept")}
           </button>
@@ -720,8 +744,8 @@ export function RouteGenerator({
           onMarkerClick={mode === "suggesting" && !result ? handleMarkerClick : undefined}
           onLineClick={mode === "suggesting" && !result ? handleLineClick : undefined}
           height={360}
-          baseLayerId={baseLayerId}
-          showTrails={showTrails}
+          baseLayerId={mapPrefs.baseLayerId}
+          showTrails={mapPrefs.showTrails}
         />
         {result && routeChips && (
           <div className="route-action-bar" style={{ marginTop: "0.45rem" }}>
@@ -750,7 +774,7 @@ export function RouteGenerator({
               <span className="chip">
                 {t(locale, "route.goldenOnRoute")}: {result!.goldenHits ?? result!.goldenHitIds!.length}
               </span>
-            ) : goldenSegmentIds.length > 0 ? (
+            ) : !result && goldenSegmentIds.length > 0 ? (
               <span className="chip">{t(locale, "route.goldenToday")}: {goldenSegmentIds.length}</span>
             ) : null}
           </div>
@@ -843,28 +867,15 @@ export function RouteGenerator({
                   <input type="checkbox" checked={forceGolden} onChange={(e) => setForceGolden(e.target.checked)} />
                   {t(locale, "route.forceGolden")}
                 </label>
-              </div>
-              <div className="btn-row" style={{ marginTop: "0.45rem", alignItems: "center" }}>
-                <label className="field" style={{ margin: 0 }}>
-                  <span className="hint" style={{ display: "block", marginBottom: "0.15rem" }}>
-                    {t(locale, "map.layerBaseLabel")}
-                  </span>
-                  <select
-                    value={baseLayerId}
-                    onChange={(e) => setBaseLayerId(e.target.value as BaseLayerId)}
-                    aria-label={t(locale, "map.layerBaseLabel")}
-                  >
-                    {TILE_LAYERS.map((layer) => (
-                      <option key={layer.id} value={layer.id}>
-                        {t(locale, `map.layer.${layer.id}`)}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="checkbox">
-                  <input type="checkbox" checked={showTrails} onChange={(e) => setShowTrails(e.target.checked)} />
-                  {t(locale, "map.layer.hikingTrails")}
-                </label>
+                <button
+                  type="button"
+                  className="btn-secondary btn-compact"
+                  disabled={status === "loading" || !startNodeId}
+                  onClick={() => generate("surprise")}
+                  title={t(locale, PRESET_HINT_KEYS.surprise)}
+                >
+                  {t(locale, "route.presetSurprise")}
+                </button>
               </div>
             </details>
 
@@ -890,18 +901,28 @@ export function RouteGenerator({
                   ? `${t(locale, "route.favoritesTitle")} (${favorites.length})`
                   : t(locale, "route.favoritesTitle")}
               </button>
-              {(["short", "normal", "long", "surprise"] as const).map((preset) => (
+              {(["short", "normal", "long"] as const).map((preset) => (
                 <button
                   key={preset}
                   type="button"
-                  className={preset === "short" ? "btn-primary btn-compact" : "btn-secondary btn-compact"}
-                  disabled={status === "loading" || !startNodeId}
-                  onClick={() => generate(preset)}
+                  className={preset === lengthPreset ? "btn-primary btn-compact" : "btn-secondary btn-compact"}
+                  disabled={status === "loading"}
+                  onClick={() => setLengthPreset(preset)}
                   title={t(locale, PRESET_HINT_KEYS[preset])}
                 >
-                  {status === "loading" ? t(locale, "route.generating") : t(locale, PRESET_LABEL_KEYS[preset])}
+                  {t(locale, PRESET_LABEL_KEYS[preset])}
                 </button>
               ))}
+              <button
+                type="button"
+                className="btn-primary btn-compact route-generate-arrow"
+                disabled={status === "loading" || !startNodeId}
+                onClick={() => generate(lengthPreset)}
+                title={t(locale, "route.generateHint")}
+                aria-label={t(locale, "route.generateHint")}
+              >
+                {status === "loading" ? "…" : "↑"}
+              </button>
             </div>
             {favoritesOpen && (
               <div className="card route-panel-compact" style={{ marginTop: "0.35rem" }}>
