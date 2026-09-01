@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { type LatLng, reversePoints, pathLengthMeters, estimateMinutes, elevationStats, closestPointOnPath, haversineMeters } from "./geo";
+import { type LatLng, reversePoints, pathLengthMeters, estimateMinutes, elevationStats, closestPointOnPath, haversineMeters, REPOSITION_OFF_PATH_THRESHOLD_M } from "./geo";
 import type { ElevationStats } from "./geo";
 import { createNode, getNode, updateNodePosition, type NodeRow, type NodeNameParts } from "./nodes";
 
@@ -537,7 +537,7 @@ export function applyGpsHopDurationIfMissing(segmentId: number, durationMin: num
   db.prepare("UPDATE segments SET duration_min = ?, duration_from_gps = 1 WHERE id = ?").run(rounded, reverse.id);
 }
 
-export const REPOSITION_OFF_PATH_THRESHOLD_M = 25;
+export { REPOSITION_OFF_PATH_THRESHOLD_M } from "./geo";
 
 /**
  * Moves a node and drags along the touching end of every segment connected to

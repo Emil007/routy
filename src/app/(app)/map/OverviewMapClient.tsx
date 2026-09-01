@@ -14,9 +14,8 @@ import { SegmentGeometryEditor } from "@/components/SegmentGeometryEditor";
 import type { MapMarker, MapLine, MapViewState } from "@/components/MapView";
 import type { NodeRow } from "@/lib/nodes";
 import type { SegmentRow } from "@/lib/segments";
-import { REPOSITION_OFF_PATH_THRESHOLD_M } from "@/lib/segments";
 import { canEdit } from "@/lib/ownership";
-import { haversineMeters } from "@/lib/geo";
+import { haversineMeters, REPOSITION_OFF_PATH_THRESHOLD_M } from "@/lib/geo";
 
 type Mode = "view" | "draw" | "gpx" | "record" | "editShape";
 
