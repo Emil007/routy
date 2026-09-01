@@ -57,6 +57,26 @@ describe("dijkstra", () => {
 });
 
 describe("generateRoutePool", () => {
+  it("closes a loop back to start when only required segments are set", () => {
+    const pool = generateRoutePool({
+      graph,
+      pairOf,
+      start: 1,
+      destination: 1,
+      mustVisitNodeIds: [],
+      requiredSegmentIds: [2],
+      excludedSegmentIds: new Set(),
+      mode: "km",
+      minValue: 0,
+      maxValue: 10000,
+    });
+    expect(pool.length).toBeGreaterThan(0);
+    const r = pool[0]!;
+    expect(r.nodeChain[0]).toBe(1);
+    expect(r.nodeChain[r.nodeChain.length - 1]).toBe(1);
+    expect(r.segmentIds.includes(2) || r.segmentIds.includes(6)).toBe(true);
+  });
+
   it("builds genuine (non-retracing) loops for a start === destination request", () => {
     const pool = generateRoutePool({
       graph,

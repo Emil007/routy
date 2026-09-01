@@ -188,7 +188,17 @@ function buildCoreTourRoute(
       : [...plan, { kind: "node" as const, node: destination }];
   const core = buildTourFromPlan(graph, pairOf, edgeById, start, withDest, mode, excluded);
   if (!core) return null;
-  const extended = extendCoreTour(core, graph, pairOf, start, destination, mode, excluded, minValue, maxValue);
+  // Plan ordering includes leg cost back to destination, but buildTourFromPlan only
+  // executes the plan — for loops (start === destination) withDest skips a final
+  // home node, so stitch the return leg when the tour ends elsewhere.
+  let stitched = core;
+  const lastNode = core.nodeChain[core.nodeChain.length - 1]!;
+  if (lastNode !== destination) {
+    const returnLeg = dijkstra(graph, lastNode, destination, mode, excluded);
+    if (!returnLeg || returnLeg.segmentIds.length === 0) return null;
+    stitched = concat([core, returnLeg]);
+  }
+  const extended = extendCoreTour(stitched, graph, pairOf, start, destination, mode, excluded, minValue, maxValue);
   return {
     ...extended.route,
     coreLengthM: extended.coreLengthM,
