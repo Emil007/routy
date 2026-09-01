@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { TILE_LAYERS, type BaseLayerId } from "./MapView";
 import { t, type Locale } from "@/lib/i18n";
 
@@ -29,8 +29,7 @@ function readStored(): MapPreferences {
 }
 
 export function MapPreferencesForm({ locale }: { locale: Locale }) {
-  const [prefs, setPrefsState] = useState<MapPreferences>(DEFAULTS);
-  useEffect(() => setPrefsState(readStored()), []);
+  const [prefs, setPrefsState] = useState<MapPreferences>(() => readStored());
 
   const setPrefs = (next: MapPreferences) => {
     setPrefsState(next);

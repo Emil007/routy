@@ -29,9 +29,8 @@ function readStored(): MapPreferences {
 
 /** Read global map layer prefs (Settings → localStorage). */
 export function useMapPreferences(): MapPreferences {
-  const [prefs, setPrefs] = useState<MapPreferences>(DEFAULTS);
+  const [prefs, setPrefs] = useState<MapPreferences>(() => readStored());
   useEffect(() => {
-    setPrefs(readStored());
     const onStorage = (e: StorageEvent) => {
       if (e.key === STORAGE_KEY) setPrefs(readStored());
     };
