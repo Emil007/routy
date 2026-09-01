@@ -3,7 +3,7 @@ import { getCurrentUser } from "@/lib/session";
 import { getActiveRoute } from "@/lib/activeRoute";
 import { listFavorites } from "@/lib/favorites";
 import { loadGraphContext } from "@/lib/routeContext";
-import { buildRouteDisplay } from "@/lib/routeDisplay";
+import { buildActiveRouteDisplay, buildRouteDisplay } from "@/lib/routeDisplay";
 
 /**
  * The web client gets this data server-side in the /route page's RSC (see
@@ -17,9 +17,7 @@ export async function GET() {
   const { nodesById, segmentsById } = loadGraphContext();
 
   const active = getActiveRoute(user.id);
-  const activeRoute = active
-    ? buildRouteDisplay(active.nodeChain, active.segmentIds, active.lengthM, active.durationMin, nodesById, segmentsById)
-    : null;
+  const activeRoute = active ? buildActiveRouteDisplay(active, nodesById, segmentsById) : null;
 
   const favorites = listFavorites(user.id).map((f) => ({
     id: f.id,

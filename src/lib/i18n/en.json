@@ -207,7 +207,9 @@
     "repositionNodeHint": "Move a nearby node to your GPS position while walking.",
     "repositionPickNode": "Choose node to reposition",
     "repositionOffPath": "Node moved far from the path — check the map.",
-    "repositionSuccess": "Node repositioned."
+    "repositionSuccess": "Node repositioned.",
+    "repositionAdminConfirm": "Move this node more than 25 m from its current position?",
+    "unreachableGuideLeg": "Cannot reach the next guide stop on the network."
   },
   "share": {
     "subtitle": "Read-only, shared route.",

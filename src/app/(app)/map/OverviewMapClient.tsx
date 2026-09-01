@@ -14,7 +14,9 @@ import { SegmentGeometryEditor } from "@/components/SegmentGeometryEditor";
 import type { MapMarker, MapLine, MapViewState } from "@/components/MapView";
 import type { NodeRow } from "@/lib/nodes";
 import type { SegmentRow } from "@/lib/segments";
+import { REPOSITION_OFF_PATH_THRESHOLD_M } from "@/lib/segments";
 import { canEdit } from "@/lib/ownership";
+import { haversineMeters } from "@/lib/geo";
 
 type Mode = "view" | "draw" | "gpx" | "record" | "editShape";
 
@@ -206,6 +208,17 @@ export function OverviewMapClient({
 
   async function handleMarkerDragEnd(id: number | string, lat: number, lng: number) {
     if (typeof id !== "number") return;
+    const node = nodesById.get(id);
+    if (
+      node &&
+      currentUser.role === "admin" &&
+      haversineMeters(node, { lat, lng }) > REPOSITION_OFF_PATH_THRESHOLD_M &&
+      !window.confirm(t(locale, "route.repositionAdminConfirm"))
+    ) {
+      setMoveNodeId(null);
+      router.refresh();
+      return;
+    }
     setMoveStatus("saving");
     const res = await fetch("/api/nodes/move", {
       method: "POST",

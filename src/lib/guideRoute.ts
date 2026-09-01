@@ -27,7 +27,7 @@ export function buildGuideRoute(
   for (const [from, to] of legs) {
     if (from === to) continue;
     const leg = dijkstra(graph, from, to, mode, excluded);
-    if (!leg) continue;
+    if (!leg || leg.segmentIds.length === 0) return null;
     for (let i = 1; i < leg.nodeChain.length; i++) {
       const n = leg.nodeChain[i]!;
       if (chain[chain.length - 1] !== n) chain.push(n);
@@ -35,10 +35,6 @@ export function buildGuideRoute(
     segmentIds.push(...leg.segmentIds);
     lengthM += leg.lengthM;
     durationMin += leg.durationMin;
-  }
-
-  for (const id of orderedNodeIds) {
-    if (!chain.includes(id)) chain.push(id);
   }
 
   return { nodeChain: chain, segmentIds, lengthM, durationMin };
@@ -49,4 +45,10 @@ export function guideNodeChain(orderedNodeIds: number[], loopBack: boolean): num
   if (orderedNodeIds.length === 0) return [];
   if (!loopBack || orderedNodeIds.length === 1) return [...orderedNodeIds];
   return [...orderedNodeIds, orderedNodeIds[0]!];
+}
+
+/** Infer loop-back from stored guide visit ids and routing chain. */
+export function guideLoopBack(guideNodeIds: number[], nodeChain: number[]): boolean {
+  if (guideNodeIds.length <= 1) return false;
+  return nodeChain.length > 0 && nodeChain[0] === nodeChain[nodeChain.length - 1];
 }

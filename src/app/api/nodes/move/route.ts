@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { getNode } from "@/lib/nodes";
-import { moveNode } from "@/lib/segments";
+import { repositionNode } from "@/lib/segments";
 import { getSettings, effectiveWalkSpeedKmh } from "@/lib/settings";
 import { canEdit } from "@/lib/ownership";
 import { logActivity } from "@/lib/activityLog";
@@ -22,11 +22,16 @@ export async function POST(request: Request) {
   if (!canEdit(user, node.createdBy)) return NextResponse.json({ error: "not_owner" }, { status: 403 });
 
   const settings = getSettings();
-  const result = moveNode(
+  const result = repositionNode(
     parsed.data.nodeId,
     { lat: parsed.data.lat, lng: parsed.data.lng },
     effectiveWalkSpeedKmh(user.walkSpeedKmh, settings),
   );
-  logActivity(user.id, "move", "node", node.id, { name: node.name, touchedSegments: result.touchedSegments });
-  return NextResponse.json({ ok: true, touchedSegments: result.touchedSegments });
+  logActivity(user.id, "move", "node", node.id, {
+    name: node.name,
+    touchedSegments: result.touchedSegments,
+    offPathWarning: result.offPathWarning,
+    moveDistM: result.moveDistM,
+  });
+  return NextResponse.json({ ok: true, touchedSegments: result.touchedSegments, offPathWarning: result.offPathWarning, moveDistM: result.moveDistM });
 }

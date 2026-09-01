@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { type BaseLayerId } from "@/components/MapView";
+import { TILE_LAYERS, type BaseLayerId } from "@/components/MapView";
 
 const STORAGE_KEY = "routy.mapPreferences";
 
@@ -17,7 +17,11 @@ function readStored(): MapPreferences {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULTS;
-    return { ...DEFAULTS, ...JSON.parse(raw) };
+    const parsed = JSON.parse(raw) as Partial<MapPreferences>;
+    const baseLayerId = TILE_LAYERS.some((l) => l.id === parsed.baseLayerId)
+      ? (parsed.baseLayerId as BaseLayerId)
+      : DEFAULTS.baseLayerId;
+    return { baseLayerId, showTrails: parsed.showTrails === true };
   } catch {
     return DEFAULTS;
   }

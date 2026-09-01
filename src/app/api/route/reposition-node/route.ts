@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { getActiveRoute } from "@/lib/activeRoute";
 import { getNode } from "@/lib/nodes";
-import { moveNode } from "@/lib/segments";
+import { repositionNode } from "@/lib/segments";
 import { getSettings, effectiveWalkSpeedKmh } from "@/lib/settings";
 import { canEdit } from "@/lib/ownership";
 import { haversineMeters } from "@/lib/geo";
@@ -16,7 +16,6 @@ const bodySchema = z.object({
   accuracyM: z.number().positive().optional(),
 });
 
-const OFF_PATH_THRESHOLD_M = 25;
 const ACCURACY_BUFFER_M = 30;
 const DEFAULT_ACCURACY_M = 35;
 
@@ -43,18 +42,17 @@ export async function POST(request: Request) {
   }
 
   const settings = getSettings();
-  const before = { lat: node.lat, lng: node.lng };
-  moveNode(parsed.data.nodeId, { lat: parsed.data.lat, lng: parsed.data.lng }, effectiveWalkSpeedKmh(user.walkSpeedKmh, settings));
-
-  const updated = getNode(parsed.data.nodeId)!;
-  const moveDist = haversineMeters(before, updated);
-  const offPathWarning = moveDist > OFF_PATH_THRESHOLD_M;
+  const result = repositionNode(
+    parsed.data.nodeId,
+    { lat: parsed.data.lat, lng: parsed.data.lng },
+    effectiveWalkSpeedKmh(user.walkSpeedKmh, settings),
+  );
 
   logActivity(user.id, "reposition", "node", node.id, {
     name: node.name,
-    moveDistM: Math.round(moveDist),
-    offPathWarning,
+    moveDistM: result.moveDistM,
+    offPathWarning: result.offPathWarning,
   });
 
-  return NextResponse.json({ ok: true, offPathWarning });
+  return NextResponse.json({ ok: true, offPathWarning: result.offPathWarning, moveDistM: result.moveDistM });
 }

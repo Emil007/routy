@@ -58,3 +58,33 @@ describe("extendCoreTour trim when over max", () => {
     expect(result.route.lengthM).toBe(400);
   });
 });
+
+describe("extendCoreTour non-loop extension", () => {
+  const edges: SegmentEdge[] = [
+    { id: 1, from: 1, to: 2, lengthM: LEG_M, durationMin: LEG_MIN },
+    { id: 2, from: 2, to: 3, lengthM: LEG_M, durationMin: LEG_MIN },
+    { id: 3, from: 3, to: 2, lengthM: LEG_M, durationMin: LEG_MIN },
+    { id: 4, from: 2, to: 1, lengthM: LEG_M, durationMin: LEG_MIN },
+  ];
+  const reversePairs = [
+    { id: 1, reverseOf: 4 },
+    { id: 4, reverseOf: 1 },
+    { id: 2, reverseOf: 3 },
+    { id: 3, reverseOf: 2 },
+  ];
+  const graph = buildGraph(edges);
+  const pairOf = buildPairMap(reversePairs);
+  const excluded = new Set<number>();
+
+  it("uses spur fallback when tail anchor leg is zero-length", () => {
+    const core = {
+      nodeChain: [1, 2, 3],
+      segmentIds: [1, 2],
+      lengthM: 200,
+      durationMin: 4,
+    };
+    const result = extendCoreTour(core, graph, pairOf, 1, 3, "km", excluded, 350, 500);
+    expect(result.route.lengthM).toBeGreaterThan(core.lengthM);
+    expect(result.route.lengthM).toBeLessThanOrEqual(500);
+  });
+});

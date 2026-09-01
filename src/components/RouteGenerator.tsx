@@ -71,6 +71,7 @@ export function RouteGenerator({
   segmentNames,
   initialUsingNetworkFallback,
   disconnectedSegmentIds = [],
+  isAdmin = false,
 }: {
   locale: Locale;
   nodes: NodeRow[];
@@ -83,6 +84,7 @@ export function RouteGenerator({
   segmentNames: Record<number, string | null>;
   initialUsingNetworkFallback: boolean;
   disconnectedSegmentIds?: number[];
+  isAdmin?: boolean;
 }) {
   const router = useRouter();
   const nodesById = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
@@ -304,6 +306,7 @@ export function RouteGenerator({
     if (data?.error === "no_home_node") return t(locale, "route.noHomeNode");
     if (data?.error === "no_golden_route") return t(locale, "route.noGoldenRoute");
     if (data?.error === "constraints_impossible") return t(locale, "route.constraintsImpossible");
+    if (data?.error === "unreachable_guide_leg") return t(locale, "route.unreachableGuideLeg");
     return t(locale, "route.noRouteFound");
   }
 
@@ -385,7 +388,10 @@ export function RouteGenerator({
     }
     if (typeof navigator === "undefined" || !navigator.geolocation) return;
     const id = navigator.geolocation.watchPosition(
-      (pos) => setMyLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      (pos) => {
+        setMyLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+        setGpsAccuracyM(pos.coords.accuracy || 35);
+      },
       () => setMyLocation(null),
       { enableHighAccuracy: true, maximumAge: 5000 },
     );
@@ -536,6 +542,10 @@ export function RouteGenerator({
   }
 
   async function repositionNode(nodeId: number, lat: number, lng: number, accuracyM: number) {
+    const node = nodesById.get(nodeId);
+    if (node && isAdmin && haversineMeters(node, { lat, lng }) > 25) {
+      if (!window.confirm(t(locale, "route.repositionAdminConfirm"))) return;
+    }
     setStatus("loading");
     const res = await callApi("/api/route/reposition-node", { nodeId, lat, lng, accuracyM });
     setRepositionCandidates(null);

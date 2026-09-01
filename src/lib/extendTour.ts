@@ -130,10 +130,13 @@ export function extendCoreTour(
     if (m === anchor) continue;
     const spur = loopVia(graph, pairOf, anchor, m, mode, excluded);
     if (!spur) continue;
+    const tailAnchor = core.nodeChain[core.nodeChain.length - 1]!;
+    const tailLeg = dijkstra(graph, tailAnchor, anchor, mode, excluded);
+    const connector = tailLeg && tailLeg.segmentIds.length > 0 ? tailLeg : spur;
     const combined =
       start === destination
         ? concat(core, spur)
-        : concat(core, dijkstra(graph, core.nodeChain[core.nodeChain.length - 1]!, anchor, mode, excluded) ?? spur);
+        : concat(core, connector);
     const val = routeValue(combined, mode);
     if (val > maxValue) continue;
     const ext = combined.lengthM - core.lengthM;

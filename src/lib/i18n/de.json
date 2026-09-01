@@ -207,7 +207,9 @@
     "repositionNodeHint": "Einen nahen Knoten auf deine GPS-Position setzen.",
     "repositionPickNode": "Knoten zum Verorten wählen",
     "repositionOffPath": "Knoten weit vom Weg verschoben — Karte prüfen.",
-    "repositionSuccess": "Knoten verortet."
+    "repositionSuccess": "Knoten verortet.",
+    "repositionAdminConfirm": "Diesen Knoten mehr als 25 m von der bisherigen Position verschieben?",
+    "unreachableGuideLeg": "Nächster Guide-Stopp ist im Netz nicht erreichbar."
   },
   "share": {
     "subtitle": "Schreibgeschützte, geteilte Route.",

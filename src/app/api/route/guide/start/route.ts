@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { listNodes } from "@/lib/nodes";
 import { loadGraphContext } from "@/lib/routeContext";
-import { buildGuideRoute, guideNodeChain } from "@/lib/guideRoute";
+import { buildGuideRoute } from "@/lib/guideRoute";
 import { createRouteSession } from "@/lib/routeSessions";
 import { buildRouteDisplay } from "@/lib/routeDisplay";
 import { computeRoutePointPreview, canonicalSegmentId, GUIDE_POINTS_MULTIPLIER } from "@/lib/points";
@@ -32,18 +32,14 @@ export async function POST(request: Request) {
 
   const { graph, nodesById, segmentsById } = loadGraphContext();
   const built = buildGuideRoute(graph, orderedNodeIds, loopBack);
-  const visitChain = guideNodeChain(orderedNodeIds, loopBack);
-  const routeBody = built ?? {
-    nodeChain: visitChain,
-    segmentIds: [] as number[],
-    lengthM: 0,
-    durationMin: 0,
-  };
+  if (!built) {
+    return NextResponse.json({ error: "unreachable_guide_leg" }, { status: 400 });
+  }
 
   const token = createRouteSession({
     userId: user.id,
     mode: "km",
-    targetValue: routeBody.lengthM,
+    targetValue: built.lengthM,
     startNodeId: orderedNodeIds[0]!,
     destinationNodeId: loopBack ? orderedNodeIds[0]! : orderedNodeIds[orderedNodeIds.length - 1]!,
     waypointNodeId: null,
@@ -51,33 +47,34 @@ export async function POST(request: Request) {
     explorerMode: false,
     surpriseMode: false,
     current: {
-      nodeChain: routeBody.nodeChain,
-      segmentIds: routeBody.segmentIds,
-      lengthM: routeBody.lengthM,
-      durationMin: routeBody.durationMin,
+      nodeChain: built.nodeChain,
+      segmentIds: built.segmentIds,
+      lengthM: built.lengthM,
+      durationMin: built.durationMin,
     },
     seenKeys: new Set(),
-    seenUnion: new Set(routeBody.segmentIds),
+    seenUnion: new Set(built.segmentIds),
     widenSteps: 0,
     walkMode: "guide",
     guideNodeIds: orderedNodeIds,
   });
 
   const display = buildRouteDisplay(
-    routeBody.nodeChain,
-    routeBody.segmentIds,
-    routeBody.lengthM,
-    routeBody.durationMin,
+    built.nodeChain,
+    built.segmentIds,
+    built.lengthM,
+    built.durationMin,
     nodesById,
     segmentsById,
+    { visitNodeIds: orderedNodeIds, loopBack },
   );
 
   const usageMap = getUsageMap(user.id);
   const goldenMap = getGoldenMultiplierMap();
   const canonicalOf = new Map(listSegments().map((s) => [s.id, canonicalSegmentId(s)]));
   const pointPreview = computeRoutePointPreview(
-    routeBody.segmentIds,
-    routeBody.lengthM,
+    built.segmentIds,
+    built.lengthM,
     usageMap,
     goldenMap,
     canonicalOf,
