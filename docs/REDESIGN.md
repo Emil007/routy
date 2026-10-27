@@ -20,6 +20,40 @@ Nicht anfassen: `src/app/api/**`, `src/app/login/**`, `src/app/share/**`, SQLite
 
 ---
 
+## 0. Parität Web ↔ App (verbindliches Querschnitts-Prinzip, Decision 2026-10-27)
+
+„Wer sich in der App auskennt, soll sich auch im Web auskennen und umgekehrt.“ Die Menüs *dürfen* leicht unterschiedlich angeordnet sein (Web hat Desktop-Panel rechts, App hat native Navigation) — aber **Designsprache, Symbole, Farben, Bezeichnungen und Feature-Set müssen dieselben sein**. Ziel: kein Lernaufwand beim Wechsel zwischen Web und App.
+
+Verbindlich für jede Phase dieses Plans (und spiegelbildlich für den Android-Plan, s. `ANDROID-REDESIGN`):
+
+### 0.1 Design-Tokens eine Quelle der Wahrheit
+
+- **Farben:** ein gemeinsames Token-Lexikon, wertegleich in `globals.css` (Web) und `ui/theme/Color.kt` (App):
+  - Akzent/Routenlinie `#2e6b49`; Accent-Strong `#1e4a32` (bereits App-Basis)
+  - Waymark/Home `#a5711c` (brauner Startmarker Web + Android, seit 13:40-Paritäts-Commit)
+  - Golden `#c99a2e` · Disconnected `#c53030` · Live `#9a3b29` (Hell) / `#e08669` (Dunkel)
+  - Dark-Mode-Hex: `#6fc08c` (Web) — App mit identischem Dark-Equivalent
+  - Contrast `#005a2b`, Dog `#c9791f`, Cat `#a855c9` — falls die Spiel-Themes in der App existieren, gleiche Werte; sonst nur Web, kein Konflikt erzeugen.
+  - Etablierung in Web über `mapAccentHex()` (s. §7), in App über die Color-Tokens — Werte aus einer gemeinsamen Tabelle ableiten, nie divergent nachbessern.
+- **Shape/Chrome:** Sheet-Radius, Scrim, Float-Schatten, Dock-Höhe als semantische Tokens (Web `--sheet-radius`, `--scrim`, `--float-shadow`; App `MaterialTheme` entsprechende `Shape`/`Color`-Werte).
+
+### 0.2 Symbole & Bezeichnungen
+
+- **Symbole:** gleiche Icons aus Material-Set (Web `lucide`/Emoji wie im Mockup, App `material-icons-extended`) — für identische Aktionen dieselbe Glyphe: Erkunden 🧭, Planen 🗺️, Gehen 🚶, Aufnahme ⏺, Profil 👤, Zurück, Kürzer/Länger/Reverse, Teilen, Favorit (Stern). Wo das Mockup einen Emoji-Platzhalter zeigt, wird in der Umsetzung das Material-Pendant verwendet.
+- **Bezeichnungen/i18n:** gleiche Begriffe in beiden Oberflächen, pro Sprache (de/en) aus demselben Vokabular — Web-`shell.*`-Schlüssel (s. §6.1) und App-Strings entstehen aus **einer** Termliste (z. B. `docs/UI-GLOSSAR.md` oder im Plan-Kopf als Tabelle), damit nicht „Erkunden“ (Web) vs. „Entdecken“ (App) entsteht.
+
+### 0.3 Feature-Set & Abläufe
+
+- **Gleiches Feature-Set:** was in der App geht (Route planen, Free-Roam, Aufnahme, Golden, Favoriten, Nickname, Teilen, Track-Review als Admin), geht auch im Web und umgekehrt — im selben Ablauf-Geflge (Dock-Modi ↔ App-Dock). Ein Feature, das nur auf einer Seite existiert, ist eine bewusste Ausnahme mit Freigabe.
+- **Gleiche Zustände/Bezeichnungen:** „Geht nicht gleichzeitig“-Regeln (Follow einer aktiven Route vs. Free-Roam vs. Aufnahme) identisch kommunizieren; Marker-Farben identisch (Home braun, Live, Start/Ziel).
+- **Karten-Verhalten:** Zoom, Kamera-Persistenz (Web `sessionStorage`, App ViewModel), Layer-Umschaltung — gleiche Logik/Bezeichnungen, dürfen technisch verschieden implementiert sein.
+
+### 0.4 Abnahme-Kriterium Parität
+
+Jede Phase endet zusätzlich zum technischen Check mit einem **Paritäts-Blick**: Die geänderten UI-Elemente (Dock, Sheet, Profil, Farben, Marker, Labels) werden gegen die Android-App abgeglichen — symbolgleich, farbgleich, begriffsgleich. Diskrepanzen sind ausdrücklich ein Review-Befund und werden vor Phase-Abschluss behoben (Commitzeile „…, parity: …“ in der Message benennen).
+
+---
+
 ## 1. Ist-Zustand (kurz, verbindlich)
 
 `src/app/(app)/layout.tsx` (Server Component) lädt den User, baut fünf Links (route, map, stats, settings, admin nur bei `role === "admin"`) und rendert:
