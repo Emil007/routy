@@ -784,8 +784,14 @@ export function RouteGenerator({
     setFavoritesOpen(false);
     const res = await callApi(`/api/favorites/${favorite.id}/accept`);
     if (res.ok) {
+      // Ausnahme zu Android-Generierung: Ein Favorit wird serverseitig direkt
+      // als aktive Route übernommen (/accept liefert sie schon als aktiv) — ein
+      // zusätzlicher lokaler Auswähl-Schritt wäre hier künstlich. Der GO-Sprung
+      // passiert beim Favoriten also bewusst sofort (kein Generier-Token, das
+      // sonst vorzeitig verbraucht würde).
       setResult({ token: "", route: favorite.display });
       setMode("active");
+      setAdopted(false);
       onPhaseChange?.("active");
       setStatus("idle");
       clearMessage();
