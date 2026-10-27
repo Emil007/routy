@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { t, type Locale } from "@/lib/i18n";
 import { pathLengthMeters, estimateMinutes, haversineMeters, type LatLng } from "@/lib/geo";
 import { findNodeCandidates } from "@/lib/nodeMatching";
 import { MapViewLazy } from "./MapViewLazy";
+import type { MapLayerSink } from "@/lib/mapLayerSink";
 import { EndpointFields } from "./EndpointFields";
 import type { NodeRow } from "@/lib/nodes";
 import type { MapMarker, MapLine, MapCircle, MapViewState } from "./MapView";
@@ -38,6 +39,8 @@ export function DrawPathWizard({
   walkSpeedKmh,
   initialView,
   onViewChange,
+  hosted = false,
+  onLayersChange,
 }: {
   locale: Locale;
   nodes: NodeRow[];
@@ -46,6 +49,9 @@ export function DrawPathWizard({
   walkSpeedKmh: number;
   initialView?: MapViewState;
   onViewChange?: (view: MapViewState) => void;
+  /** Host-betrieb (§4.5): keine eigene Karte, nur Layer nach oben. */
+  hosted?: boolean;
+  onLayersChange?: (layers: MapLayerSink) => void;
 }) {
   const router = useRouter();
   const [points, setPoints] = useState<DrawPoint[]>([]);
@@ -75,6 +81,23 @@ export function DrawPathWizard({
     () => points.map((p, i) => ({ id: `draft-${i}`, lat: p.lat, lng: p.lng, color: "#9a3b29", draggable: phase === "drawing" })),
     [points, phase],
   );
+
+  // Host-betrieb: Layer + Interaktion nach oben melden, keine eigene Karte (§4.5).
+  const hostedLayers = useMemo(
+    () => ({
+      markers: [...nodeMarkers, ...draftMarkers],
+      lines: [...networkLines, ...draftLine],
+      circles: nodeCircles,
+      fitKey: `draw-${points.length}`,
+      onMapClick: phase === "drawing" ? handleMapClick : undefined,
+      onMarkerClick: phase === "drawing" ? handleMarkerClick : undefined,
+      onMarkerDragEnd: phase === "drawing" ? handleDraftDragEnd : undefined,
+    }),
+    [nodeMarkers, draftMarkers, networkLines, draftLine, nodeCircles, points.length, phase, handleMapClick, handleMarkerClick, handleDraftDragEnd],
+  );
+  useEffect(() => {
+    if (hosted && onLayersChange) onLayersChange(hostedLayers);
+  }, [hosted, onLayersChange, hostedLayers]);
 
   function addPoint(lat: number, lng: number, snappedNodeId: number | null) {
     setPoints((prev) => {
@@ -183,19 +206,21 @@ export function DrawPathWizard({
       <p style={{ color: "var(--ink-soft)", fontSize: "0.9rem" }}>{t(locale, "draw.dragHint")}</p>
 
       <div className="card stack">
-        <MapViewLazy
-          locale={locale}
-          height={420}
-          autoFit={false}
-          lines={[...networkLines, ...draftLine]}
-          markers={[...nodeMarkers, ...draftMarkers]}
-          circles={phase === "drawing" && snapEnabled ? nodeCircles : []}
-          onMapClick={phase === "drawing" ? handleMapClick : undefined}
-          onMarkerClick={phase === "drawing" ? handleMarkerClick : undefined}
-          onMarkerDragEnd={phase === "drawing" ? handleDraftDragEnd : undefined}
-          initialView={initialView}
-          onViewChange={onViewChange}
-        />
+        {!hosted && (
+          <MapViewLazy
+            locale={locale}
+            height={420}
+            autoFit={false}
+            lines={[...networkLines, ...draftLine]}
+            markers={[...nodeMarkers, ...draftMarkers]}
+            circles={phase === "drawing" && snapEnabled ? nodeCircles : []}
+            onMapClick={phase === "drawing" ? handleMapClick : undefined}
+            onMarkerClick={phase === "drawing" ? handleMarkerClick : undefined}
+            onMarkerDragEnd={phase === "drawing" ? handleDraftDragEnd : undefined}
+            initialView={initialView}
+            onViewChange={onViewChange}
+          />
+        )}
 
         <div className="btn-row">
           <span className="chip">{t(locale, "draw.pointsSoFar", { count: points.length })}</span>

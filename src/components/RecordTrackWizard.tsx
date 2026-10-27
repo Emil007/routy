@@ -6,6 +6,7 @@ import { t, type Locale } from "@/lib/i18n";
 import { pathLengthMeters, estimateMinutes, haversineMeters, type LatLng } from "@/lib/geo";
 import { findNodeCandidates } from "@/lib/nodeMatching";
 import { MapViewLazy } from "./MapViewLazy";
+import type { MapLayerSink } from "@/lib/mapLayerSink";
 import { EndpointFields } from "./EndpointFields";
 import type { NodeRow } from "@/lib/nodes";
 import type { MapMarker, MapLine, MapViewState } from "./MapView";
@@ -38,6 +39,8 @@ export function RecordTrackWizard({
   walkSpeedKmh,
   initialView,
   onViewChange,
+  hosted = false,
+  onLayersChange,
 }: {
   locale: Locale;
   nodes: NodeRow[];
@@ -46,6 +49,9 @@ export function RecordTrackWizard({
   walkSpeedKmh: number;
   initialView?: MapViewState;
   onViewChange?: (view: MapViewState) => void;
+  /** Host-betrieb (§4.5): keine eigene Karte, nur Layer nach oben. */
+  hosted?: boolean;
+  onLayersChange?: (layers: MapLayerSink) => void;
 }) {
   const router = useRouter();
   const [phase, setPhase] = useState<"idle" | "recording" | "paused" | "confirm">("idle");
@@ -84,6 +90,19 @@ export function RecordTrackWizard({
     () => (currentPos ? [{ id: "me", lat: currentPos.lat, lng: currentPos.lng, color: "#2b6cb0" }] : []),
     [currentPos],
   );
+
+  // Host-betrieb: Layer nach oben melden, keine eigene Karte (§4.5).
+  const hostedLayers = useMemo(
+    () => ({
+      markers: [...nodeMarkers, ...liveMarkers],
+      lines: [...networkLines, ...trackLine],
+      fitKey: `record-${points.length}`,
+    }),
+    [nodeMarkers, liveMarkers, networkLines, trackLine, points.length],
+  );
+  useEffect(() => {
+    if (hosted && onLayersChange) onLayersChange(hostedLayers);
+  }, [hosted, onLayersChange, hostedLayers]);
 
   function start() {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
@@ -185,15 +204,17 @@ export function RecordTrackWizard({
     <div className="record-shell">
       <p style={{ color: "var(--ink-soft)", fontSize: "0.82rem", margin: 0 }}>{t(locale, "record.instructions")}</p>
 
-      <MapViewLazy
-        locale={locale}
-        height={420}
-        autoFit={false}
-        lines={[...networkLines, ...trackLine]}
-        markers={[...nodeMarkers, ...liveMarkers]}
-        initialView={initialView}
-        onViewChange={onViewChange}
-      />
+      {!hosted && (
+        <MapViewLazy
+          locale={locale}
+          height={420}
+          autoFit={false}
+          lines={[...networkLines, ...trackLine]}
+          markers={[...nodeMarkers, ...liveMarkers]}
+          initialView={initialView}
+          onViewChange={onViewChange}
+        />
+      )}
 
       <div className="record-map-bar">
         <span className="chip">{t(locale, "draw.pointsSoFar", { count: points.length })}</span>

@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { t, type Locale } from "@/lib/i18n";
 import { pathLengthMeters, closestPointOnPath, type LatLng } from "@/lib/geo";
 import { findNodeCandidates } from "@/lib/nodeMatching";
 import { MapViewLazy } from "./MapViewLazy";
+import type { MapLayerSink } from "@/lib/mapLayerSink";
 import { EndpointFields } from "./EndpointFields";
 import type { NodeRow } from "@/lib/nodes";
 import type { MapMarker, MapLine, MapViewState } from "./MapView";
@@ -41,6 +42,8 @@ export function SegmentGeometryEditor({
   onDone,
   initialView,
   onViewChange,
+  hosted = false,
+  onLayersChange,
 }: {
   locale: Locale;
   segmentId: number;
@@ -54,6 +57,9 @@ export function SegmentGeometryEditor({
   onDone: () => void;
   initialView?: MapViewState;
   onViewChange?: (view: MapViewState) => void;
+  /** Host-betrieb (§4.5): keine eigene Karte, nur Layer nach oben. */
+  hosted?: boolean;
+  onLayersChange?: (layers: MapLayerSink) => void;
 }) {
   const router = useRouter();
   const [points, setPoints] = useState<LatLng[]>(initialPoints);
@@ -103,6 +109,21 @@ export function SegmentGeometryEditor({
   const splitMarkers: MapMarker[] = splitTarget
     ? [{ id: "split-preview", lat: splitTarget.point.lat, lng: splitTarget.point.lng, color: "#1e4a32" }]
     : [];
+
+  // Host-betrieb: Layer nach oben melden, keine eigene Karte (§4.5).
+  const hostedLayers = useMemo(
+    () => ({
+      markers: [...vertexMarkers, ...splitMarkers],
+      lines: [...networkLines, editLine],
+      fitKey: `geometry-${segmentId}-${points.length}`,
+      onLineClick: canEditSegment ? handleLineClick : undefined,
+      onMarkerDragEnd: canEditSegment ? handleVertexDragEnd : undefined,
+    }),
+    [vertexMarkers, splitMarkers, networkLines, editLine, segmentId, points.length, canEditSegment, handleLineClick, handleVertexDragEnd],
+  );
+  useEffect(() => {
+    if (hosted && onLayersChange) onLayersChange(hostedLayers);
+  }, [hosted, onLayersChange, hostedLayers]);
 
   const splitCandidates = useMemo(
     () => (splitTarget ? findNodeCandidates(nodes, splitTarget.point, mergeRadiusM) : []),
@@ -197,17 +218,19 @@ export function SegmentGeometryEditor({
   return (
     <div className="stack">
       <div className="card stack">
-        <MapViewLazy
-          locale={locale}
-          height={420}
-          autoFit={false}
-          lines={[...networkLines, editLine]}
-          markers={[...vertexMarkers, ...splitMarkers]}
-          onLineClick={handleLineClick}
-          onMarkerDragEnd={handleVertexDragEnd}
-          initialView={initialView}
-          onViewChange={onViewChange}
-        />
+        {!hosted && (
+          <MapViewLazy
+            locale={locale}
+            height={420}
+            autoFit={false}
+            lines={[...networkLines, editLine]}
+            markers={[...vertexMarkers, ...splitMarkers]}
+            onLineClick={handleLineClick}
+            onMarkerDragEnd={handleVertexDragEnd}
+            initialView={initialView}
+            onViewChange={onViewChange}
+          />
+        )}
 
         <div className="btn-row">
           <span className="chip">

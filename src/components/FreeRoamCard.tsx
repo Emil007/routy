@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { t, type Locale } from "@/lib/i18n";
 import { haversineMeters, pathLengthMeters, type LatLng } from "@/lib/geo";
 import { MapViewLazy } from "./MapViewLazy";
+import type { MapLayerSink } from "@/lib/mapLayerSink";
 import type { MapMarker, MapLine, MapCircle, MapViewState } from "./MapView";
 import type { NodeRow } from "@/lib/nodes";
 
@@ -45,6 +46,8 @@ export function FreeRoamCard({
   walkSpeedKmh = 5,
   initialView,
   onViewChange,
+  hosted = false,
+  onLayersChange,
 }: {
   locale: Locale;
   nodes: NodeRow[];
@@ -52,6 +55,9 @@ export function FreeRoamCard({
   walkSpeedKmh?: number;
   initialView?: MapViewState;
   onViewChange?: (view: MapViewState) => void;
+  /** Host-betrieb (§4.5): keine eigene Karte, nur Overlay nach oben. */
+  hosted?: boolean;
+  onLayersChange?: (layers: MapLayerSink) => void;
 }) {
   const router = useRouter();
   const [phase, setPhase] = useState<"idle" | "roaming">("idle");
@@ -118,6 +124,20 @@ export function FreeRoamCard({
     }
     return circles;
   }, [reached, nodes]);
+
+  // Host-betrieb: Layer nach oben melden, keine eigene Karte (§4.5).
+  const hostedLayers = useMemo(
+    () => ({
+      markers: [...nodeMarkers, ...myMarker],
+      lines: [...networkLines, ...trackLine],
+      circles: reachCircles,
+      fitKey: `roam-${track.length}`,
+    }),
+    [nodeMarkers, myMarker, networkLines, trackLine, reachCircles, track.length],
+  );
+  useEffect(() => {
+    if (hosted && onLayersChange) onLayersChange(hostedLayers);
+  }, [hosted, onLayersChange, hostedLayers]);
 
   async function startRoaming() {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
@@ -300,17 +320,19 @@ export function FreeRoamCard({
 
       {phase === "roaming" && (
         <>
-          <MapViewLazy
-            locale={locale}
-            height={360}
-            autoFit={false}
-            lines={[...networkLines, ...trackLine]}
-            markers={[...nodeMarkers, ...myMarker]}
-            circles={reachCircles}
-            initialView={initialView}
-            onViewChange={onViewChange}
-            fitKey={`roam-${track.length}`}
-          />
+          {!hosted && (
+            <MapViewLazy
+              locale={locale}
+              height={360}
+              autoFit={false}
+              lines={[...networkLines, ...trackLine]}
+              markers={[...nodeMarkers, ...myMarker]}
+              circles={reachCircles}
+              initialView={initialView}
+              onViewChange={onViewChange}
+              fitKey={`roam-${track.length}`}
+            />
+          )}
           <div className="record-map-bar">
             <span className="chip">{t(locale, "route.freeRoamActive")}</span>
             <span className="chip">{t(locale, "draw.distanceSoFar")}: {(lengthM / 1000).toFixed(2)} {t(locale, "common.km")}</span>

@@ -11,6 +11,7 @@ import {
   voiceAnnounceRadiusM,
 } from "@/lib/voiceAnnounce";
 import { MapViewLazy } from "./MapViewLazy";
+import type { MapLayerSink } from "@/lib/mapLayerSink";
 import { FreeRoamCard } from "./FreeRoamCard";
 import { useMapPreferences } from "@/lib/useMapPreferences";
 import { RouteCompletionDialog, type RouteCompletionData } from "./RouteCompletionDialog";
@@ -73,6 +74,9 @@ export function RouteGenerator({
   initialUsingNetworkFallback,
   disconnectedSegmentIds = [],
   isAdmin = false,
+  hosted = false,
+  section = "plan",
+  onLayersChange,
 }: {
   locale: Locale;
   nodes: NodeRow[];
@@ -86,6 +90,11 @@ export function RouteGenerator({
   initialUsingNetworkFallback: boolean;
   disconnectedSegmentIds?: number[];
   isAdmin?: boolean;
+  /** Host-betrieb (§4.5): keine eigene Karte, Layer via onLayersChange nach oben. */
+  hosted?: boolean;
+  /** Nur RouteGenerator: welcher Teil gerendert wird. */
+  section?: "plan" | "go";
+  onLayersChange?: (layers: MapLayerSink) => void;
 }) {
   const router = useRouter();
   const nodesById = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
@@ -342,6 +351,19 @@ export function RouteGenerator({
   const mapFitKey = result
     ? result.token || result.route.nodeChain.join("-")
     : `plan-${startNodeId}-${endNodeId}-${mustVisitNodeIds.join(",")}-${requiredSegmentIds.join(",")}`;
+
+  // Host-betrieb: Layer nach oben melden, keine eigene Karte (§4.5).
+  useEffect(() => {
+    if (!hosted || !onLayersChange) return;
+    onLayersChange({
+      markers: mapMarkers,
+      lines: mapLines,
+      fitKey: mapFitKey,
+      onMarkerClick: mode === "suggesting" && !result ? handleMarkerClick : undefined,
+      onLineClick: mode === "suggesting" && !result ? handleLineClick : undefined,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hosted, mapMarkers, mapLines, mapFitKey, mode, result]);
 
   async function readApiError(res: Response): Promise<string> {
     const data = (await res.json().catch(() => null)) as { error?: string; retryAfterSeconds?: number } | null;
@@ -866,35 +888,37 @@ export function RouteGenerator({
 
   return (
     <div className="route-shell has-map">
-      <div className="route-map-pane">
-        <MapViewLazy
-          fitKey={mapFitKey}
-          lines={mapLines}
-          markers={mapMarkers}
-          onMarkerClick={mode === "suggesting" && !result ? handleMarkerClick : undefined}
-          onLineClick={mode === "suggesting" && !result ? handleLineClick : undefined}
-          height={360}
-          baseLayerId={mapPrefs.baseLayerId}
-          showTrails={mapPrefs.showTrails}
-        />
-        {result && routeChips && (
-          <div className="route-action-bar" style={{ marginTop: "0.45rem" }}>
-            {routeChips}
-          </div>
-        )}
-        {result && (
-          <p
-            className="route-stations-oneline route-abbrev-display"
-            title={result.route.shortStationGroups
-              .map((g) => (g.viaSegmentName ? `${g.text} (${t(locale, "route.via", { name: g.viaSegmentName })})` : g.text))
-              .join(" › ")}
-          >
-            {result.route.shortStationGroups
-              .map((g) => (g.viaSegmentName ? `${g.text} (${t(locale, "route.via", { name: g.viaSegmentName })})` : g.text))
-              .join(" › ")}
-          </p>
-        )}
-      </div>
+      {!hosted && (
+        <div className="route-map-pane">
+          <MapViewLazy
+            fitKey={mapFitKey}
+            lines={mapLines}
+            markers={mapMarkers}
+            onMarkerClick={mode === "suggesting" && !result ? handleMarkerClick : undefined}
+            onLineClick={mode === "suggesting" && !result ? handleLineClick : undefined}
+            height={360}
+            baseLayerId={mapPrefs.baseLayerId}
+            showTrails={mapPrefs.showTrails}
+          />
+          {result && routeChips && (
+            <div className="route-action-bar" style={{ marginTop: "0.45rem" }}>
+              {routeChips}
+            </div>
+          )}
+          {result && (
+            <p
+              className="route-stations-oneline route-abbrev-display"
+              title={result.route.shortStationGroups
+                .map((g) => (g.viaSegmentName ? `${g.text} (${t(locale, "route.via", { name: g.viaSegmentName })})` : g.text))
+                .join(" › ")}
+            >
+              {result.route.shortStationGroups
+                .map((g) => (g.viaSegmentName ? `${g.text} (${t(locale, "route.via", { name: g.viaSegmentName })})` : g.text))
+                .join(" › ")}
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="route-controls-pane">
         {pointBalance !== null && (
