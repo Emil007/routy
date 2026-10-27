@@ -1194,6 +1194,24 @@ th {
   font-weight: 700;
 }
 
+/* Hamburger-Striche (Parität mit Android FloatingBurgerIcon): drei klar
+sichtbare dunkle Balken, unabhängig vom Kartenhintergrund (dessen heller Kreis
+liefert den Kontrast). */
+.burger-glyph {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: stretch;
+  justify-content: center;
+  width: 18px;
+}
+.burger-glyph > span {
+  display: block;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--ink, #111);
+}
+
 /* Sheet: Telefon unten, ab 960px rechts (Panel) */
 .sheet {
   position: absolute;

@@ -172,7 +172,7 @@
     "badgeMustVisit": "★",
     "badgeRequired": "Req.",
     "badgeExcluded": "Excl.",
-    "mapTapHint": "Tap a path on the map to require or exclude it; tap a node for start, end, or must-visit.",
+    "mapTapHint": "Tap a node or path to edit",
     "lengthTasteNetwork": "Network length defaults",
     "lengthTastePersonal": "Your length taste",
     "lengthTasteNetworkHint": "Using admin suggest min/max until you rate 3 walks.",
@@ -225,7 +225,9 @@
     "freeRoamCompleteTitle": "Finish free roam",
     "freeRoamPointsHint": "Free roam earns fewer points (half rate).",
     "freeRoamDone": "Free roam finished — track saved.",
-    "freeRoamVia": "via {via}"
+    "freeRoamVia": "via {via}",
+    "selectButton": "Select",
+    "goButton": "Go"
   },
   "share": {
     "subtitle": "Read-only, shared route.",

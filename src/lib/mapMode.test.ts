@@ -14,12 +14,13 @@ describe("initialMode", () => {
     expect(initialMode({ requested: null, hasActiveRoute: false, freeRoamActive: true, recordingLive: false })).toBe("go");
   });
 
-  it("prefers a requested mode over explore", () => {
+  it("prefers a requested mode over the plan default", () => {
+    expect(initialMode({ requested: "explore", hasActiveRoute: false, freeRoamActive: false, recordingLive: false })).toBe("explore");
     expect(initialMode({ requested: "plan", hasActiveRoute: false, freeRoamActive: false, recordingLive: false })).toBe("plan");
   });
 
-  it("defaults to explore", () => {
-    expect(initialMode({ requested: null, hasActiveRoute: false, freeRoamActive: false, recordingLive: false })).toBe("explore");
+  it("defaults to plan (Route) for parity with Android", () => {
+    expect(initialMode({ requested: null, hasActiveRoute: false, freeRoamActive: false, recordingLive: false })).toBe("plan");
   });
 
   it("active route beats the query", () => {

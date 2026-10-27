@@ -22,7 +22,8 @@ export function initialMode(opts: {
 }): AtlasMode {
   if (opts.recordingLive) return "record";
   if (opts.freeRoamActive || opts.hasActiveRoute) return "go";
-  return opts.requested ?? "explore";
+  // Parität mit Android: Default ist Route (plan), nicht Erkunden.
+  return opts.requested ?? "plan";
 }
 
 export type ModeChangeResult =

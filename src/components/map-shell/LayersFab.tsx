@@ -56,7 +56,13 @@ export function LayersFab({ locale }: { locale: Locale }) {
         title={t(locale, "shell.layers")}
         onClick={() => setOpen((o) => !o)}
       >
-        ▦
+        {/* Hamburger-Symbol (Parität mit Android FloatingBurgerIcon: klar
+            sichtbare Striche statt blassem ▦), Konstant via CSS (Dunkel/Hell). */}
+        <span className="burger-glyph" aria-hidden="true">
+          <span />
+          <span />
+          <span />
+        </span>
       </button>
       {open && (
         <div className="map-dialog layers-popover">

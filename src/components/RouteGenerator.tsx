@@ -136,6 +136,10 @@ export function RouteGenerator({
   const [selectedSegmentId, setSelectedSegmentId] = useState<number | null>(null);
 
   const [mode, setMode] = useState<"suggesting" | "active">(initialActiveRoute ? "active" : "suggesting");
+  // Parität mit Android: „Auswählen" übernimmt die Route nur lokal (kein Server-
+  // accept, Token bleibt). Erst „Go" ruft /api/route/accept und startet das
+  // Tracking — der Dock wechselt nicht vorher auf Gehen/Frei.
+  const [adopted, setAdopted] = useState(false);
   const [result, setResult] = useState<GenerateResponse | null>(
     initialActiveRoute ? { token: "", route: initialActiveRoute } : null,
   );
@@ -561,6 +565,7 @@ export function RouteGenerator({
   async function handleAnother() {
     if (!result) return;
     setStatus("loading");
+    setAdopted(false);
     const res = await callApi("/api/route/widen", { token: result.token });
     if (res.ok) {
       const data = (await res.json()) as GenerateResponse;
@@ -659,6 +664,7 @@ export function RouteGenerator({
     const res = await callApi("/api/route/accept", { token: result.token });
     if (res.ok) {
       setMode("active");
+      setAdopted(false);
       onPhaseChange?.("active");
       setStatus("idle");
       clearMessage();
@@ -669,6 +675,15 @@ export function RouteGenerator({
       setStatus("idle");
       flashMessage(t(locale, "route.sessionExpired"), true);
     }
+  }
+
+  // Android-Parität: „Auswählen" übernimmt die Route nur lokal (Token bleibt),
+  // die Bestätigungsseite mit „Go" erscheint erst — der Server-Token wird NICHT
+  // vorzeitig verbraucht (sonst „Sitzung abgelaufen" beim Go, Android-Bug).
+  function handleSelect() {
+    if (!result) return;
+    setAdopted(true);
+    clearMessage();
   }
 
   async function saveNickname() {
@@ -687,6 +702,7 @@ export function RouteGenerator({
     if (!result) return;
     await callApi("/api/route/cancel", { token: result.token });
     setResult(null);
+    setAdopted(false);
     clearMessage();
   }
 
@@ -702,6 +718,7 @@ export function RouteGenerator({
       const data = (await res.json()) as RouteCompletionData;
       setResult(null);
       setMode("suggesting");
+      setAdopted(false);
       setStatus("idle");
       setCompletionData({
         ...data,
@@ -738,6 +755,7 @@ export function RouteGenerator({
     await callApi("/api/route/discard");
     setResult(null);
     setMode("suggesting");
+    setAdopted(false);
     onPhaseChange?.("suggesting");
     setStatus("idle");
     clearMessage();
@@ -823,28 +841,47 @@ export function RouteGenerator({
   const actionBar = result ? (
     <div className="route-action-bar">
       {mode === "suggesting" ? (
-        <>
-          <button type="button" className="btn-secondary btn-compact" onClick={() => handleAdjust("shorter")} disabled={status === "loading"}>
-            {t(locale, "route.shorter")}
-          </button>
-          <button type="button" className="btn-secondary btn-compact" onClick={handleAnother} disabled={status === "loading"}>
-            {t(locale, "route.again")}
-          </button>
-          <button type="button" className="btn-secondary btn-compact" onClick={() => handleAdjust("longer")} disabled={status === "loading"}>
-            {t(locale, "route.longer")}
-          </button>
-          {result.token ? (
-            <button type="button" className="btn-secondary btn-compact" onClick={handleReverse} disabled={status === "loading"}>
-              {t(locale, "route.reverse")}
+        adopted ? (
+          <>
+            <button type="button" className="btn-primary btn-compact" onClick={handleAccept} disabled={status === "loading"}>
+              {t(locale, "route.goButton")}
             </button>
-          ) : null}
-          <button type="button" className="btn-primary btn-compact" onClick={handleAccept} disabled={status === "loading"}>
-            {t(locale, "route.accept")}
-          </button>
-          <button type="button" className="btn-danger btn-compact" onClick={handleCancel} disabled={status === "loading"}>
-            {t(locale, "route.cancel")}
-          </button>
-        </>
+            <button
+              type="button"
+              className="btn-danger btn-compact"
+              onClick={() => {
+                setAdopted(false);
+                clearMessage();
+              }}
+              disabled={status === "loading"}
+            >
+              {t(locale, "route.discardButton")}
+            </button>
+          </>
+        ) : (
+          <>
+            <button type="button" className="btn-secondary btn-compact" onClick={() => handleAdjust("shorter")} disabled={status === "loading"}>
+              {t(locale, "route.shorter")}
+            </button>
+            <button type="button" className="btn-secondary btn-compact" onClick={handleAnother} disabled={status === "loading"}>
+              {t(locale, "route.again")}
+            </button>
+            <button type="button" className="btn-secondary btn-compact" onClick={() => handleAdjust("longer")} disabled={status === "loading"}>
+              {t(locale, "route.longer")}
+            </button>
+            {result.token ? (
+              <button type="button" className="btn-secondary btn-compact" onClick={handleReverse} disabled={status === "loading"}>
+                {t(locale, "route.reverse")}
+              </button>
+            ) : null}
+            <button type="button" className="btn-primary btn-compact" onClick={handleSelect} disabled={status === "loading"}>
+              {t(locale, "route.selectButton")}
+            </button>
+            <button type="button" className="btn-danger btn-compact" onClick={handleCancel} disabled={status === "loading"}>
+              {t(locale, "route.cancel")}
+            </button>
+          </>
+        )
       ) : (
         <>
           <div className="btn-row" style={{ gap: "0.65rem", flexWrap: "wrap" }}>

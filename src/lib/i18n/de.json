@@ -172,7 +172,7 @@
     "badgeMustVisit": "★",
     "badgeRequired": "Pflicht",
     "badgeExcluded": "Ausgeschl.",
-    "mapTapHint": "Tippe auf einen Weg, um ihn zu verlangen oder auszuschließen; tippe auf einen Knoten für Start, Ziel oder Pflichtstopp.",
+    "mapTapHint": "Tippe auf Knoten oder Weg zum Bearbeiten",
     "lengthTasteNetwork": "Netzwerk-Längen-Defaults",
     "lengthTastePersonal": "Dein Längen-Geschmack",
     "lengthTasteNetworkHint": "Nutzt Admin-Vorschlags-min/max, bis du 3 Spaziergänge bewertet hast.",
@@ -225,7 +225,9 @@
     "freeRoamCompleteTitle": "Freies Gehen abschließen",
     "freeRoamPointsHint": "Freies Gehen gibt weniger Punkte (halber Faktor).",
     "freeRoamDone": "Free Roam abgeschlossen — Track gespeichert.",
-    "freeRoamVia": "über {via}"
+    "freeRoamVia": "über {via}",
+    "selectButton": "Auswählen",
+    "goButton": "Go"
   },
   "share": {
     "subtitle": "Schreibgeschützte, geteilte Route.",
