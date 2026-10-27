@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { t, type Locale } from "@/lib/i18n";
+import { useEffect, useMemo, useState } from "react";
+import type { Locale } from "@/lib/i18n";
 import type { AtlasBootstrap } from "@/lib/atlasTypes";
+import type { MapLine } from "@/components/MapView";
 import { MapShellProvider, useMapShell } from "./MapShellContext";
 import { MapCanvas } from "./MapCanvas";
 import { MapDock } from "./MapDock";
@@ -10,6 +11,17 @@ import { ProfileMenu } from "./ProfileMenu";
 import { BottomSheet } from "./BottomSheet";
 import { ExploreSheet } from "./sheets/ExploreSheet";
 import { RoutePane } from "./sheets/RoutePane";
+import { RecordSheet } from "./sheets/RecordSheet";
+
+/** Netzlinien aus dem Bootstrap (für RecordSheet + FreeRoamCard), §7.4. */
+function networkLinesFromBootstrap(bootstrap: AtlasBootstrap): MapLine[] {
+  const lines: MapLine[] = [];
+  for (const [segmentId, points] of Object.entries(bootstrap.segmentGeometries)) {
+    if (!points || points.length < 2) continue;
+    lines.push({ id: `seg-${segmentId}`, points });
+  }
+  return lines;
+}
 
 function ShellInner({
   locale,
@@ -21,6 +33,7 @@ function ShellInner({
   embedded: boolean;
 }) {
   const { mode } = useMapShell();
+  const networkLines = useMemo(() => networkLinesFromBootstrap(bootstrap), [bootstrap.segmentGeometries]);
 
   return (
     <div className="atlas-shell">
@@ -41,8 +54,14 @@ function ShellInner({
         <div className={mode === "plan" || mode === "go" ? "sheet-pane" : "sheet-pane sheet-pane-hidden"}>
           <RoutePane locale={locale} bootstrap={bootstrap} />
         </div>
-        <div className="sheet-pane sheet-pane-hidden">
-          <div className="sheet-body">{t(locale, "shell.comingNext")}</div>
+        <div className={mode === "record" ? "sheet-pane" : "sheet-pane sheet-pane-hidden"}>
+          <RecordSheet
+            locale={locale}
+            nodes={bootstrap.nodes}
+            networkLines={networkLines}
+            mergeRadiusM={bootstrap.mergeRadiusM}
+            walkSpeedKmh={bootstrap.walkSpeedKmh}
+          />
         </div>
       </BottomSheet>
     </div>

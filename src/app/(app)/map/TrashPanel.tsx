@@ -1,8 +1,19 @@
 import { t, type Locale } from "@/lib/i18n";
-import type { NodeRow } from "@/lib/nodes";
-import type { SegmentRow } from "@/lib/segments";
 import { ConfirmSubmitForm } from "@/components/ConfirmSubmitForm";
 import { restoreNodeAction, purgeNodeAction, restoreSegmentAction, purgeSegmentAction } from "./actions";
+
+/** Papierkorb-Zeilen aus dem Bootstrap (§4.1) — bewusst reduziert, nicht volle Zeilen. */
+interface TrashNodeRow {
+  id: number;
+  name: string | null;
+  deletedAt: string | null;
+}
+
+interface TrashSegmentRow {
+  id: number;
+  name: string | null;
+  deletedAt: string | null;
+}
 
 export function TrashPanel({
   locale,
@@ -10,8 +21,8 @@ export function TrashPanel({
   deletedSegments,
 }: {
   locale: Locale;
-  deletedNodes: NodeRow[];
-  deletedSegments: SegmentRow[];
+  deletedNodes: TrashNodeRow[];
+  deletedSegments: TrashSegmentRow[];
 }) {
   const isEmpty = deletedNodes.length === 0 && deletedSegments.length === 0;
 

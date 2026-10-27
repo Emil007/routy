@@ -64,11 +64,11 @@ export async function loadAtlasBootstrap(opts: { requestedMode: string | null; d
 
   const deletedNodes = listDeletedNodes()
     .filter((n) => user.role === "admin" || n.createdBy === user.id)
-    .map((n) => ({ id: n.id, name: n.name, lat: n.lat, lng: n.lng, deletedBy: n.createdBy }));
+    .map((n) => ({ id: n.id, name: n.name, lat: n.lat, lng: n.lng, deletedBy: n.createdBy, deletedAt: n.deletedAt }));
   const deletedSegments = listDeletedSegments()
     .filter(isCanonicalSegment)
     .filter((s) => user.role === "admin" || s.submittedBy === user.id)
-    .map((s) => ({ id: s.id, name: s.name, submittedBy: s.submittedBy }));
+    .map((s) => ({ id: s.id, name: s.name, submittedBy: s.submittedBy, deletedAt: s.deletedAt }));
 
   const requestedMode =
     opts.requestedMode === "explore" || opts.requestedMode === "plan" || opts.requestedMode === "go" || opts.requestedMode === "record"

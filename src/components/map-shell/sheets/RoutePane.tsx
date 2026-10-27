@@ -32,7 +32,7 @@ function networkLinesFromBootstrap(bootstrap: AtlasBootstrap): MapLine[] {
  * aktive Route — Start ohne Stationsliste.
  */
 export function RoutePane({ locale, bootstrap }: { locale: Locale; bootstrap: AtlasBootstrap }) {
-  const { mode, setMode } = useMapShell();
+  const { mode, setMode, registerLayers } = useMapShell();
   const [phase, setPhase] = useState<"suggesting" | "active">(
     bootstrap.activeRoute ? "active" : "suggesting",
   );
@@ -56,6 +56,14 @@ export function RoutePane({ locale, bootstrap }: { locale: Locale; bootstrap: At
       ? "hidden"
       : section;
 
+  // Overlays der einen Route auf die eine Karte (PLAN/GO), §7.4 — das Netz bleibt
+  // nur sichtbar, solange kein Overlay-Schreiber aktiv ist (siehe MapCanvas).
+  useEffect(() => {
+    if (mode !== "plan" && mode !== "go") {
+      registerLayers(null);
+    }
+  }, [mode, registerLayers]);
+
   return (
     <div className="sheet-body">
       {/* Eine RouteGenerator-Instanz, immer gemountet (hidden via section). */}
@@ -78,6 +86,9 @@ export function RoutePane({ locale, bootstrap }: { locale: Locale; bootstrap: At
           setPhase(next);
           // Annehmen kippt auf Gehen, Verwerfen (ohne aktive Route) zurück auf Planen.
           if (next === "suggesting") setMode("plan");
+        }}
+        onLayersChange={(layers) => {
+          if (mode === "plan" || mode === "go") registerLayers(layers);
         }}
       />
 

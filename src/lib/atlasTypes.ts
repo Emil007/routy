@@ -53,7 +53,7 @@ export interface AtlasBootstrap {
   usingNetworkFallback: boolean;
   /** Startmodus aus dem Query (§7.1), null = Standard. */
   requestedMode: AtlasMode | null;
-  // Papierkorb
-  deletedNodes: { id: number; name: string | null; lat: number; lng: number; deletedBy: number | null }[];
-  deletedSegments: { id: number; name: string | null; submittedBy: number | null }[];
+  // Papierkorb (volle Zeilen, wie sie listDeletedNodes/listDeletedSegments liefern)
+  deletedNodes: { id: number; name: string | null; lat: number; lng: number; deletedBy: number | null; deletedAt: string | null }[];
+  deletedSegments: { id: number; name: string | null; submittedBy: number | null; deletedAt: string | null }[];
 }
