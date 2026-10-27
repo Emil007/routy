@@ -5,10 +5,7 @@ import { useRouter } from "next/navigation";
 import { t, type Locale } from "@/lib/i18n";
 import type { SegmentRow } from "@/lib/segments";
 import { deleteSegmentAction } from "@/app/(app)/map/actions";
-
-function isLocked(segment: Pick<SegmentRow, "lockedUntil">): boolean {
-  return segment.lockedUntil !== null && segment.lockedUntil > new Date().toISOString();
-}
+import { isLocked } from "@/lib/segmentLock";
 
 const RESTRICT_REASONS = ["muddy", "flooded", "construction", "dog", "icy", "overgrown"] as const;
 

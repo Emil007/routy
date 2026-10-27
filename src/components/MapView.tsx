@@ -5,32 +5,11 @@ import { MapContainer, TileLayer, Marker, Polyline, Circle, Popup, Tooltip, useM
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import type { Locale } from "@/lib/i18n";
-
-export const TILE_LAYERS = [
-  {
-    id: "streets",
-    url: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-    attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-  },
-  {
-    id: "hiking",
-    url: "https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png",
-    attribution:
-      'Kartendaten: &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>, SRTM | Darstellung: &copy; <a href="https://opentopomap.org">OpenTopoMap</a>',
-  },
-  {
-    id: "satellite",
-    url: "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-    attribution: "Tiles &copy; Esri",
-  },
-] as const;
-
-const TRAILS_OVERLAY = {
-  url: "https://tile.waymarkedtrails.org/hiking/{z}/{x}/{y}.png",
-  attribution: 'Wanderwege: &copy; <a href="https://waymarkedtrails.org">Waymarked Trails</a>',
-};
-
-export type BaseLayerId = (typeof TILE_LAYERS)[number]["id"];
+// Kachel-Pakete (reine Daten, SSR-sicher): lokal binden UND re-exportieren, damit
+// bestehende Importe aus @/components/MapView unverändert funktionieren.
+import { TILE_LAYERS, TRAILS_OVERLAY, type BaseLayerId } from "@/lib/mapTiles";
+export { TILE_LAYERS, TRAILS_OVERLAY } from "@/lib/mapTiles";
+export type { BaseLayerId } from "@/lib/mapTiles";
 
 export interface MapMarker {
   id: number | string;

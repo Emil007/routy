@@ -675,5 +675,21 @@
     "trackGeometryRemoveRecording": "Remove this recording",
     "trackGeometryRemoveRecordingConfirm": "Delete the GPS recording for this walk from admin review? Walk stats stay; only the track used for suggestions is removed.",
     "trackGeometryRemoveRecordingDone": "Recording removed from review."
+  },
+  "shell": {
+    "explore": "Explore",
+    "plan": "Plan",
+    "go": "Go",
+    "record": "Record",
+    "profile": "Profile",
+    "backToMap": "Back to map",
+    "collapse": "Collapse",
+    "stopLiveTitle": "Stop the live session?",
+    "stopLiveBody": "This ends the current outing.",
+    "comingNext": "Available in the next step.",
+    "recordingPill": "Recording",
+    "layers": "Layers",
+    "editNetwork": "Edit network",
+    "destinationHint": "Destination or junction"
   }
 }

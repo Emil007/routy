@@ -1175,3 +1175,258 @@ th {
   gap: 0.35rem;
   margin-top: 0.35rem;
 }
+
+/* ===== Atlas-Shell (J2, §4.1/§8.1/§8.2) ===== */
+
+/* Sheet-Höhen (Layout, keine Farb-Token) */
+:root {
+  --sheet-cover-peek: 4.5rem;
+  --sheet-cover-half: 46dvh;
+  --sheet-cover-full: 92dvh;
+  --panel-cover: 416px; /* Desktop-Panel rechts: 400px + 16px Abstand */
+}
+
+.app-frame {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.atlas-frame {
+  flex: 1;
+  min-height: 0;
+  position: relative;
+}
+
+.atlas-shell {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+}
+
+.atlas-map-fill {
+  position: absolute;
+  inset: 0;
+}
+
+/* Dock: Telefon unten, Desktop/Tablet oben (§8.2) */
+.map-dock {
+  display: flex;
+  gap: var(--dock-gap, 0.4rem);
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(var(--sheet-cover-peek, 4.5rem) + max(env(safe-area-inset-bottom), 0.5rem));
+  z-index: 1100;
+  padding: 0.3rem;
+  border-radius: 999px;
+  background: var(--float-solid, #fff);
+  box-shadow: var(--float-shadow, 0 1px 2px rgba(24,32,24,0.06), 0 8px 28px rgba(24,32,24,0.14));
+}
+
+@media (min-width: 960px) {
+  .map-dock {
+    bottom: auto;
+    top: max(env(safe-area-inset-top), 0.75rem);
+    left: 50%;
+  }
+}
+
+.map-dock-chip {
+  border: none;
+  border-radius: 999px;
+  padding: 0.5rem 1rem;
+  min-height: 44px;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--ink, #111);
+  background: transparent;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+.map-dock-chip:hover:not(:disabled) {
+  background: var(--accent-soft, rgba(46, 107, 73, 0.12));
+}
+
+.map-dock-chip.active {
+  background: var(--accent, #2e6b49);
+  color: #fff;
+}
+
+.map-dock-chip.disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+/* FAB (Profil) */
+.map-fab {
+  position: absolute;
+  top: max(env(safe-area-inset-top), 0.75rem);
+  right: 0.75rem;
+  z-index: 1100;
+  width: var(--fab-size, 2.5rem);
+  height: var(--fab-size, 2.5rem);
+  border-radius: 50%;
+  border: none;
+  background: var(--float-solid, #fff);
+  color: var(--ink, #111);
+  box-shadow: var(--float-shadow, 0 8px 28px rgba(24,32,24,0.14));
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+/* Sheet: Telefon unten, ab 960px rechts (Panel) */
+.sheet {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1100;
+  background: var(--float-solid, #fff);
+  box-shadow: var(--float-shadow, 0 8px 28px rgba(24,32,24,0.14));
+  border-radius: var(--sheet-radius, 16px) var(--sheet-radius, 16px) 0 0;
+  overflow: hidden;
+  transition: transform 200ms ease;
+}
+
+.sheet-peeked {
+  transform: translateY(115%);
+}
+
+@media (min-width: 960px) {
+  .sheet {
+    left: auto;
+    right: 0;
+    top: 0;
+    bottom: 0;
+    width: 400px;
+    border-radius: 0;
+    transition: transform 200ms ease;
+  }
+  .sheet.sheet-panel.sheet-peeked {
+    transform: translateX(115%);
+  }
+  .leaflet-bottom {
+    margin-right: var(--panel-cover, 416px);
+  }
+  .leaflet-top.leaflet-left {
+    margin-right: var(--panel-cover, 416px);
+  }
+}
+
+.sheet-pane {
+  height: 100%;
+  overflow: auto;
+}
+
+.sheet-pane-hidden {
+  display: none;
+}
+
+.sheet-body {
+  padding: 0.75rem 1rem;
+}
+
+/* Dialoge (Profil-Menü, FAB-Popover) */
+.map-dialog {
+  position: absolute;
+  top: calc(max(env(safe-area-inset-top), 0.75rem) + var(--fab-size, 2.5rem) + 0.5rem);
+  right: 0.75rem;
+  z-index: 1200;
+  min-width: 220px;
+  border-radius: var(--sheet-radius, 16px);
+  background: var(--float-solid, #fff);
+  box-shadow: var(--float-shadow, 0 8px 28px rgba(24,32,24,0.14));
+  padding: 0.5rem;
+}
+
+.profile-menu {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.menu-item {
+  border: none;
+  background: transparent;
+  font: inherit;
+  text-align: left;
+  padding: 0.55rem 0.65rem;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  color: var(--ink, #111);
+}
+
+.menu-item:hover {
+  background: var(--accent-soft, rgba(46, 107, 73, 0.12));
+}
+
+.profile-menu-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.4rem 0.65rem 0.25rem;
+  border-top: 1px solid var(--border, rgba(0,0,0,0.08));
+  margin-top: 0.25rem;
+}
+
+/* PageBackBar (§8.3) */
+.page-back {
+  border-bottom: 1px solid var(--border, rgba(0,0,0,0.08));
+  background: var(--float-solid, #fff);
+}
+
+.page-back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.6rem 1rem;
+  font: inherit;
+  font-weight: 600;
+  color: var(--accent-strong, #1e4a32);
+  text-decoration: none;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+}
+
+/* Kontrast-Theme: keine Alpha-Flächen auf Buttons (§6) */
+html[data-theme="contrast"] .map-dock,
+html[data-theme="contrast"] .map-fab,
+html[data-theme="contrast"] .sheet,
+html[data-theme="contrast"] .map-dialog,
+html[data-theme="contrast"] .page-back {
+  border: 2px solid #000;
+}
+
+html[data-theme="contrast"] .map-dock button,
+html[data-theme="contrast"] .map-fab,
+html[data-theme="contrast"] .sheet,
+html[data-theme="contrast"] .page-back {
+  border-width: 2px;
+  border-style: solid;
+  border-color: #000;
+}
+
+/* Reduced motion: Sheets ohne Transform */
+@media (prefers-reduced-motion: reduce) {
+  .sheet,
+  .sheet-peeked {
+    transition: none;
+  }
+}
+
+/* OSM-Attribution nie ausblenden; mobile Margin nur fürs Peek-Sheet */
+@media (max-width: 959px) {
+  .leaflet-bottom {
+    margin-bottom: calc(var(--sheet-cover-peek, 4.5rem) + 0.5rem);
+  }
+}

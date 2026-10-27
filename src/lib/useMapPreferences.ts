@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { TILE_LAYERS, type BaseLayerId } from "@/components/MapView";
+import { TILE_LAYERS, type BaseLayerId } from "@/lib/mapTiles";
 
 const STORAGE_KEY = "routy.mapPreferences";
 

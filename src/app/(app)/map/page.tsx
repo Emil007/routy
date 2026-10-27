@@ -1,97 +1,36 @@
 import { requireUser } from "@/lib/session";
 import { resolveLocale } from "@/lib/locale";
-import { t } from "@/lib/i18n";
-import { listNodes, listDeletedNodes } from "@/lib/nodes";
-import { listSegments, listDeletedSegments, getUsageMap, isCanonicalSegment } from "@/lib/segments";
-import { listAllUsers } from "@/lib/users";
-import { getSettings, effectiveWalkSpeedKmh } from "@/lib/settings";
-import { listActiveConditions } from "@/lib/segmentConditions";
-import { listAvoidSegmentIds } from "@/lib/avoidList";
-import { getTodayGoldenSegmentIds } from "@/lib/goldenSegments";
-import { loadGraphContext } from "@/lib/routeContext";
-import { disconnectedCanonicalSegmentIds } from "@/lib/graphReachability";
-import { OverviewMapClient } from "./OverviewMapClient";
-import { SegmentsTable } from "./SegmentsTable";
-import { TrashPanel } from "./TrashPanel";
+import { loadAtlasBootstrap } from "@/lib/mapBootstrap";
+import { MapShell } from "@/components/map-shell/MapShell";
 
 export default async function MapPage({
   searchParams,
 }: {
-  searchParams: Promise<{ deleteError?: string }>;
+  searchParams: Promise<{ mode?: string; deleteError?: string }>;
 }) {
   const user = await requireUser();
   const locale = await resolveLocale(user.locale);
-  const { deleteError } = await searchParams;
-  const nodes = listNodes();
-  const segments = listSegments();
-  const usage = getUsageMap(user.id);
-  const canonicalSegments = segments.filter(isCanonicalSegment);
-  const userNames = new Map(listAllUsers().map((u) => [u.id, u.displayName]));
-  const settings = getSettings();
-  const { graph } = loadGraphContext();
-  const disconnectedSegmentIds = disconnectedCanonicalSegmentIds(
-    graph,
-    user.homeNodeId,
-    canonicalSegments.map((s) => s.id),
-    new Map(canonicalSegments.map((s) => [s.id, { startNodeId: s.startNodeId, endNodeId: s.endNodeId }])),
-  );
+  const { mode, deleteError } = await searchParams;
 
-  const deletedNodes = listDeletedNodes().filter((n) => user.role === "admin" || n.createdBy === user.id);
-  const deletedSegments = listDeletedSegments()
-    .filter(isCanonicalSegment)
-    .filter((s) => user.role === "admin" || s.submittedBy === user.id);
+  const bootstrap = await loadAtlasBootstrap({ requestedMode: mode ?? null, deleteError: deleteError ?? null });
 
-  const segmentCounts: Record<number, number> = {};
-  for (const s of canonicalSegments) {
-    segmentCounts[s.startNodeId] = (segmentCounts[s.startNodeId] ?? 0) + 1;
-    segmentCounts[s.endNodeId] = (segmentCounts[s.endNodeId] ?? 0) + 1;
+  // §J2: In dieser Phase liegt die aktive Route noch im Plan-Sheet (Gehen kommt in J3).
+  // Eine aktive Route schlägt das Query („included aktive Route“); Go wird erst in J3 geöffnet.
+  let startMode: "explore" | "plan" | "go" | "record";
+  const requested =
+    mode === "explore" || mode === "plan" || mode === "go" || mode === "record" ? mode : null;
+  if (bootstrap.activeRoute) {
+    startMode = requested === "explore" || requested === "record" ? requested : "plan";
+  } else {
+    startMode = requested === "plan" ? "plan" : "explore";
   }
 
   return (
-    <>
-      <div className="page-heading">
-        <h1>{t(locale, "map.title")}</h1>
-        <p>{t(locale, "map.subtitle")}</p>
-      </div>
-
-      {deleteError === "node_active" && <div className="alert alert-error">{t(locale, "map.deleteBlockedNode")}</div>}
-      {deleteError === "segment_active" && <div className="alert alert-error">{t(locale, "map.deleteBlockedSegment")}</div>}
-      {deleteError === "not_owner" && <div className="alert alert-error">{t(locale, "map.editBlockedNotOwner")}</div>}
-
-      <OverviewMapClient
-        locale={locale}
-        nodes={nodes}
-        segments={canonicalSegments}
-        usage={Object.fromEntries(usage)}
-        segmentCounts={segmentCounts}
-        currentUser={{ id: user.id, role: user.role, homeNodeId: user.homeNodeId }}
-        userNames={Object.fromEntries(userNames)}
-        mergeRadiusM={settings.merge_radius_m}
-        walkSpeedKmh={effectiveWalkSpeedKmh(user.walkSpeedKmh, settings)}
-        segmentConditions={listActiveConditions().map((c) => ({
-          id: c.id,
-          segmentId: c.segmentId,
-          reason: c.reason,
-          expiresAt: c.expiresAt,
-        }))}
-        personalAvoidSegmentIds={listAvoidSegmentIds(user.id)}
-        goldenSegmentIds={getTodayGoldenSegmentIds()}
-        disconnectedSegmentIds={disconnectedSegmentIds}
-      />
-
-      <details className="card">
-        <summary style={{ fontSize: "1.1rem", fontWeight: 600, cursor: "pointer" }}>{t(locale, "map.segmentsHeading")}</summary>
-        <SegmentsTable
-          locale={locale}
-          segments={canonicalSegments}
-          nodes={nodes}
-          usage={Object.fromEntries(usage)}
-          userNames={Object.fromEntries(userNames)}
-          currentUser={{ id: user.id, role: user.role }}
-        />
-      </details>
-
-      <TrashPanel locale={locale} deletedNodes={deletedNodes} deletedSegments={deletedSegments} />
-    </>
+    <MapShell
+      locale={locale}
+      bootstrap={bootstrap}
+      embedded={user.client === "app"}
+      initialMode={startMode}
+    />
   );
 }

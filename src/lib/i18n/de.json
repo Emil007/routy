@@ -675,5 +675,21 @@
     "trackGeometryRemoveRecording": "Diese Aufzeichnung entfernen",
     "trackGeometryRemoveRecordingConfirm": "GPS-Aufzeichnung dieses Spaziergangs aus der Admin-Prüfung löschen? Statistiken bleiben; nur der Track für Vorschläge wird entfernt.",
     "trackGeometryRemoveRecordingDone": "Aufzeichnung aus der Prüfung entfernt."
+  },
+  "shell": {
+    "explore": "Erkunden",
+    "plan": "Planen",
+    "go": "Gehen",
+    "record": "Aufnahme",
+    "profile": "Profil",
+    "backToMap": "Zurück zur Karte",
+    "collapse": "Einklappen",
+    "stopLiveTitle": "Live-Modus beenden?",
+    "stopLiveBody": "Die laufende Tour wird beendet.",
+    "comingNext": "Kommt im nächsten Schritt.",
+    "recordingPill": "Aufnahme läuft",
+    "layers": "Ebenen",
+    "editNetwork": "Netz bearbeiten",
+    "destinationHint": "Ziel oder Knoten"
   }
 }

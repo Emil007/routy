@@ -77,6 +77,7 @@ export function RouteGenerator({
   hosted = false,
   section = "plan",
   onLayersChange,
+  onPhaseChange,
 }: {
   locale: Locale;
   nodes: NodeRow[];
@@ -93,8 +94,10 @@ export function RouteGenerator({
   /** Host-betrieb (§4.5): keine eigene Karte, Layer via onLayersChange nach oben. */
   hosted?: boolean;
   /** Nur RouteGenerator: welcher Teil gerendert wird. */
-  section?: "plan" | "go";
+  section?: "plan" | "go" | "hidden";
   onLayersChange?: (layers: MapLayerSink) => void;
+  /** Annehmen → "active", Verwerfen/Abbrechen → "suggesting" (§4.5, ab J3 Dock-Switch). */
+  onPhaseChange?: (phase: "suggesting" | "active") => void;
 }) {
   const router = useRouter();
   const nodesById = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
@@ -641,6 +644,7 @@ export function RouteGenerator({
     const res = await callApi("/api/route/accept", { token: result.token });
     if (res.ok) {
       setMode("active");
+      onPhaseChange?.("active");
       setStatus("idle");
       clearMessage();
       setNickname("");
@@ -719,6 +723,7 @@ export function RouteGenerator({
     await callApi("/api/route/discard");
     setResult(null);
     setMode("suggesting");
+    onPhaseChange?.("suggesting");
     setStatus("idle");
     clearMessage();
     setNickname("");
@@ -737,6 +742,7 @@ export function RouteGenerator({
     if (res.ok) {
       setResult({ token: "", route: favorite.display });
       setMode("active");
+      onPhaseChange?.("active");
       setStatus("idle");
       clearMessage();
       setNickname("");
