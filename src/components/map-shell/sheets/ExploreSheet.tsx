@@ -7,8 +7,10 @@ import type { AtlasBootstrap } from "@/lib/atlasTypes";
 import type { MapLine } from "@/components/MapView";
 import { DrawPathWizard } from "@/components/DrawPathWizard";
 import { GpxImportWizard } from "@/components/GpxImportWizard";
+import { SegmentGeometryEditor } from "@/components/SegmentGeometryEditor";
 import { SegmentsTable } from "@/app/(app)/map/SegmentsTable";
 import { TrashPanel } from "@/app/(app)/map/TrashPanel";
+import { canEdit } from "@/lib/ownership";
 import { useMapShell } from "../MapShellContext";
 
 /** Netzlinien für Tool-Hosts (§7.4): dieselbe Ableitung wie RoutePane — die eine
@@ -40,7 +42,7 @@ interface PathProposal {
  */
 export function ExploreSheet({ locale, bootstrap }: { locale: Locale; bootstrap: AtlasBootstrap }) {
   const router = useRouter();
-  const { setStage, tool, setTool, registerLayers } = useMapShell();
+  const { setStage, tool, setTool, registerLayers, editSegmentId, setEditSegmentId } = useMapShell();
   const networkLines = useMemo(() => networkLinesFromBootstrap(bootstrap), [bootstrap.segmentGeometries]);
   const [proposals, setProposals] = useState<PathProposal[]>([]);
   const [proposalsLoading, setProposalsLoading] = useState(true);
@@ -186,6 +188,33 @@ export function ExploreSheet({ locale, bootstrap }: { locale: Locale; bootstrap:
           <TrashPanel locale={locale} deletedNodes={bootstrap.deletedNodes} deletedSegments={bootstrap.deletedSegments} />
         </div>
       )}
+
+      {tool === "editShape" && editSegmentId !== null && (() => {
+        const editing = bootstrap.segments.find((s) => s.id === editSegmentId);
+        if (!editing) return null;
+        const nodesById = new Map(bootstrap.nodes.map((n) => [n.id, n]));
+        return (
+          <div className="stack" style={{ marginTop: "0.5rem" }}>
+            <SegmentGeometryEditor
+              locale={locale}
+              segmentId={editing.id}
+              initialPoints={editing.geometry}
+              startNodeName={nodesById.get(editing.startNodeId)?.name || `#${editing.startNodeId}`}
+              endNodeName={nodesById.get(editing.endNodeId)?.name || `#${editing.endNodeId}`}
+              networkLines={networkLines.filter((l) => l.id !== `seg-${editing.id}`)}
+              nodes={bootstrap.nodes}
+              mergeRadiusM={bootstrap.mergeRadiusM}
+              canEditSegment={canEdit({ id: bootstrap.userId, role: bootstrap.role }, editing.submittedBy)}
+              onDone={() => {
+                setEditSegmentId(null);
+                setTool(null);
+              }}
+              hosted
+              onLayersChange={registerLayers}
+            />
+          </div>
+        );
+      })()}
 
       {tool === "proposals" && (
         <div className="stack" style={{ marginTop: "0.5rem" }}>

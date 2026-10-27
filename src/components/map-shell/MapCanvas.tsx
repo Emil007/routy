@@ -19,7 +19,7 @@ import { isLocked } from "@/lib/segmentLock";
  */
 export function MapCanvas({ locale, bootstrap }: { locale: Locale; bootstrap: AtlasBootstrap }) {
   const mapPrefs = useMapPreferences();
-  const { mode, layers } = useMapShell();
+  const { mode, layers, setEditSegmentId, setTool } = useMapShell();
 
   const writerActive = (layers?.lines?.length ?? 0) > 0 || (layers?.markers?.length ?? 0) > 0;
   const explore = mode === "explore" && !writerActive;
@@ -66,7 +66,12 @@ export function MapCanvas({ locale, bootstrap }: { locale: Locale; bootstrap: At
                 usageCount={bootstrap.usage[s.id] ?? 0}
                 activeConditions={conditionsBySegment.get(s.id)}
                 personalAvoided={bootstrap.personalAvoidSegmentIds.includes(s.id)}
-                onEditShape={() => {}}
+                onEditShape={() => {
+                  // J7: Form-Bearbeitung öffnet das Werkzeug als Tool-Panel der Hülle
+                  // (Edit-Shape aus SegmentPopup, §J4); Split bleibt im Editor selbst.
+                  setEditSegmentId(s.id);
+                  setTool("editShape");
+                }}
               />
             ) : undefined,
         };

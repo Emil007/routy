@@ -10,12 +10,15 @@ export interface MapShellState {
   stage: AtlasStage;
   tool: ExploreTool;
   profileOpen: boolean;
+  /** Bearbeitete Segment-ID für das Werkzeug editShape (von SegmentPopup.onEditShape). */
+  editSegmentId: number | null;
   /** Layer vom jeweiligen Karten-Schreiber (letzte Meldung gewinnt). */
   layers: MapLayerSink | null;
   setMode: (mode: AtlasMode) => void;
   setStage: (stage: AtlasStage) => void;
   setTool: (tool: ExploreTool) => void;
   setProfileOpen: (open: boolean) => void;
+  setEditSegmentId: (id: number | null) => void;
   registerLayers: (layers: MapLayerSink | null) => void;
 }
 
@@ -26,6 +29,7 @@ export function MapShellProvider({ children, initialMode }: { children: ReactNod
   const [stage, setStage] = useState<AtlasStage>("half");
   const [tool, setTool] = useState<ExploreTool>(null);
   const [profileOpen, setProfileOpen] = useState(false);
+  const [editSegmentId, setEditSegmentId] = useState<number | null>(null);
   const [layers, setLayers] = useState<MapLayerSink | null>(null);
 
   const registerLayers = useCallback((next: MapLayerSink | null) => setLayers(next), []);
@@ -37,11 +41,13 @@ export function MapShellProvider({ children, initialMode }: { children: ReactNod
         stage,
         tool,
         profileOpen,
+        editSegmentId,
         layers,
         setMode,
         setStage,
         setTool,
         setProfileOpen,
+        setEditSegmentId,
         registerLayers,
       }}
     >

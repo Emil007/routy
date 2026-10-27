@@ -20,7 +20,10 @@ export function ProfileMenu({
   isAdmin: boolean;
   embedded: boolean;
 }) {
-  const { profileOpen, setProfileOpen, setStage, mode } = useMapShell();
+  const { profileOpen, setProfileOpen, setStage } = useMapShell();
+
+  // J7: Embedded (Android WebView) hat kein Profil auf dem Atlas (Parität §J5/§6.3).
+  if (embedded) return null;
 
   function nav(path: string) {
     setProfileOpen(false);
@@ -35,7 +38,6 @@ export function ProfileMenu({
         aria-label={t(locale, "shell.profile")}
         aria-expanded={profileOpen}
         onClick={() => {
-          if (embedded) return;
           setProfileOpen(!profileOpen);
           if (profileOpen) setStage("peek");
         }}
