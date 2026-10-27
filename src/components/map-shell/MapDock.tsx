@@ -7,15 +7,15 @@ import type { AtlasMode } from "@/lib/atlasTypes";
 const DOCK_CHIPS: { mode: AtlasMode; key: "explore" | "plan" | "go" | "record"; disabled?: boolean }[] = [
   { mode: "explore", key: "explore" },
   { mode: "plan", key: "plan" },
-  { mode: "go", key: "go", disabled: true },
+  { mode: "go", key: "go" },
   { mode: "record", key: "record", disabled: true },
 ];
 
 /**
  * Dock als Label-Chips (Erkunden · Planen · Gehen · Aufnahme). Profil ist ein
  * runder Knopf oben, kein 5. Chip (W6). Darf auch bei laufender Wanderung/Aufnahme
- * sichtbar bleiben (W4). In J2 sind Gehen + Aufnahme noch disabled (`shell.comingNext`
- * nur als title, nicht als zweite Navigation — §J2 Abnahme-Parität).
+ * sichtbar bleiben (W4). J3: Gehen aktiv (aktive Route bzw. freies Gehen), Aufnahme
+ * bleibt bis J4 disabled (`shell.comingNext` nur als title).
  */
 export function MapDock({ locale }: { locale: Locale }) {
   const { mode, setMode, stage, setStage } = useMapShell();

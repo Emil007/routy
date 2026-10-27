@@ -9,7 +9,7 @@ import { MapDock } from "./MapDock";
 import { ProfileMenu } from "./ProfileMenu";
 import { BottomSheet } from "./BottomSheet";
 import { ExploreSheet } from "./sheets/ExploreSheet";
-import { PlanSheet } from "./sheets/PlanSheet";
+import { RoutePane } from "./sheets/RoutePane";
 
 function ShellInner({
   locale,
@@ -39,7 +39,7 @@ function ShellInner({
           <ExploreSheet locale={locale} bootstrap={bootstrap} />
         </div>
         <div className={mode === "plan" || mode === "go" ? "sheet-pane" : "sheet-pane sheet-pane-hidden"}>
-          <PlanSheet locale={locale} bootstrap={bootstrap} />
+          <RoutePane locale={locale} bootstrap={bootstrap} />
         </div>
         <div className="sheet-pane sheet-pane-hidden">
           <div className="sheet-body">{t(locale, "shell.comingNext")}</div>

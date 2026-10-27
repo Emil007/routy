@@ -892,6 +892,11 @@ export function RouteGenerator({
     </div>
   ) : null;
 
+  // J3-Host-Prop: hidden → nichts, go ohne aktive Route → nichts (GoSheet mountet
+  // FreeRoamCard separat), plan → nur der suggesting-Zweig.
+  if (hosted && section === "hidden") return null;
+  if (hosted && section === "go" && mode !== "active") return null;
+
   return (
     <div className="route-shell has-map">
       {!hosted && (
@@ -945,7 +950,7 @@ export function RouteGenerator({
           </div>
         )}
 
-        {mode === "suggesting" && !result && (
+        {section === "plan" && mode === "suggesting" && !result && (
           <div className="stack" style={{ gap: "0.45rem" }}>
             <span className="chip route-summary-chip" title={summaryText}>
               {summaryText}
@@ -1052,16 +1057,18 @@ export function RouteGenerator({
               </div>
             </details>
 
-            <details className="card" style={{ marginTop: "0.5rem" }}>
-              <summary style={{ fontSize: "0.95rem", fontWeight: 600, cursor: "pointer" }}>{t(locale, "route.freeRoamStart")}</summary>
-              <div className="stack" style={{ marginTop: "0.5rem", gap: "0.35rem" }}>
-                <FreeRoamCard
-                  locale={locale}
-                  nodes={nodes}
-                  networkLines={networkMapLines}
-                />
-              </div>
-            </details>
+            {!hosted && (
+              <details className="card" style={{ marginTop: "0.5rem" }}>
+                <summary style={{ fontSize: "0.95rem", fontWeight: 600, cursor: "pointer" }}>{t(locale, "route.freeRoamStart")}</summary>
+                <div className="stack" style={{ marginTop: "0.5rem", gap: "0.35rem" }}>
+                  <FreeRoamCard
+                    locale={locale}
+                    nodes={nodes}
+                    networkLines={networkMapLines}
+                  />
+                </div>
+              </details>
+            )}
 
             <div className="route-action-bar">
               {(usingNetworkFallback === true || usingNetworkFallback === false) && (

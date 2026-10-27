@@ -14,15 +14,16 @@ export default async function MapPage({
 
   const bootstrap = await loadAtlasBootstrap({ requestedMode: mode ?? null, deleteError: deleteError ?? null });
 
-  // §J2: In dieser Phase liegt die aktive Route noch im Plan-Sheet (Gehen kommt in J3).
-  // Eine aktive Route schlägt das Query („included aktive Route“); Go wird erst in J3 geöffnet.
+  // §J3: Aktive Route → Gehen (Startmodus go). Sonst: Query plan/go/explore/record
+  // wie gewünscht, Default explore. Read-only-Modus aus einer aktiven Route überlebt
+  // nur explore/record (Karte ansehen), planen/gehen schlagen auf die aktive Route auf.
   let startMode: "explore" | "plan" | "go" | "record";
   const requested =
     mode === "explore" || mode === "plan" || mode === "go" || mode === "record" ? mode : null;
   if (bootstrap.activeRoute) {
-    startMode = requested === "explore" || requested === "record" ? requested : "plan";
+    startMode = requested === "record" || requested === "explore" ? requested : "go";
   } else {
-    startMode = requested === "plan" ? "plan" : "explore";
+    startMode = requested === "plan" || requested === "go" ? requested : "explore";
   }
 
   return (
