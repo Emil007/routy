@@ -141,6 +141,11 @@ export function ExploreSheet({ locale, bootstrap }: { locale: Locale; bootstrap:
         >
           {t(locale, "shell.collapse")}
         </button>
+        {bootstrap.role === "admin" && (
+          <button type="button" className="btn-secondary btn-compact" onClick={() => (window.location.href = "/admin/track-geometry")}>
+            {t(locale, "admin.trackGeometryHeading")}
+          </button>
+        )}
       </div>
 
       {tool === "draw" && (

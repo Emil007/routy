@@ -56,6 +56,11 @@ export function ProfileMenu({
               {t(locale, "nav.admin")}
             </button>
           )}
+          {isAdmin && (
+            <button type="button" className="menu-item" onClick={() => nav("/admin/track-geometry")}>
+              {t(locale, "admin.trackGeometryHeading")}
+            </button>
+          )}
           <div className="profile-menu-row">
             <span className="chip">{displayName}</span>
             <form action={logoutAction}>
