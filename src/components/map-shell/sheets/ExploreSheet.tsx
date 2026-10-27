@@ -125,7 +125,7 @@ export function ExploreSheet({ locale, bootstrap }: { locale: Locale; bootstrap:
           {t(locale, "map.proposalsTitle")} ({proposalsLoading ? "…" : proposals.length})
         </button>
         <button type="button" className="btn-secondary btn-compact" onClick={() => openTool("segments")}>
-          {t(locale, "segmentsHeading")}
+          {t(locale, "map.segmentsHeading")}
         </button>
         <button
           type="button"
