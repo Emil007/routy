@@ -6,6 +6,54 @@ const NOMINATIM_ENDPOINT = "https://nominatim.openstreetmap.org/reverse";
 const FETCH_TIMEOUT_MS = 8000;
 const USER_AGENT = "Routy/1.0 (self-hosted dog walk route planner)";
 
+// Nominatim usage policy: max 1 req/s, identify yourself, cache results.
+const MIN_REQUEST_INTERVAL_MS = 1100; // slightly above 1 req/s hard limit
+let lastRequestAt = 0;
+// Simple bounded LRU: { key -> { name, at } }; key = rounded lat,lng.
+const CACHE_LIMIT = 1000;
+const CACHE_TTL_MS = 24 * 60 * 60 * 1000;
+const cache = new Map<string, { name: string | null; at: number }>();
+
+/** Throttle calls to <= ~0.9 req/s (global, process-wide) and dedupe nearby points. */
+async function rateLimitedFetchOsm(lat: number, lng: number): Promise<string | null> {
+  const key = `${lat.toFixed(5)},${lng.toFixed(5)}`;
+  const cached = cache.get(key);
+  if (cached && Date.now() - cached.at < CACHE_TTL_MS) return cached.name;
+
+  const now = Date.now();
+  const wait = Math.max(0, MIN_REQUEST_INTERVAL_MS - (now - lastRequestAt));
+  if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+  lastRequestAt = Date.now();
+
+  let name: string | null = null;
+  try {
+    const url = `${NOMINATIM_ENDPOINT}?format=jsonv2&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+    let res: Response;
+    try {
+      res = await fetch(url, { signal: controller.signal, headers: { "User-Agent": USER_AGENT } });
+    } finally {
+      clearTimeout(timeout);
+    }
+    if (res.ok) {
+      const data = (await res.json().catch(() => null)) as
+        | { address?: NominatimAddress; display_name?: string }
+        | null;
+      if (data) name = baseNameFromAddress(data.address ?? {}, data.display_name);
+    }
+  } catch {
+    name = null;
+  }
+
+  cache.set(key, { name, at: Date.now() });
+  if (cache.size > CACHE_LIMIT) {
+    const oldest = [...cache.entries()].sort((a, b) => a[1].at - b[1].at)[0];
+    if (oldest) cache.delete(oldest[0]);
+  }
+  return name;
+}
+
 const ADDRESS_KEYS = [
   "road",
   "pedestrian",
@@ -42,27 +90,18 @@ function baseNameFromAddress(address: NominatimAddress, displayName: string | un
  * creation, so any failure (offline, timeout, no address data) returns null.
  */
 async function fetchOsmBaseName(point: LatLng): Promise<string | null> {
-  try {
-    const url = `${NOMINATIM_ENDPOINT}?format=jsonv2&lat=${point.lat}&lon=${point.lng}&zoom=18&addressdetails=1`;
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-    let res: Response;
-    try {
-      res = await fetch(url, { signal: controller.signal, headers: { "User-Agent": USER_AGENT } });
-    } finally {
-      clearTimeout(timeout);
-    }
-    if (!res.ok) return null;
-
-    const data = (await res.json().catch(() => null)) as
-      | { address?: NominatimAddress; display_name?: string }
-      | null;
-    if (!data) return null;
-
-    return baseNameFromAddress(data.address ?? {}, data.display_name);
-  } catch {
+  // Bounds safety net: reject out-of-range coordinates before any HTTP call.
+  if (
+    !Number.isFinite(point.lat) ||
+    !Number.isFinite(point.lng) ||
+    point.lat < -90 ||
+    point.lat > 90 ||
+    point.lng < -180 ||
+    point.lng > 180
+  ) {
     return null;
   }
+  return rateLimitedFetchOsm(point.lat, point.lng);
 }
 
 export interface NodeNameSuggestions {

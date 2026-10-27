@@ -76,6 +76,21 @@ function migrateOpeningHoursAndWalkMode(db: Database.Database): void {
   addColumnIfMissing(db, "active_route", "guide_node_ids", "ALTER TABLE active_route ADD COLUMN guide_node_ids TEXT");
 }
 
+function migratePerUserTimezone(db: Database.Database): void {
+  addColumnIfMissing(db, "users", "timezone", "ALTER TABLE users ADD COLUMN timezone TEXT NOT NULL DEFAULT 'Europe/Vienna'");
+}
+
+function migrateAchievementsTable(db: Database.Database): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS achievements (
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      key TEXT NOT NULL,
+      earned_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (user_id, key)
+    );
+  `);
+}
+
 export const MIGRATIONS: Migration[] = [
   { id: 1, name: "legacy_schema_hardening", up: noop },
   { id: 2, name: "per_user_home", up: noop },
@@ -85,6 +100,8 @@ export const MIGRATIONS: Migration[] = [
   { id: 6, name: "one_way_and_dismissal_resolution", up: noop },
   { id: 7, name: "user_segment_usage", up: migrateUserSegmentUsage },
   { id: 8, name: "opening_hours_and_walk_mode", up: migrateOpeningHoursAndWalkMode },
+  { id: 9, name: "per_user_timezone", up: migratePerUserTimezone },
+  { id: 10, name: "achievements_table", up: migrateAchievementsTable },
 ];
 
 export function runAllMigrations(db: Database.Database): void {

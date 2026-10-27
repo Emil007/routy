@@ -13,6 +13,7 @@
 // documented last-resort fallback for the rare case this pool comes back empty.
 
 import type { Graph, RouteMode, RouteResult, SegmentEdge } from "./routing";
+import { shuffled, rng } from "./seededRandom";
 import { buildTourFromPlan, optimizeCoreTourPlan } from "./coreTour";
 import { extendCoreTour } from "./extendTour";
 
@@ -138,10 +139,6 @@ function concat(legs: RouteResult[]): RouteResult {
   return { nodeChain, segmentIds, lengthM, durationMin };
 }
 
-function edgeLeg(e: SegmentEdge): RouteResult {
-  return { nodeChain: [e.from, e.to], segmentIds: [e.id], lengthM: e.lengthM, durationMin: e.durationMin };
-}
-
 /** Directed ids of a route plus their reverse pairs — used to force genuine (non-retracing) loops. */
 function canonicalBlock(segmentIds: number[], pairOf: Map<number, number>): Set<number> {
   const s = new Set<number>();
@@ -152,8 +149,6 @@ function canonicalBlock(segmentIds: number[], pairOf: Map<number, number>): Set<
   }
   return s;
 }
-
-type Step = { kind: "node"; node: number } | { kind: "edge"; edge: SegmentEdge };
 
 /** Build core tour via TSP-ordered plan, then optional length extension. */
 function buildCoreTourRoute(
@@ -206,91 +201,6 @@ function buildCoreTourRoute(
   };
 }
 
-/**
- * Legacy skeleton builder — kept for Yen fallback paths that re-stitch with exclusions.
- */
-function buildSkeleton(
-  graph: Graph,
-  pairOf: Map<number, number>,
-  edgeById: Map<number, SegmentEdge>,
-  start: number,
-  destination: number,
-  mustVisit: number[],
-  requiredEdges: SegmentEdge[],
-  mode: RouteMode,
-  excluded: Set<number>,
-): RouteResult | null {
-  const distTo = (from: number, to: number): number =>
-    dijkstra(graph, from, to, mode, excluded)?.lengthM ?? Number.POSITIVE_INFINITY;
-
-  const orderedRequired = [...requiredEdges].sort(
-    (a, b) => distTo(start, a.from) - distTo(start, b.from),
-  );
-
-  const plan: Step[] = [];
-  for (const n of mustVisit) plan.push({ kind: "node", node: n });
-  for (const e of orderedRequired) plan.push({ kind: "edge", edge: e });
-  plan.push({ kind: "node", node: destination });
-
-  const legs: RouteResult[] = [];
-  let current = start;
-  let lastEdge: number | null = null;
-
-  const goTo = (target: number): boolean => {
-    if (target === current) return true;
-    const blocked = new Set<number>();
-    if (lastEdge !== null) {
-      const rev = pairOf.get(lastEdge);
-      if (rev !== undefined) blocked.add(rev);
-    }
-    // Prefer not to immediately reverse onto the join edge; retry without that block if needed.
-    let leg = dijkstra(graph, current, target, mode, excluded, blocked);
-    if (!leg) leg = dijkstra(graph, current, target, mode, excluded);
-    if (!leg) return false;
-    legs.push(leg);
-    current = target;
-    if (leg.segmentIds.length > 0) lastEdge = leg.segmentIds[leg.segmentIds.length - 1]!;
-    return true;
-  };
-
-  const takeEdge = (e: SegmentEdge): void => {
-    legs.push(edgeLeg(e));
-    current = e.to;
-    lastEdge = e.id;
-  };
-
-  for (const step of plan) {
-    if (step.kind === "node") {
-      if (!goTo(step.node)) return null;
-      continue;
-    }
-    const e = step.edge;
-    const revId = pairOf.get(e.id);
-    const revEdge = revId !== undefined ? edgeById.get(revId) : undefined;
-    const distForward = distTo(current, e.from);
-    const distReverse = revEdge ? distTo(current, e.to) : Number.POSITIVE_INFINITY;
-    if (distForward <= distReverse) {
-      if (goTo(e.from)) {
-        takeEdge(e);
-      } else if (revEdge && goTo(e.to)) {
-        takeEdge(revEdge);
-      } else {
-        return null;
-      }
-    } else {
-      if (revEdge && goTo(e.to)) {
-        takeEdge(revEdge);
-      } else if (goTo(e.from)) {
-        takeEdge(e);
-      } else {
-        return null;
-      }
-    }
-  }
-
-  return concat(legs);
-}
-
 /** Genuine loop start → m → start where the return leg avoids the outbound physical paths. */
 function loopVia(
   graph: Graph,
@@ -310,16 +220,64 @@ function loopVia(
   return back ? concat([leg1, back]) : null;
 }
 
+/**
+ * Sample mid nodes for loop/detour candidates.
+ *
+ * The order of the returned array drives the order candidates are stitched in
+ * `generateRoutePool`. Deterministic sorted order meant a fresh page reload
+ * always explored the same (sorted) subset and produced the same route every
+ * generate — there was no randomness to differentiate consecutive builds. We
+ * now shuffle the sample so each generate explores a different slice of the
+ * graph, while keeping enough maxResults headroom for the caller's cap.
+ */
 function sampleMidNodes(
   nodeSet: Set<number>,
   exclude: Set<number>,
   cap: number,
 ): number[] {
   const all = [...nodeSet].filter((n) => !exclude.has(n)).sort((a, b) => a - b);
-  if (all.length <= cap) return all;
+  if (all.length <= cap) return shuffledList(all);
   const out: number[] = [];
   const step = all.length / cap;
   for (let i = 0; i < all.length; i += step) out.push(all[Math.floor(i)]!);
+  return shuffledList(out);
+}
+
+/** Fisher–Yates shuffle via the seeded PRNG (pure, no global mutation). */
+function shuffledList<T>(items: T[]): T[] {
+  return shuffled(items);
+}
+
+/** All distinct permutations of `arr` (only used for small N — see buildOrderings). */
+function allPermutations<T>(arr: T[]): T[][] {
+  if (arr.length <= 1) return [[...arr]];
+  const out: T[][] = [];
+  for (let i = 0; i < arr.length; i++) {
+    const rest = [...arr.slice(0, i), ...arr.slice(i + 1)];
+    for (const p of allPermutations(rest)) out.push([arr[i]!, ...p]);
+  }
+  return out;
+}
+
+/**
+ * Must-visit orderings to explore when building the pool.
+ *
+ * The caller usually passes ONE optimized TSP order. Building every candidate
+ * from that single skeleton collapses into very few distinct segment sets once
+ * the binding shape rules hard-filter (Emanuel: a 3-point request must actually
+ * vary, and the shape rules are NOT what kills the diversity). Exploring the
+ * permutation space lets each ordering produce its own core + extension:
+ *  - ≤3 stops: all N! orders (cheap, and that's the common hand-tapped case);
+ *  - more: the optimized order first, then bounded random shuffles;
+ *  - preserveOrder (user explicitly locked tap order): only that order.
+ */
+function buildOrderings(must: number[], preserve: boolean): number[][] {
+  if (must.length === 0) return [[]];
+  if (preserve) return [must];
+  if (must.length <= 3) return shuffledList(allPermutations(must));
+  const out: number[][] = [must];
+  const extras = Math.min(5, Math.max(1, 18 - must.length));
+  for (let i = 0; i < extras; i++) out.push(shuffledList(must));
   return out;
 }
 
@@ -383,14 +341,26 @@ export function generateRoutePool(p: PoolParams): RouteResult[] {
 
   const hasConstraints = mustVisit.length > 0 || requiredEdges.length > 0;
   const isLoop = start === destination && !hasConstraints;
-  const midNodes = sampleMidNodes(nodeSet, new Set([start, destination, ...mustVisit]), 180);
+  const preserveOrder = p.preserveMustVisitOrder === true;
+  const orderings = buildOrderings(mustVisit, preserveOrder);
+  // When we explore several orderings, each must be built with its order LOCKED
+  // (preserveOrder=true) — otherwise buildCoreTourRoute re-optimizes internally
+  // and every ordering collapses back onto the single optimal skeleton, killing
+  // the diversity Emanuel needs for multi-point routes (probe8: 6 orders → 5
+  // distinct routes once order is preserved). The orderings are permutations of
+  // the optimizer's output, so they are all near-optimal starting points.
+  const lockOrder = preserveOrder || orderings.length > 1;
+  // Distribute the detour budget across orderings so total work stays ~constant
+  // and the performance ceiling (cursor/codex review #8) isn't multiplied by N!.
+  const perOrderMid = Math.max(1, Math.ceil(180 / orderings.length));
+  const midNodes = sampleMidNodes(nodeSet, new Set([start, destination, ...mustVisit]), perOrderMid);
 
-  if (isLoop) {
-    for (const m of midNodes) {
-      add(loopVia(graph, pairOf, start, m, mode, excluded));
-      if (pool.length >= maxPool) break;
-    }
-  } else {
+  // Which ordering built each candidate — the Yen pass later re-stitches a
+  // blocked variant with the SAME skeleton ordering, so the alternative stays
+  // genuinely different instead of snapping back to the optimized core.
+  const orderOf = new Map<RouteResult, number[]>();
+
+  const buildForOrder = (order: number[]): void => {
     add(
       buildCoreTourRoute(
         graph,
@@ -398,52 +368,81 @@ export function generateRoutePool(p: PoolParams): RouteResult[] {
         edgeById,
         start,
         destination,
-        mustVisit,
+        order,
         requiredEdges,
         mode,
         excluded,
         p.minValue,
         p.maxValue,
-        p.preserveMustVisitOrder === true,
+        lockOrder,
       ),
     );
     for (const m of midNodes) {
-      add(
-        buildCoreTourRoute(
-          graph,
-          pairOf,
-          edgeById,
-          start,
-          destination,
-          [...mustVisit, m],
-          requiredEdges,
-          mode,
-          excluded,
-          p.minValue,
-          p.maxValue,
-          p.preserveMustVisitOrder === true,
-        ),
+      const candidate = buildCoreTourRoute(
+        graph,
+        pairOf,
+        edgeById,
+        start,
+        destination,
+        [...order, m],
+        requiredEdges,
+        mode,
+        excluded,
+        p.minValue,
+        p.maxValue,
+        lockOrder,
       );
+      if (candidate) {
+        orderOf.set(candidate, order);
+        add(candidate);
+      }
+      if (pool.length >= maxPool) break;
+    }
+  };
+
+  if (isLoop) {
+    for (const m of midNodes) {
+      add(loopVia(graph, pairOf, start, m, mode, excluded));
+      if (pool.length >= maxPool) break;
+    }
+  } else {
+    for (const order of orderings) {
+      const before = pool.length;
+      buildForOrder(order);
+      // Tag any candidate added by this ordering (the core + its detours).
+      for (let i = before; i < pool.length; i++) {
+        if (!orderOf.has(pool[i]!)) orderOf.set(pool[i]!, order);
+      }
       if (pool.length >= maxPool) break;
     }
   }
 
   // Yen-like alternatives: hide one physical path from an existing route and re-stitch.
-  const base = pool.slice(0, Math.min(8, pool.length));
+  // Process the base set in shuffled order and pick a varied selection of blocked
+  // paths (not just the first) so successive generates re-explore a different
+  // neighbourhood instead of always deriving from the same routes.
+  const base = shuffledList(pool.slice(0, Math.min(12, pool.length)));
   for (const r of base) {
     if (pool.length >= maxPool) break;
-    const canon = new Set<number>();
-    for (const id of r.segmentIds) canon.add(Math.min(id, pairOf.get(id) ?? id));
-    for (const c of canon) {
+    const canon = [...new Set(r.segmentIds.map((id) => Math.min(id, pairOf.get(id) ?? id)))];
+    const blocked = shuffledList(canon).slice(0, Math.min(6, canon.length));
+    const order = orderOf.get(r) ?? mustVisit;
+    for (const c of blocked) {
       if (pool.length >= maxPool) break;
       const excl = new Set(excluded);
       excl.add(c);
       const pr = pairOf.get(c);
       if (pr !== undefined) excl.add(pr);
       if (isLoop) {
-        const midOnRoute = r.nodeChain[Math.floor(r.nodeChain.length / 2)];
-        if (midOnRoute !== undefined && midOnRoute !== start) {
-          add(loopVia(graph, pairOf, start, midOnRoute, mode, excl));
+        // Pick a mid node NOT on the current route so the reshuffle builds a
+        // genuinely different segment set (Yen-like) instead of re-walking the
+        // same neighbourhood back home. Choose from all nodes that are not on the
+        // candidate's chain — that's what forces a new physical path into the pool.
+        const onRoute = new Set(r.nodeChain);
+        const offRoute = [...nodeSet].filter((n) => !onRoute.has(n) && n !== start);
+        const mid = offRoute[Math.floor(rng() * offRoute.length)];
+        if (mid !== undefined) {
+          add(loopVia(graph, pairOf, start, mid, mode, excl));
         }
       } else {
         add(
@@ -453,18 +452,18 @@ export function generateRoutePool(p: PoolParams): RouteResult[] {
             edgeById,
             start,
             destination,
-            mustVisit,
+            order,
             requiredEdges,
             mode,
             excl,
             p.minValue,
             p.maxValue,
-            p.preserveMustVisitOrder === true,
+            lockOrder,
           ),
         );
       }
     }
   }
 
-  return pool;
+  return shuffledList(pool);
 }

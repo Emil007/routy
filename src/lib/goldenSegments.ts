@@ -2,6 +2,7 @@ import { db } from "./db";
 import { directedPairIds, listSegments } from "./segments";
 import { canonicalSegmentId } from "./points";
 import { getSettings } from "./settings";
+import { rng } from "./seededRandom";
 
 const GOLDEN_MULTIPLIER = 3;
 
@@ -49,7 +50,7 @@ export function pickGoldenSegmentIds(
   while (picked.length < count && remaining.length > 0) {
     const weights = remaining.map(([, usage]) => 1 / (usage + 1));
     const totalWeight = weights.reduce((sum, w) => sum + w, 0);
-    let roll = Math.random() * totalWeight;
+    let roll = rng() * totalWeight;
     let index = remaining.length - 1;
     for (let i = 0; i < remaining.length; i++) {
       roll -= weights[i]!;

@@ -11,6 +11,7 @@ import {
   voiceAnnounceRadiusM,
 } from "@/lib/voiceAnnounce";
 import { MapViewLazy } from "./MapViewLazy";
+import { FreeRoamCard } from "./FreeRoamCard";
 import { useMapPreferences } from "@/lib/useMapPreferences";
 import { RouteCompletionDialog, type RouteCompletionData } from "./RouteCompletionDialog";
 import { type MapLine, type MapMarker } from "./MapView";
@@ -101,6 +102,7 @@ export function RouteGenerator({
   const [startNodeId, setStartNodeId] = useState<number | "">(homeNodeId ?? "");
   const [isLoop, setIsLoop] = useState(true);
   const [endNodeId, setEndNodeId] = useState<number | "">(homeNodeId ?? "");
+  const [pendingDestinationReplace, setPendingDestinationReplace] = useState<number | null>(null);
   const [mustVisitNodeIds, setMustVisitNodeIds] = useState<number[]>([]);
   const [requiredSegmentIds, setRequiredSegmentIds] = useState<number[]>([]);
   const [excludedSegmentIds, setExcludedSegmentIds] = useState<number[]>([]);
@@ -124,6 +126,7 @@ export function RouteGenerator({
   const [watchId, setWatchId] = useState<number | null>(null);
   const [voiceEnabled, setVoiceEnabled] = useState(false);
   const [pointBalance, setPointBalance] = useState<number | null>(null);
+  const [dailyChallenge, setDailyChallenge] = useState<string | null>(null);
   const [goldenSegmentIds, setGoldenSegmentIds] = useState<number[]>([]);
   const [completionData, setCompletionData] = useState<RouteCompletionData | null>(null);
   const [usingNetworkFallback, setUsingNetworkFallback] = useState<boolean | null>(initialUsingNetworkFallback);
@@ -173,10 +176,47 @@ export function RouteGenerator({
     setSelectedNodeId(null);
   }
 
+  /**
+   * Ziel setzen — immer verfügbar (unabhängig von Rundweg).
+   * Ist schon ein Ziel gesetzt, fragt ein Dialog nach, ob es für diese
+   * Berechnung gewechselt werden soll (Parität mit der App).
+   */
   function setNodeAsEnd(nodeId: number) {
     clearNodeRole(nodeId);
+    const existing = endNodeId;
+    if (existing !== "" && existing !== nodeId) {
+      setPendingDestinationReplace(nodeId);
+      setSelectedNodeId(null);
+      return;
+    }
     setEndNodeId(nodeId);
+    setIsLoop(false);
     setSelectedNodeId(null);
+  }
+
+  function confirmReplaceDestination() {
+    const nodeId = pendingDestinationReplace;
+    if (nodeId === null) return;
+    setEndNodeId(nodeId);
+    setIsLoop(false);
+    setPendingDestinationReplace(null);
+    setSelectedNodeId(null);
+  }
+
+  function dismissReplaceDestination() {
+    setPendingDestinationReplace(null);
+  }
+
+  /** Löscht alle Planungs-Markierungen (Ziel, Muss-besucht, Pflicht/Ausschluss), behält Start/Home. */
+  function resetPlanning() {
+    setIsLoop(true);
+    setEndNodeId(homeNodeId ?? "");
+    setMustVisitNodeIds([]);
+    setRequiredSegmentIds([]);
+    setExcludedSegmentIds([]);
+    setSelectedNodeId(null);
+    setSelectedSegmentId(null);
+    setPendingDestinationReplace(null);
   }
 
   function toggleMustVisit(nodeId: number) {
@@ -184,7 +224,12 @@ export function RouteGenerator({
       setMustVisitNodeIds((prev) => prev.filter((id) => id !== nodeId));
     } else {
       if (startNodeId === nodeId) setStartNodeId(homeNodeId ?? "");
-      if (endNodeId === nodeId) setEndNodeId(homeNodeId ?? "");
+      // Parität mit der App: Ein Knoten kann nicht gleichzeitig Ziel und
+      // Muss-besucht sein — das Ziel weicht.
+      if (endNodeId === nodeId) {
+        setIsLoop(true);
+        setEndNodeId(homeNodeId ?? "");
+      }
       setMustVisitNodeIds((prev) => [...prev, nodeId]);
     }
     setSelectedNodeId(null);
@@ -258,8 +303,8 @@ export function RouteGenerator({
         badge = t(locale, "route.badgeStart");
         color = "#a5711c";
       } else if (!isLoop && n.id === endNodeId) {
-        badge = t(locale, "route.badgeEnd");
-        color = "#a5711c";
+        badge = t(locale, "route.badgeTarget");
+        color = "#7c3aed";
       } else {
         const mustIdx = mustVisitNodeIds.indexOf(n.id);
         if (mustIdx >= 0) {
@@ -296,7 +341,7 @@ export function RouteGenerator({
 
   const mapFitKey = result
     ? result.token || result.route.nodeChain.join("-")
-    : `plan-${startNodeId}-${mustVisitNodeIds.join(",")}-${requiredSegmentIds.join(",")}`;
+    : `plan-${startNodeId}-${endNodeId}-${mustVisitNodeIds.join(",")}-${requiredSegmentIds.join(",")}`;
 
   async function readApiError(res: Response): Promise<string> {
     const data = (await res.json().catch(() => null)) as { error?: string; retryAfterSeconds?: number } | null;
@@ -315,8 +360,13 @@ export function RouteGenerator({
     (async () => {
       const res = await fetch("/api/app/game/daily");
       if (!cancelled && res.ok) {
-        const data = (await res.json()) as { pointBalance: number; goldenSegments: { segmentId: number }[] };
+        const data = (await res.json()) as {
+          pointBalance: number;
+          dailyChallenge?: string | null;
+          goldenSegments: { segmentId: number }[];
+        };
         setPointBalance(data.pointBalance);
+        if (data.dailyChallenge) setDailyChallenge(data.dailyChallenge);
         setGoldenSegmentIds(data.goldenSegments.map((g) => g.segmentId));
       }
     })();
@@ -502,42 +552,6 @@ export function RouteGenerator({
     } else {
       setStatus("idle");
       flashMessage(t(locale, "route.noAlternative"), true);
-    }
-  }
-
-  async function handleAcceptGuide(token: string) {
-    setStatus("loading");
-    const res = await callApi("/api/route/guide/accept", { token });
-    if (res.ok) {
-      setMode("active");
-      setStatus("idle");
-      clearMessage();
-      setNickname("");
-      announcedStationIndexRef.current = 0;
-      waitingToLeaveIndexRef.current = null;
-    } else {
-      setStatus("idle");
-      flashMessage(t(locale, "route.sessionExpired"), true);
-    }
-  }
-
-  async function handleStartGuide() {
-    const ordered = mustVisitNodeIds.length > 0 ? mustVisitNodeIds : startNodeId ? [Number(startNodeId)] : [];
-    if (ordered.length === 0) {
-      flashMessage(t(locale, "route.mapTapHint"), true);
-      return;
-    }
-    setStatus("loading");
-    const res = await callApi("/api/route/guide/start", { orderedNodeIds: ordered, loopBack: isLoop });
-    if (res.ok) {
-      const data = (await res.json()) as GenerateResponse;
-      setResult(data);
-      setStatus("idle");
-      clearMessage();
-      await handleAcceptGuide(data.token);
-    } else {
-      setStatus("idle");
-      flashMessage(await readApiError(res), true);
     }
   }
 
@@ -886,6 +900,11 @@ export function RouteGenerator({
         {pointBalance !== null && (
           <div className="btn-row" style={{ marginBottom: "0.35rem" }}>
             <span className="chip">{t(locale, "route.pointBalance", { points: pointBalance })}</span>
+            {dailyChallenge && (
+              <span className="chip" style={{ backgroundColor: "#fdf6e3", color: "#7c3aed" }}>
+                🎯 {dailyChallenge}
+              </span>
+            )}
             {(result?.goldenHits ?? result?.goldenHitIds?.length ?? 0) > 0 ? (
               <span className="chip">
                 {t(locale, "route.goldenOnRoute")}: {result!.goldenHits ?? result!.goldenHitIds!.length}
@@ -925,11 +944,9 @@ export function RouteGenerator({
                 <button type="button" className="btn-secondary btn-compact" onClick={() => setNodeAsStart(selectedNodeId)}>
                   {t(locale, "route.nodeMenuStart")}
                 </button>
-                {!isLoop && (
-                  <button type="button" className="btn-secondary btn-compact" onClick={() => setNodeAsEnd(selectedNodeId)}>
-                    {t(locale, "route.nodeMenuEnd")}
-                  </button>
-                )}
+                <button type="button" className="btn-secondary btn-compact" onClick={() => setNodeAsEnd(selectedNodeId)}>
+                  {t(locale, "route.nodeMenuEnd")}
+                </button>
                 <button type="button" className="btn-secondary btn-compact" onClick={() => toggleMustVisit(selectedNodeId)}>
                   {t(locale, "route.nodeMenuMustVisit")}
                 </button>
@@ -969,8 +986,10 @@ export function RouteGenerator({
                     type="checkbox"
                     checked={isLoop}
                     onChange={(e) => {
-                      setIsLoop(e.target.checked);
-                      if (e.target.checked && startNodeId) setEndNodeId(startNodeId);
+                      const loop = e.target.checked;
+                      setIsLoop(loop);
+                      // Parität mit der App: Runde ⇔ kein Ziel gesetzt.
+                      if (loop) setEndNodeId(homeNodeId ?? "");
                     }}
                   />
                   {t(locale, "route.loop")}
@@ -992,13 +1011,25 @@ export function RouteGenerator({
                 >
                   {t(locale, "route.presetSurprise")}
                 </button>
+                {(endNodeId !== "" && !isLoop) ||
+                mustVisitNodeIds.length > 0 ||
+                requiredSegmentIds.length > 0 ||
+                excludedSegmentIds.length > 0 ? (
+                  <button type="button" className="btn-secondary btn-compact" onClick={resetPlanning}>
+                    {t(locale, "route.nodeMenuClearAll")}
+                  </button>
+                ) : null}
               </div>
+            </details>
+
+            <details className="card" style={{ marginTop: "0.5rem" }}>
+              <summary style={{ fontSize: "0.95rem", fontWeight: 600, cursor: "pointer" }}>{t(locale, "route.freeRoamStart")}</summary>
               <div className="stack" style={{ marginTop: "0.5rem", gap: "0.35rem" }}>
-                <strong style={{ fontSize: "0.85rem" }}>{t(locale, "route.nodeGuideTitle")}</strong>
-                <p className="hint-compact" style={{ margin: 0 }}>{t(locale, "route.nodeGuideHint")}</p>
-                <button type="button" className="btn-secondary btn-compact" disabled={status === "loading"} onClick={handleStartGuide}>
-                  {t(locale, "route.nodeGuideStart")}
-                </button>
+                <FreeRoamCard
+                  locale={locale}
+                  nodes={nodes}
+                  networkLines={networkMapLines}
+                />
               </div>
             </details>
 
@@ -1102,6 +1133,25 @@ export function RouteGenerator({
 
       {completionData && (
         <RouteCompletionDialog locale={locale} data={completionData} onClose={() => setCompletionData(null)} />
+      )}
+
+      {pendingDestinationReplace !== null && (
+        <div className="card" style={{ position: "fixed", bottom: "4.5rem", left: "50%", transform: "translateX(-50%)", zIndex: 1001, maxWidth: "90vw" }}>
+          <strong style={{ fontSize: "0.95rem" }}>{t(locale, "route.destinationReplaceTitle")}</strong>
+          <p className="hint-compact" style={{ margin: "0.35rem 0 0 0" }}>
+            {t(locale, "route.destinationReplaceBody", {
+              dest: nodeLabel(endNodeId),
+            })}
+          </p>
+          <div className="btn-row" style={{ marginTop: "0.6rem" }}>
+            <button type="button" className="btn-primary btn-compact" onClick={confirmReplaceDestination}>
+              {t(locale, "route.destinationReplaceConfirm")}
+            </button>
+            <button type="button" className="btn-secondary btn-compact" onClick={dismissReplaceDestination}>
+              {t(locale, "route.destinationReplaceCancel")}
+            </button>
+          </div>
+        </div>
       )}
 
       {repositionCandidates && myLocation && (

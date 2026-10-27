@@ -2,7 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
-import { requireAdmin, startImpersonation } from "@/lib/session";
+import { requireAdmin, startImpersonation, destroyOtherSessions } from "@/lib/session";
 import {
   createUser,
   findUserByUsername,
@@ -53,7 +53,14 @@ export async function updateUserAction(formData: FormData) {
     redirect(`/admin/${id}?error=taken`);
   }
 
-  updateUserProfile(id, { displayName, username, locale, newPassword: newPassword.length >= 6 ? newPassword : undefined });
+  const hadPasswordReset = newPassword.length >= 6;
+  updateUserProfile(id, { displayName, username, locale, newPassword: hadPasswordReset ? newPassword : undefined });
+  // Security: a (possibly external) password reset invalidates all existing sessions
+  // so stolen/pre-existing tokens no longer work. (Self-service changePasswordAction
+  // already calls destroyOtherSessions.)
+  if (hadPasswordReset) {
+    await destroyOtherSessions(id);
+  }
   revalidatePath("/admin");
   redirect("/admin?edited=1");
 }

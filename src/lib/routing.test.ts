@@ -11,6 +11,9 @@ import {
   scoreRoutes,
   pickBest,
   toleranceRange,
+  shapeAcceptable,
+  canonicalSegmentsOf,
+  immediateBacktrackCount,
   CONDITION_PENALTY_WEIGHT,
   type SegmentEdge,
 } from "./routing";
@@ -431,5 +434,131 @@ describe("findMultiWaypointRoutes + constraints", () => {
     const fullLoop = scoredFull.find((s) => s.route.segmentIds.join(",") === "1,2,3,4")!;
     const ignoreLoop = scoredIgnore.find((s) => s.route.segmentIds.join(",") === "1,2,3,4")!;
     expect(ignoreLoop.weightedUsage).toBeLessThan(fullLoop.weightedUsage);
+  });
+});
+
+/**
+ * Regression guarantees for the constrained-tour fixes (2026-10-27 night session):
+ *  - must-visits in a small network must NOT collapse to a single candidate when
+ *    the only clean (no-backtrack) route can't fill the band — shape-relaxed
+ *    candidates are kept so the UI has choice;
+ *  - pickBest(..., allowRepeats=true) never hard-fails ("keine Route") once the
+ *    seenKeys pool is exhausted.
+ */
+describe("constrained tour diversity + repeats", () => {
+  // Network: a 6-node grid, 100m legs in both directions:
+  //   1-2-3
+  //   | | |
+  //   4-5-6
+  const gridEdges: SegmentEdge[] = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14].map((id) => {
+    const pairs: Record<number, [number, number]> = {
+      1: [1, 2], 2: [2, 3], 3: [1, 4], 4: [2, 5], 5: [3, 6], 6: [4, 5], 7: [5, 6],
+    };
+    const rev: Record<number, [number, number]> = {
+      8: [2, 1], 9: [3, 2], 10: [4, 1], 11: [5, 2], 12: [6, 3], 13: [5, 4], 14: [6, 5],
+    };
+    const [from, to] = pairs[id] ?? rev[id]!;
+    return { id, from, to, lengthM: LEG_M, durationMin: LEG_MIN } as SegmentEdge;
+  });
+  const gridReverse = gridEdges.map((e) => {
+    const rev = e.id <= 7 ? e.id + 7 : e.id - 7;
+    return { id: e.id, reverseOf: rev };
+  });
+  const gridGraph = buildGraph(gridEdges);
+  const gridPair = buildPairMap(gridReverse);
+
+  it("constrained tour with must-visit [2,6] returns multiple distinct candidates (not 1-2)", () => {
+    const { routes } = searchRoutesWithConstraints({
+      graph: gridGraph,
+      pairOf: gridPair,
+      start: 1,
+      destination: 1,
+      mustVisitNodeIds: [2, 6],
+      mode: "km",
+      minValue: 300,
+      maxValue: 900,
+    });
+    const uniq = new Set(routes.map((r) => r.segmentIds.join(",")));
+    expect(uniq.size).toBeGreaterThanOrEqual(3);
+  });
+
+  it("pickBest(allowRepeats) returns a route even when every candidate is seen", () => {
+    const candidates = [
+      { nodeChain: [1, 2, 3, 1], segmentIds: [1, 2, 9], lengthM: 300, durationMin: 6 },
+      { nodeChain: [1, 4, 5, 1], segmentIds: [3, 6, 10], lengthM: 300, durationMin: 6 },
+    ];
+    const usage = new Map<number, number>([[1, 0], [2, 0], [3, 0], [4, 0], [5, 0], [9, 0], [10, 0]]);
+    const scored = scoreRoutes(candidates, gridPair, usage, new Map(), 1, new Set(), 400, "km");
+
+    const seenAll = new Set(scored.map((s) => s.key));
+    const withRepeats = pickBest(scored, seenAll, false, false, true, true);
+    expect(withRepeats).not.toBeNull();
+
+    const noRepeats = pickBest(scored, seenAll);
+    expect(noRepeats).toBeNull();
+  });
+});
+
+/**
+ * Emanuel's backtracking rules (2026-10-27):
+ *  - immediate out-and-back on the same physical path is only OK on a true dead end;
+ *  - no physical path more than once per direction (max 2 traversals total);
+ *  - home connectors are exempt from all shape rules.
+ */
+describe("backtracking shape rules (Emanuel 2026-10-27)", () => {
+  // Line: 1--(a,b)-->2--(c)-->3, where 3 is a dead-end spur; and 2--(d)-->4 loop back to 1.
+  //   ids: 1:1->2, 2:2->1, 3:2->3, 4:3->2 (spur pair), 5:2->4, 6:4->1, 7:1->4, 8:4->2 (loop pair)
+  // Segment layout (directed pairs):
+  //   home path: 1:1->2 and 2:2->1 (reverseOf each other)
+  //   spur path: 3:2->3 and 4:3->2 (reverseOf each other)
+  //   loop out : 5:2->4 and 6:4->2 (reverseOf)
+  //   loop back: 7:4->1 and 8:1->4 (reverseOf)
+  const spurEdges: SegmentEdge[] = [
+    { id: 1, from: 1, to: 2, lengthM: 100, durationMin: 2 },
+    { id: 2, from: 2, to: 1, lengthM: 100, durationMin: 2 },
+    { id: 3, from: 2, to: 3, lengthM: 80, durationMin: 2 }, // spur out
+    { id: 4, from: 3, to: 2, lengthM: 80, durationMin: 2 }, // spur back
+    { id: 5, from: 2, to: 4, lengthM: 120, durationMin: 2 },
+    { id: 6, from: 4, to: 2, lengthM: 120, durationMin: 2 },
+    { id: 7, from: 4, to: 1, lengthM: 120, durationMin: 2 },
+    { id: 8, from: 1, to: 4, lengthM: 120, durationMin: 2 },
+  ];
+  const spurReverse = [
+    { id: 1, reverseOf: 2 }, { id: 2, reverseOf: 1 },
+    { id: 3, reverseOf: 4 }, { id: 4, reverseOf: 3 },
+    { id: 5, reverseOf: 6 }, { id: 6, reverseOf: 5 },
+    { id: 7, reverseOf: 8 }, { id: 8, reverseOf: 7 },
+  ];
+  const spurGraph = buildGraph(spurEdges);
+  const spurPair = buildPairMap(spurReverse);
+
+  it("accepts immediate out-and-back on a dead end (spur) but rejects it elsewhere", () => {
+    // 1->2 (id1) then 2->1 (id2) immediate reverse: node 2 is NOT a dead end → rejected.
+    expect(shapeAcceptable([1, 2], [1, 2, 1], spurPair, spurGraph)).toBe(false);
+
+    // 2->3 (id3) then 3->2 (id4): node 3 IS a dead end (only path incident) → OK.
+    expect(shapeAcceptable([3, 4], [2, 3, 2], spurPair, spurGraph)).toBe(true);
+  });
+
+  it("rejects a physical path walked more than once per direction", () => {
+    // Home path {1,2} traversed 1,2,1,2 = 4 total (2× each direction) → reject.
+    expect(
+      shapeAcceptable([1, 2, 1, 2], [1, 2, 1, 2, 1], spurPair, spurGraph),
+    ).toBe(false);
+    // Clean loop that never repeats a path: 1->2 (1), 2->4 (5), 4->1 (7)
+    // = canonical {1,2}, {5,6}, {7,8} each once → acceptable.
+    expect(shapeAcceptable([1, 5, 7], [1, 2, 4, 1], spurPair, spurGraph)).toBe(true);
+  });
+
+  it("exempts home connectors from the backtrack rules", () => {
+    const homeCanonical = canonicalSegmentsOf([1, 2], spurPair); // canonical {1,2}
+    // Leaving home on {1,2} and returning counts as backtrack without the ignore…
+    expect(backtrackScore([1, 2], spurPair)).toBe(1);
+    // …and is exempt when home is passed as an ignore set.
+    expect(backtrackScore([1, 2], spurPair, homeCanonical)).toBe(0);
+    // And a route built from the home connector out-and-back passes the shape check
+    // when the connector is exempt (it would otherwise be immediate backtracking).
+    expect(shapeAcceptable([1, 2], [1, 2, 1], spurPair, spurGraph, homeCanonical)).toBe(true);
+    expect(homeCanonical.has(1)).toBe(true);
   });
 });

@@ -87,6 +87,8 @@ export interface SessionUser {
   role: "admin" | "user";
   active: boolean;
   theme: string;
+  /** Per-user IANA zone (decision G). */
+  timezone: string;
   totpEnabled: boolean;
   /** Per-user home node; null until set (no global is_home fallback). */
   homeNodeId: number | null;
@@ -105,6 +107,7 @@ interface SessionRow {
   role: "admin" | "user";
   active: number;
   theme: string;
+  timezone: string | null;
   totpEnabled: number;
   homeNodeId: number | null;
   expiresAt: string;
@@ -121,7 +124,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     .prepare(
       `SELECT u.id as id, u.username as username, u.display_name as displayName, u.locale as locale,
               u.walk_speed_kmh as walkSpeedKmh, u.role as role, u.active as active, u.theme as theme,
-              u.totp_enabled as totpEnabled, u.home_node_id as homeNodeId,
+              u.timezone as timezone, u.totp_enabled as totpEnabled, u.home_node_id as homeNodeId,
               s.expires_at as expiresAt, s.client as client
        FROM sessions s JOIN users u ON u.id = s.user_id
        WHERE s.token_hash = ?`,
@@ -147,6 +150,7 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     role: row.role,
     active: row.active === 1,
     theme: row.theme,
+    timezone: row.timezone && row.timezone.trim() !== "" ? row.timezone : "Europe/Vienna",
     totpEnabled: row.totpEnabled === 1,
     homeNodeId: row.homeNodeId,
     client: row.client,

@@ -1,8 +1,11 @@
 import { db } from "./db";
 import { listSegments, type SegmentRow } from "./segments";
 import { getStreakStats } from "./stats";
+import { getUserTimezone, toLocalDateKey, currentLocalDateKey } from "./timezone";
 
 export const GUIDE_POINTS_MULTIPLIER = 0.7;
+/** Free-roam mode (no fixed route, relaxed points). */
+export const FREE_ROAM_POINTS_MULTIPLIER = 0.5;
 
 export interface UserPoints {
   totalPoints: number;
@@ -13,10 +16,9 @@ export interface UserPoints {
 type WalkRow = { length_m: number; segment_ids: string };
 
 export function streakMultiplier(currentStreak: number): number {
-  if (currentStreak >= 30) return 2.0;
-  if (currentStreak >= 14) return 1.5;
-  if (currentStreak >= 7) return 1.25;
-  if (currentStreak >= 3) return 1.1;
+  if (currentStreak >= 30) return 1.5;
+  if (currentStreak >= 14) return 1.3;
+  if (currentStreak >= 7) return 1.15;
   return 1.0;
 }
 
@@ -83,20 +85,26 @@ export function computeWalkPointsEarned(
   breakdown: PointPreviewBreakdown,
   streakMult: number,
   guideMode = false,
+  freeRoam = false,
 ): number {
   const base = Math.round(breakdown.total * streakMult);
+  if (freeRoam) return Math.round(base * FREE_ROAM_POINTS_MULTIPLIER);
   return guideMode ? Math.round(base * GUIDE_POINTS_MULTIPLIER) : base;
 }
 
 /**
  * Streak length to use for the multiplier when completing a walk now.
  * First walk of the day extends the streak; later walks the same day keep the same multiplier.
+ * "Today" is judged in the user's local timezone (decision G).
  */
 export function streakForPointsMultiplier(userId: number): number {
   const streak = getStreakStats(userId);
-  const walkedToday = db
-    .prepare("SELECT 1 FROM walk_log WHERE user_id = ? AND date(accepted_at) = date('now') LIMIT 1")
-    .get(userId);
+  const tz = getUserTimezone(userId);
+  const todayKey = currentLocalDateKey(tz);
+  const rows = db.prepare("SELECT accepted_at FROM walk_log WHERE user_id = ?").all(userId) as {
+    accepted_at: string;
+  }[];
+  const walkedToday = rows.some((r) => toLocalDateKey(r.accepted_at, tz) === todayKey);
   if (walkedToday) return Math.max(1, streak.currentStreak);
   if (streak.currentStreak > 0) return streak.currentStreak + 1;
   return 1;

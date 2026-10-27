@@ -1,7 +1,7 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 const walkRows: { user_id: number; points_earned: number | null; accepted_at: string }[] = [];
-const todayWalks: { user_id: number }[] = [];
+const todayWalks: { user_id: number; accepted_at?: string }[] = [];
 let streakCurrent = 0;
 
 vi.mock("./db", () => ({
@@ -20,6 +20,9 @@ vi.mock("./db", () => ({
               total,
             }))
             .sort((a, b) => b.total - a.total);
+        }
+        if (sql.includes("FROM walk_log")) {
+          return todayWalks;
         }
         return [];
       },
@@ -60,6 +63,7 @@ vi.mock("./stats", () => ({
 let computeBasePoints: typeof import("./points").computeBasePoints;
 let computeRoutePointPreview: typeof import("./points").computeRoutePointPreview;
 let countGoldenHits: typeof import("./points").countGoldenHits;
+let goldenHitCanonicalIds: typeof import("./points").goldenHitCanonicalIds;
 let celebrationTierForWalk: typeof import("./points").celebrationTierForWalk;
 let computeWalkPointsEarned: typeof import("./points").computeWalkPointsEarned;
 let computeUserPoints: typeof import("./points").computeUserPoints;
@@ -72,6 +76,7 @@ beforeAll(async () => {
     computeBasePoints,
     computeRoutePointPreview,
     countGoldenHits,
+    goldenHitCanonicalIds,
     celebrationTierForWalk,
     computeWalkPointsEarned,
     computeUserPoints,
@@ -158,6 +163,41 @@ describe("countGoldenHits", () => {
   });
 });
 
+describe("goldenHitCanonicalIds (vector fixtures, decision B)", () => {
+  // Vectors mirror the Android GoldenMatchingTest: a directed route walking a
+  // physical path in EITHER direction must count exactly one canonical hit, once.
+  const goldenMap = new Map<number, number>([
+    [10, 3], // canonical 10 (physical path A↔B)
+  ]);
+  const canonicalOf = new Map<number, number>([
+    [10, 10],
+    [11, 10],
+    [20, 20],
+    [21, 20],
+  ]);
+
+  it("counts a forward traversal", () => {
+    expect(goldenHitCanonicalIds([10], goldenMap, canonicalOf)).toEqual([10]);
+  });
+
+  it("counts a reverse traversal as the same canonical hit", () => {
+    expect(goldenHitCanonicalIds([11], goldenMap, canonicalOf)).toEqual([10]);
+  });
+
+  it("dedupes an out-and-back (forward + reverse) to a single hit", () => {
+    expect(goldenHitCanonicalIds([10, 11, 10], goldenMap, canonicalOf)).toEqual([10]);
+  });
+
+  it("returns empty when nothing golden is walked", () => {
+    expect(goldenHitCanonicalIds([20, 21], goldenMap, canonicalOf)).toEqual([]);
+  });
+
+  it("supports a golden entry keyed by the non-canonical direction", () => {
+    const byDirection = new Map<number, number>([[11, 3]]);
+    expect(goldenHitCanonicalIds([11], byDirection, canonicalOf)).toEqual([10]);
+  });
+});
+
 describe("computeWalkPointsEarned", () => {
   it("applies streak multiplier to preview total", () => {
     const breakdown = { base: 75, golden: 10, exploration: 8, diversity: 5, total: 98 };
@@ -193,7 +233,7 @@ describe("points ledger", () => {
     streakCurrent = 30; // would have multiplied under old formula
     const points = computeUserPoints(1);
     expect(points.totalPoints).toBe(150);
-    expect(points.streakMultiplier).toBe(2.0);
+    expect(points.streakMultiplier).toBe(1.5);
   });
 
   it("leaderboard uses ledger sums", () => {
@@ -217,7 +257,7 @@ describe("streakForPointsMultiplier", () => {
 
   it("keeps current streak when already walked today", () => {
     todayWalks.length = 0;
-    todayWalks.push({ user_id: 1 });
+    todayWalks.push({ user_id: 1, accepted_at: new Date().toISOString() });
     streakCurrent = 3;
     expect(streakForPointsMultiplier(1)).toBe(3);
   });

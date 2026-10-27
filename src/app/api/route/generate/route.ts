@@ -12,6 +12,9 @@ import {
   scoreRoutes,
   pickBest,
   segmentSetKey,
+  canonicalSegmentsOf,
+  shapeAcceptable,
+  filterRequiredSegments,
   type RouteResult,
   type ScoredRoute,
 } from "@/lib/routing";
@@ -61,6 +64,8 @@ function goldenWaypointCandidates(
   excluded: Set<number>,
   segmentsById: Map<number, { startNodeId: number; endNodeId: number }>,
   existing: RouteResult[],
+  requiredSegmentIds: number[],
+  ignoreCanonical: Set<number>,
 ): RouteResult[] {
   const seen = new Set(existing.map((r) => segmentSetKey(r.segmentIds)));
   const extra: RouteResult[] = [];
@@ -83,6 +88,11 @@ function goldenWaypointCandidates(
       )) {
         const key = segmentSetKey(route.segmentIds);
         if (seen.has(key)) continue;
+        // Shape rules (no topup, no same-direction repeats, no out-and-back except
+        // true dead ends) + required segments must hold here too — otherwise golden
+        // waypoint candidates can slip rule-breaking routes past the main filter.
+        if (!shapeAcceptable(route.segmentIds, route.nodeChain, pairOf, graph, ignoreCanonical)) continue;
+        if (!filterRequiredSegments([route], requiredSegmentIds, pairOf).length) continue;
         seen.add(key);
         extra.push(route);
       }
@@ -97,7 +107,10 @@ export async function POST(request: Request) {
 
   const rate = checkGenerateRateLimit(user.id);
   if (!rate.allowed) {
-    return NextResponse.json({ error: "rate_limited", retryAfterSeconds: rate.retryAfterSeconds }, { status: 429 });
+    return NextResponse.json(
+      { error: "rate_limited", retryAfterSeconds: rate.retryAfterSeconds },
+      { status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds) } },
+    );
   }
 
   const json = await request.json().catch(() => null);
@@ -134,6 +147,7 @@ export async function POST(request: Request) {
   const goldenMap = getGoldenMultiplierMap();
   const canonicalOf = new Map(listSegments().map((s) => [s.id, canonicalSegmentId(s)]));
   const homeAccess = getHomeAccessSegmentIds(user.id);
+  const homeAccessCanonical = canonicalSegmentsOf([...homeAccess], pairOf);
 
   let { routes: candidates, lengthRelaxed, mustVisitOrder } = searchRoutesWithConstraints({
     graph,
@@ -148,6 +162,7 @@ export async function POST(request: Request) {
     maxValue,
     preserveMustVisitOrder,
     geometryOf,
+    ignoreSegmentIds: homeAccessCanonical,
   });
   const constrainedTour = requiredSegmentIds.length > 0 || mustVisitNodeIds.length > 0;
 
@@ -186,6 +201,8 @@ export async function POST(request: Request) {
       excluded,
       segmentsById,
       candidates,
+      requiredSegmentIds,
+      homeAccessCanonical,
     );
     if (extra.length > 0) {
       candidates = [...candidates, ...extra];
@@ -222,17 +239,32 @@ export async function POST(request: Request) {
   if (forceGolden && scoredPool.length === 0) {
     return NextResponse.json({ error: "no_golden_route" }, { status: 404 });
   }
+  // Honest error codes: constraints_impossible only when there ARE constraints to
+  // be impossible about; an unconstrained search with an empty pool is simply
+  // no_route. (candidates.length===0 can only happen for the unconstrained case,
+  // because with required/must-visit constraints the search returns closestFeasible
+  // or the DFS fallback, both bounded by maxResults.)
   if (candidates.length === 0) {
-    return NextResponse.json({ error: "constraints_impossible" }, { status: 404 });
+    if (constrainedTour) {
+      return NextResponse.json({ error: "constraints_impossible" }, { status: 404 });
+    }
+    return NextResponse.json({ error: "no_route" }, { status: 404 });
   }
   if (scoredPool.length === 0) {
-    return NextResponse.json({ error: "no_route" }, { status: 404 });
+    return NextResponse.json({ error: forceGolden ? "no_golden_route" : "no_route" }, { status: 404 });
   }
 
   const best = pickBest(scoredPool, new Set(), explorerMode, surpriseMode, constrainedTour);
   if (!best) {
     return NextResponse.json({ error: forceGolden ? "no_golden_route" : "no_route" }, { status: 404 });
   }
+
+  // Honest lengthRelaxed: derived from the chosen route vs the requested band,
+  // not from which search branch produced it. (Previously the forceGolden reopen
+  // set it true unconditionally even when the route sat inside the band.)
+  const bestInBand =
+    best.route.lengthM >= band.minM && best.route.lengthM <= band.maxM;
+  lengthRelaxed = !bestInBand;
 
   const token = createRouteSession({
     userId: user.id,

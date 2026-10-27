@@ -142,7 +142,30 @@ describe("searchRoutesWithConstraints (Dijkstra engine)", () => {
   });
 
   it("excludes hard-dropped segments from the shortest-path pool", () => {
+    // Excluding ONLY the 1→2 direction still leaves a clean 1→4→3→2→1 loop
+    // available, so the pool must stay non-empty and never contain segment 1.
     const { routes } = searchRoutesWithConstraints({
+      graph,
+      pairOf,
+      start: 1,
+      destination: 1,
+      excludedSegmentIds: new Set([1]),
+      mode: "km",
+      minValue: 0,
+      maxValue: 100000,
+    });
+    expect(routes.length).toBeGreaterThan(0);
+    for (const r of routes) {
+      expect(r.segmentIds).not.toContain(1);
+    }
+  });
+
+  it("hard shape rules: excluding BOTH directions of the only corridor honestly empties the pool", () => {
+    // On the 4-node square, cutting {1,5} (1↔2) turns node 2 into a dead-end
+    // spur. Every remaining loop must retrace the 3–4 path immediately, which
+    // the binding shape rules (Emanuel 2026-10-27) reject — so the request
+    // fails honestly instead of offering a backtracking route.
+    const { routes, lengthRelaxed } = searchRoutesWithConstraints({
       graph,
       pairOf,
       start: 1,
@@ -152,10 +175,7 @@ describe("searchRoutesWithConstraints (Dijkstra engine)", () => {
       minValue: 0,
       maxValue: 100000,
     });
-    expect(routes.length).toBeGreaterThan(0);
-    for (const r of routes) {
-      expect(r.segmentIds).not.toContain(1);
-      expect(r.segmentIds).not.toContain(5);
-    }
+    expect(routes.length).toBe(0);
+    expect(lengthRelaxed).toBe(false);
   });
 });

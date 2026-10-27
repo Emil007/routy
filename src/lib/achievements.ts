@@ -4,6 +4,7 @@ import { listSegments, isCanonicalSegment } from "./segments";
 import { favoriteCount } from "./favorites";
 import { computeUserPoints } from "./points";
 import { t, type Locale } from "./i18n";
+import { countWalksInLocalHourRange } from "./timezone";
 
 export const TIERS = ["stein", "blech", "bronze", "silber", "gold", "platin", "diamant"] as const;
 export type Tier = (typeof TIERS)[number];
@@ -108,6 +109,28 @@ function minSegmentVisits(userId: number): number {
   return Math.min(...canonicalIds.map((id) => counts.get(id) ?? 0));
 }
 
+/**
+ * Event-driven persistence hook (decision E): after a walk completes we store
+ * every currently-earned achievement once, so none can ever be lost again.
+ * This matters for conditions that can regress — `weekWarrior` (weekly point
+ * total resets every sunday) and `collector` (favorites can be removed). The
+ * INSERT OR IGNORE makes the write idempotent and doubles as a backfill for
+ * existing users on their next walk. Returns newly persisted count.
+ */
+export function persistAchievements(userId: number, locale: Locale): number {
+  const keys: string[] = [];
+  const insert = db.prepare("INSERT OR IGNORE INTO achievements (user_id, key) VALUES (?, ?)");
+  const tx = db.transaction((rows: string[]) => {
+    for (const k of rows) insert.run(userId, k);
+  });
+  const ach = computeAchievements(userId, locale);
+  for (const special of ach.special) {
+    if (special.earned) keys.push(special.id);
+  }
+  tx(keys);
+  return keys.length;
+}
+
 export function computeAchievements(userId: number, locale: Locale): Achievements {
   const stats = getUserStats(userId);
   const streak = getStreakStats(userId);
@@ -116,18 +139,8 @@ export function computeAchievements(userId: number, locale: Locale): Achievement
 
   const trailblazer =
     (db.prepare("SELECT COUNT(*) c FROM segments WHERE submitted_by = ?").get(userId) as { c: number }).c > 0;
-  const earlyBird =
-    (
-      db
-        .prepare("SELECT COUNT(*) c FROM walk_log WHERE user_id = ? AND CAST(strftime('%H', accepted_at) AS INTEGER) < 7")
-        .get(userId) as { c: number }
-    ).c > 0;
-  const nightOwl =
-    (
-      db
-        .prepare("SELECT COUNT(*) c FROM walk_log WHERE user_id = ? AND CAST(strftime('%H', accepted_at) AS INTEGER) >= 22")
-        .get(userId) as { c: number }
-    ).c > 0;
+  const earlyBird = countWalksInLocalHourRange(userId, 0, 6) > 0;
+  const nightOwl = countWalksInLocalHourRange(userId, 22, 23) > 0;
   const longHaul =
     (
       db

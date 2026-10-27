@@ -17,6 +17,14 @@ type Task =
   | { kind: "edge"; edge: SegmentEdge; reverse: boolean };
 
 const EXACT_MAX = 8;
+// Budget guard: worst case 8! × 2^6 ≈ 2.6M cost calls per optimizeCoreTourPlan,
+// and routeSearch calls it per mid-node candidate. Cap the exact-search space so
+// a pathological request (many must-visits + required edges) cannot stall the
+// event loop. Above the caps we fall back to 2-opt over the node order with
+// fixed edge orientations, which is a bounded O(n²·passes) heuristic.
+const EXACT_PERM_CAP = 500;
+const EXACT_ORIENT_CAP = 16;
+const ORIENT_SAMPLE = 16;
 
 function taskEntry(task: Task): number {
   return task.kind === "node" ? task.node : task.reverse ? task.edge.to : task.edge.from;
@@ -161,8 +169,22 @@ export function optimizeCoreTourPlan(opts: OptimizeCoreTourOpts): TourStep[] {
   const costs = pairwiseDijkstraCosts(opts.graph, [...nodes], opts.mode, opts.excluded);
 
   const edgeIndices = items.map((t, i) => (t.kind === "edge" ? i : -1)).filter((i) => i >= 0);
-  const orientations =
-    edgeIndices.length <= 6 ? edgeOrientations(edgeIndices.length) : [[...edgeIndices.map(() => false)]];
+  // Bounded orientation set: try the first EXACT_ORIENT_CAP masks (deterministic
+  // enumeration covers all 0..(1<<n)-1 patterns in ascending order), or fall back
+  // to a fixed sample when edge count makes the full 2^n blow up.
+  const edgeCount = edgeIndices.length;
+  const orientations: boolean[][] =
+    edgeCount <= 5
+      ? edgeOrientations(edgeCount)
+      : (() => {
+          const out: boolean[][] = [[...edgeIndices.map(() => false)]];
+          for (let m = 1; m < ORIENT_SAMPLE; m++) {
+            const ori: boolean[] = [];
+            for (let e = 0; e < edgeCount; e++) ori.push((m * (e + 1)) % 3 !== 0);
+            out.push(ori);
+          }
+          return out;
+        })();
 
   let bestTasks: Task[] = items;
   let bestCost = Number.POSITIVE_INFINITY;
@@ -177,7 +199,11 @@ export function optimizeCoreTourPlan(opts: OptimizeCoreTourOpts): TourStep[] {
 
   if (items.length <= EXACT_MAX) {
     const idx = items.map((_, i) => i);
-    for (const perm of permutations(idx)) {
+    let tried = 0;
+    const permGen = permutations(idx);
+    for (const perm of permGen) {
+      if (tried >= EXACT_PERM_CAP) break;
+      tried++;
       for (const ori of orientations) {
         const base = tasksFromOrder(items, perm);
         let o = 0;
@@ -270,9 +296,12 @@ export function buildTourFromPlan(
     const revStored = revId !== undefined ? edgeById.get(revId) : undefined;
     const forward = step.reverse ? revStored : e;
     const backward = step.reverse ? e : revStored;
-    if (forward && goTo(forward.from)) {
+    // Yen-like exclusion (cursor/codex review #3): a required edge that is also
+    // blocked by `excluded` must NOT be force-inserted here — otherwise blocked-
+    // edge variants collapse back to the same segment set and diversity is lost.
+    if (forward && !excluded.has(forward.id) && goTo(forward.from)) {
       takeEdge(forward);
-    } else if (backward && goTo(backward.from)) {
+    } else if (backward && !excluded.has(backward.id) && goTo(backward.from)) {
       takeEdge(backward);
     } else {
       return null;

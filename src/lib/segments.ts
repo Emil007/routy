@@ -2,6 +2,7 @@ import { db } from "./db";
 import { type LatLng, reversePoints, pathLengthMeters, estimateMinutes, elevationStats, closestPointOnPath, haversineMeters, REPOSITION_OFF_PATH_THRESHOLD_M } from "./geo";
 import type { ElevationStats } from "./geo";
 import { createNode, getNode, updateNodePosition, type NodeRow, type NodeNameParts } from "./nodes";
+import { getUserTimezone, toLocalDateKey, currentLocalDateKey } from "./timezone";
 
 export interface SegmentRow {
   id: number;
@@ -279,15 +280,17 @@ export function getUsageMap(userId: number): Map<number, number> {
   return new Map(rows.map((r) => [r.segment_id, r.usage_count]));
 }
 
-/** Per-user segment hits from walks accepted today (local SQLite date). */
+/** Per-user segment hits from walks accepted today (user's local timezone, decision G). */
 export function getDailyUsageMap(userId: number): Map<number, number> {
-  const rows = db
-    .prepare(
-      `SELECT segment_ids FROM walk_log WHERE user_id = ? AND date(accepted_at) = date('now')`,
-    )
-    .all(userId) as { segment_ids: string }[];
+  const tz = getUserTimezone(userId);
+  const todayKey = currentLocalDateKey(tz);
+  const rows = db.prepare("SELECT accepted_at, segment_ids FROM walk_log WHERE user_id = ?").all(userId) as {
+    accepted_at: string;
+    segment_ids: string;
+  }[];
   const map = new Map<number, number>();
   for (const row of rows) {
+    if (toLocalDateKey(row.accepted_at, tz) !== todayKey) continue;
     const ids = JSON.parse(row.segment_ids) as number[];
     for (const id of ids) map.set(id, (map.get(id) ?? 0) + 1);
   }

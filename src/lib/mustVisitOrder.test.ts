@@ -124,7 +124,11 @@ describe("searchRoutesWithConstraints must-visit order", () => {
     expect(optimized.mustVisitOrder).toEqual([2, 4]);
     expect(preserved.mustVisitOrder).toEqual([4, 2]);
     expect(optimized.routes.length).toBeGreaterThan(0);
-    expect(preserved.routes.length).toBeGreaterThan(0);
+    // Hard shape contract (Emanuel 2026-10-27): preserve-tap order [4, 2] on a
+    // LINE forces an out-and-back retrace of the middle segments, which the
+    // binding shape rules reject — so it honestly returns empty instead of
+    // offering a backtracking route. Only the optimized order stays valid.
+    expect(preserved.routes.length).toBe(0);
     const bestOpt = Math.min(...optimized.routes.map((r) => r.lengthM));
     const bestPres = Math.min(...preserved.routes.map((r) => r.lengthM));
     expect(bestOpt).toBeLessThan(bestPres);

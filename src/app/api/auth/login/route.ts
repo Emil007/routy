@@ -75,6 +75,7 @@ export async function POST(request: Request) {
     role: user.role,
     active: user.active,
     theme: user.theme,
+    timezone: user.timezone,
     totpEnabled: user.totpEnabled,
     homeNodeId: user.homeNodeId,
     client: "app",

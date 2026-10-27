@@ -5,6 +5,7 @@ import { t } from "@/lib/i18n";
 import { getSettings, type Settings } from "@/lib/settings";
 import { LocaleSelectForm } from "@/components/LocaleSelectForm";
 import { ThemeSelectForm } from "@/components/ThemeSelectForm";
+import { TimezoneSelectForm } from "@/components/TimezoneSelectForm";
 import { GoldenPercentStepper } from "@/components/GoldenPercentStepper";
 import { saveSettingsAction } from "./actions";
 import { previewGoldenPick } from "@/lib/goldenSegments";
@@ -75,6 +76,12 @@ export default async function SettingsPage() {
       <div className="card">
         <h2>{t(locale, "settings.themeTitle")}</h2>
         <ThemeSelectForm currentTheme={user.theme} locale={locale} />
+      </div>
+
+      <div className="card">
+        <h2>{t(locale, "settings.timezoneTitle")}</h2>
+        <p className="hint-compact">{t(locale, "settings.timezoneHint")}</p>
+        <TimezoneSelectForm currentTimezone={user.timezone} locale={locale} />
       </div>
 
       <div className="card">

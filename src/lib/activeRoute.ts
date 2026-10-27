@@ -1,6 +1,6 @@
 import { db } from "./db";
 
-export type WalkMode = "route" | "guide";
+export type WalkMode = "route" | "guide" | "free";
 
 export interface ActiveRouteRow {
   userId: number;
@@ -34,7 +34,7 @@ function mapRow(row: ActiveRouteDbRow): ActiveRouteRow {
     lengthM: row.length_m,
     durationMin: row.duration_min,
     nickname: row.nickname,
-    walkMode: row.walk_mode === "guide" ? "guide" : "route",
+    walkMode: row.walk_mode === "guide" ? "guide" : row.walk_mode === "free" ? "free" : "route",
     guideNodeIds: row.guide_node_ids ? (JSON.parse(row.guide_node_ids) as number[]) : null,
     acceptedAt: row.accepted_at,
   };

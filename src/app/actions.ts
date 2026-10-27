@@ -6,7 +6,8 @@ import { revalidatePath } from "next/cache";
 import { destroyCurrentSession, getCurrentUser, endImpersonation } from "@/lib/session";
 import { LOCALE_COOKIE, isLocale } from "@/lib/i18n";
 import { isTheme } from "@/lib/theme";
-import { updateUserLocale, updateUserTheme } from "@/lib/users";
+import { updateUserLocale, updateUserTheme, updateUserTimezone } from "@/lib/users";
+import { isTimezone } from "@/lib/timezone";
 
 export async function logoutAction() {
   await destroyCurrentSession();
@@ -38,6 +39,17 @@ export async function setThemeAction(formData: FormData) {
   const user = await getCurrentUser();
   if (!user) return;
   updateUserTheme(user.id, theme);
+
+  revalidatePath("/", "layout");
+}
+
+export async function setTimezoneAction(formData: FormData) {
+  const timezone = String(formData.get("timezone") || "");
+  if (!isTimezone(timezone)) return;
+
+  const user = await getCurrentUser();
+  if (!user) return;
+  updateUserTimezone(user.id, timezone);
 
   revalidatePath("/", "layout");
 }

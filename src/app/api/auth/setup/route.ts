@@ -54,6 +54,7 @@ export async function POST(request: Request) {
     role: "admin",
     active: true,
     theme: "system",
+    timezone: "Europe/Vienna",
     totpEnabled: false,
     homeNodeId: user.homeNodeId,
     client: "app",

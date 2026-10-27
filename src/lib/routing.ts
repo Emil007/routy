@@ -6,6 +6,7 @@ import { computeRoutePointPreview, canonicalSegmentId } from "./points";
 import { listSegments } from "./segments";
 import { generateRoutePool } from "./routeSearch";
 import { optimizeMustVisitOrder } from "./mustVisitOrder";
+import { shuffled } from "./seededRandom";
 
 export interface SegmentEdge {
   id: number;
@@ -81,15 +82,8 @@ const DEFAULT_STEP_LIMIT = 150000;
  * order instead of always finding the same early candidates first. This is what
  * makes suggestions vary between calls, and also improves the odds of finding a
  * low-backtrack loop within the maxResults/stepLimit cap instead of only ever
- * sampling the same left-to-right traversal. */
-function shuffled<T>(items: T[]): T[] {
-  const copy = [...items];
-  for (let i = copy.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [copy[i], copy[j]] = [copy[j], copy[i]];
-  }
-  return copy;
-}
+ * sampling the same left-to-right traversal. Uses the shared seeded PRNG so a
+ * fixed seed reproduces the exact same exploration order. */
 
 function searchPaths(params: SearchParams): RouteResult[] {
   const { graph, pairOf, start, destination, mode, minValue, maxValue, maxResults } = params;
@@ -319,17 +313,7 @@ function closestFeasible(
   return sorted.slice(0, Math.min(40, sorted.length));
 }
 
-function filterCleanShape(
-  routes: RouteResult[],
-  pairOf: Map<number, number>,
-  geometryOf: Map<number, LatLng[]> | undefined,
-): RouteResult[] {
-  return routes.filter((r) => {
-    if (backtrackScore(r.segmentIds, pairOf) > 0) return false;
-    if (geometryOf && crossingScore(r.segmentIds, geometryOf) > 0) return false;
-    return true;
-  });
-}
+
 
 /**
  * Search with optional must-visit nodes / required / excluded segments.
@@ -359,6 +343,11 @@ export function searchRoutesWithConstraints(opts: {
   preserveMustVisitOrder?: boolean;
   /** When set, hard-filter backtrack/crossing for constrained tours. */
   geometryOf?: Map<number, LatLng[]>;
+  /**
+   * Canonical segment ids that are exempt from shape rules (home connectors): a
+   * route may necessarily walk its single house-access path out and back.
+   */
+  ignoreSegmentIds?: Set<number>;
 }): { routes: RouteResult[]; lengthRelaxed: boolean; mustVisitOrder: number[] } {
   const {
     graph,
@@ -371,6 +360,7 @@ export function searchRoutesWithConstraints(opts: {
     maxResults = 300,
   } = opts;
   const excluded = opts.excludedSegmentIds ?? new Set<number>();
+  const ignoreCanonical = opts.ignoreSegmentIds ?? new Set<number>();
   const mustVisit = optimizeMustVisitOrder({
     graph,
     start,
@@ -386,6 +376,17 @@ export function searchRoutesWithConstraints(opts: {
   const inBand = (r: RouteResult): boolean => {
     const v = mode === "km" ? r.lengthM : r.durationMin;
     return v >= minValue && v <= maxValue;
+  };
+
+  // Defensive invariant (cursor/codex review #4): every returned candidate must
+  // actually chain every mustVisit node — otherwise a relaxed route could silently
+  // drop a required stop. Both the primary leg pool and the DFS fallback write the
+  // full tour, but we verify rather than assume: any candidate missing a mustVisit
+  // is removed, and only routes that satisfy all constraints reach the caller.
+  const satisfiesMustVisits = (r: RouteResult): boolean => {
+    if (mustVisit.length === 0) return true;
+    const on = new Set(r.nodeChain);
+    return mustVisit.every((n) => on.has(n));
   };
 
   // --- Primary engine: shortest-path leg pool ---
@@ -404,9 +405,21 @@ export function searchRoutesWithConstraints(opts: {
     preserveMustVisitOrder: opts.preserveMustVisitOrder,
   });
   let feasiblePool = filterRequiredSegments(pool, required, pairOf);
-  if (constrainedTour) {
-    const clean = filterCleanShape(feasiblePool, pairOf, opts.geometryOf);
-    if (clean.length > 0) feasiblePool = clean;
+  feasiblePool = feasiblePool.filter(satisfiesMustVisits);
+  {
+    // Emanuel (2026-10-27) shape rules — applied on EVERY search, constrained or
+    // not (cursor/codex review finding #6):
+    //  - no immediate out-and-back on the same physical path, EXCEPT on true dead
+    //    ends;
+    //  - no physical path more than once per direction (max one forward + one
+    //    reverse traversal total);
+    //  - home connectors never count against a route.
+    // HARD filter (Emanuel 2026-10-27): no relaxing — a route that violates the
+    // shape rules is NOT offered, period. If that empties the pool the request
+    // fails honestly (constraints_impossible) instead of showing a broken route.
+    feasiblePool = feasiblePool.filter((r) =>
+      shapeAcceptable(r.segmentIds, r.nodeChain, pairOf, graph, ignoreCanonical),
+    );
   }
   const bandPool = feasiblePool.filter(inBand);
   if (bandPool.length > 0) {
@@ -434,6 +447,10 @@ export function searchRoutesWithConstraints(opts: {
     excluded,
   );
   routes = filterRequiredSegments(routes, required, pairOf);
+  routes = routes.filter(satisfiesMustVisits);
+  // Shape rules stay hard here too — the DFS fallback must not smuggle
+  // backtracking routes back in that the primary engine would have rejected.
+  routes = routes.filter((r) => shapeAcceptable(r.segmentIds, r.nodeChain, pairOf, graph, ignoreCanonical));
   if (routes.length > 0) return { routes, lengthRelaxed: false, mustVisitOrder: mustVisit };
 
   const open = findMultiWaypointRoutes(
@@ -448,7 +465,9 @@ export function searchRoutesWithConstraints(opts: {
     maxResults,
     excluded,
   );
-  const feasible = filterRequiredSegments(open, required, pairOf);
+  const feasible = filterRequiredSegments(open, required, pairOf)
+    .filter(satisfiesMustVisits)
+    .filter((r) => shapeAcceptable(r.segmentIds, r.nodeChain, pairOf, graph, ignoreCanonical));
   if (feasible.length === 0) return { routes: [], lengthRelaxed: false, mustVisitOrder: mustVisit };
   return {
     routes: closestFeasible(feasible, mode, minValue, maxValue),
@@ -468,17 +487,132 @@ export function segmentSetKey(ids: number[]): string {
  * (its forward and reverse directions count as the same path) — an out-and-back
  * stretch scores high here even though it never immediately reverses onto the
  * edge it just came from. Zero means a genuine loop that never repeats a path.
+ *
+ * `ignoreCanonical` (e.g. home connectors) is a set of canonical path ids to
+ * skip entirely — a route may necessarily walk its single house-access path out
+ * and back without that counting as backtracking (Emanuel, 2026-10-27).
  */
-export function backtrackScore(segmentIds: number[], pairOf: Map<number, number>): number {
+export function backtrackScore(
+  segmentIds: number[],
+  pairOf: Map<number, number>,
+  ignoreCanonical: Set<number> = new Set(),
+): number {
   const canonicalCounts = new Map<number, number>();
   for (const id of segmentIds) {
     const pair = pairOf.get(id);
     const canonical = pair !== undefined ? Math.min(id, pair) : id;
+    if (ignoreCanonical.has(canonical)) continue;
     canonicalCounts.set(canonical, (canonicalCounts.get(canonical) ?? 0) + 1);
   }
   let extra = 0;
   for (const count of canonicalCounts.values()) if (count > 1) extra += count - 1;
   return extra;
+}
+
+/** Canonical path ids for a directed segment id set (skips home ignores). */
+export function canonicalSegmentsOf(
+  segmentIds: number[],
+  pairOf: Map<number, number>,
+  ignoreCanonical: Set<number> = new Set(),
+): Set<number> {
+  const out = new Set<number>();
+  for (const id of segmentIds) {
+    const pair = pairOf.get(id);
+    const canonical = pair !== undefined ? Math.min(id, pair) : id;
+    if (ignoreCanonical.has(canonical)) continue;
+    out.add(canonical);
+  }
+  return out;
+}
+
+/**
+ * True when the route walks a physical path out and immediately back (same
+ * canonical path on consecutive hops). Emanuel (2026-10-27): never OK unless the
+ * path is a true dead end (no other way out through that node); walking out and
+ * back is fine on a legitimate spur, but the *reverse* must not be a same-hop
+ * retrace. `ignoreCanonical` (home connectors) never counts.
+ */
+export function immediateBacktrackCount(
+  segmentIds: number[],
+  pairOf: Map<number, number>,
+  ignoreCanonical: Set<number> = new Set(),
+): number {
+  let count = 0;
+  for (let i = 0; i + 1 < segmentIds.length; i++) {
+    const a = segmentIds[i]!;
+    const b = segmentIds[i + 1]!;
+    const ca = pairOf.get(a);
+    const cb = pairOf.get(b);
+    const canonA = ca !== undefined ? Math.min(a, ca) : a;
+    const canonB = cb !== undefined ? Math.min(b, cb) : b;
+    if (canonA === canonB && !ignoreCanonical.has(canonA)) count++;
+  }
+  return count;
+}
+
+/**
+ * Route-shape checks under Emanuel's rules (2026-10-27). Returns true when the
+ * route is *acceptable*: no immediate out-and-back except on true dead ends,
+ * and no physical path repeated more than once per direction.
+ *
+ * - `ignoreCanonical` (home connectors) is excluded from all counting.
+ * - A dead end is a node whose only non-home neighbour is the path we came in on
+ *   (graph-degree 1 on non-ignored edges), so retracing is the only way out.
+ */
+export function shapeAcceptable(
+  segmentIds: number[],
+  nodeChain: number[],
+  pairOf: Map<number, number>,
+  graph: Graph,
+  ignoreCanonical: Set<number> = new Set(),
+): boolean {
+  // 1) No physical path more than once PER DIRECTION (Emanuel 2026-10-27): each
+  //    directed edge id may appear at most once. A forward+reverse pair is two
+  //    different ids, so it counts as one traversal each direction; the SAME
+  //    directed id twice means the same direction was walked twice → reject.
+  const dirCounts = new Map<number, number>();
+  for (const id of segmentIds) {
+    const pair = pairOf.get(id);
+    const canonical = pair !== undefined ? Math.min(id, pair) : id;
+    if (ignoreCanonical.has(canonical)) continue;
+    dirCounts.set(id, (dirCounts.get(id) ?? 0) + 1);
+  }
+  for (const count of dirCounts.values()) if (count > 1) return false;
+
+  // 2) Immediate out-and-back on the SAME canonical path across consecutive hops
+  //    is only acceptable when the intermediate node is a true dead end.
+  for (let i = 0; i + 1 < segmentIds.length; i++) {
+    const a = segmentIds[i]!;
+    const b = segmentIds[i + 1]!;
+    const ca = pairOf.get(a);
+    const cb = pairOf.get(b);
+    const canonA = ca !== undefined ? Math.min(a, ca) : a;
+    const canonB = cb !== undefined ? Math.min(b, cb) : b;
+    if (canonA !== canonB || ignoreCanonical.has(canonA)) continue;
+    const mid = nodeChain[i + 1];
+    if (mid == null) continue;
+    if (isDeadEndNode(mid, graph, pairOf, ignoreCanonical)) continue; // legit spur
+    return false;
+  }
+  return true;
+}
+
+/** True when `node` is a genuine spur/dead-end: exactly one distinct physical
+ * path is incident (ignoring home connectors), so coming in you must go back out
+ * the same way. Works on the directed graph — each edge id canonicalizes through
+ * pairOf so a forward/reverse pair counts as one physical path. */
+function isDeadEndNode(node: number, graph: Graph, pairOf: Map<number, number>, ignoreCanonical: Set<number>): boolean {
+  const canon = new Set<number>();
+  for (const [, edges] of graph.adjacency) {
+    for (const e of edges) {
+      if (e.from !== node && e.to !== node) continue;
+      const pair = pairOf.get(e.id);
+      const c = pair !== undefined ? Math.min(e.id, pair) : e.id;
+      if (ignoreCanonical.has(c)) continue;
+      canon.add(c);
+    }
+  }
+  return canon.size === 1;
 }
 
 /**
@@ -595,7 +729,7 @@ export function scoreRoutes(
       route,
       key: segmentSetKey(route.segmentIds),
       backtrack: backtrackScore(scoredIds, pairOf),
-      crossing: crossingScore(route.segmentIds, geometryOf),
+      crossing: crossingScore(scoredIds, geometryOf),
       weightedUsage: usageSum + dailySum,
       overlap,
       delta: Math.abs(actual - targetValue),
@@ -627,6 +761,8 @@ export function pickBest(
   surpriseMode = false,
   /** When true (required segments / must-visits), prefer shorter clean core over home-connector bias. */
   constrainedTour = false,
+  /** When true and every candidate is excluded, return the best one anyway (repeat) instead of null. */
+  allowRepeats = false,
 ): ScoredRoute | null {
   let best: ScoredRoute | null = null;
   for (const s of scored) {
@@ -696,7 +832,19 @@ export function pickBest(
       best = s;
     }
   }
-  return best;
+  if (best) return best;
+  // Every candidate was excluded by seenKeys. Unless repeats are explicitly allowed
+  // (adjust/widen), we deliberately return null so the UI can tell the user there is
+  // no fresh alternative. With allowRepeats we surface the best route anyway so the
+  // user is never hard-stuck with "keine Route" after exhausting a small pool.
+  if (allowRepeats && scored.length > 0) {
+    let fallback: ScoredRoute | null = null;
+    for (const s of scored) {
+      if (!fallback || s.pointPreview > fallback.pointPreview) fallback = s;
+    }
+    return fallback ?? scored[0]!;
+  }
+  return null;
 }
 
 export function toleranceRange(

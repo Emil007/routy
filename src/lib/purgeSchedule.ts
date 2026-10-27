@@ -5,6 +5,7 @@ import { purgeExpiredConditions } from "./segmentConditions";
 
 const TRASH_RETENTION_DAYS = 30;
 const ACTIVITY_LOG_RETENTION_DAYS = 180;
+const CRASH_REPORT_RETENTION_DAYS = 180;
 const INTERVAL_MS = 24 * 60 * 60 * 1000;
 
 function purgeOldTrash(): void {
@@ -25,6 +26,14 @@ function purgeOldActivityLog(): void {
   const result = db.prepare("DELETE FROM activity_log WHERE created_at < datetime('now', ?)").run(cutoff);
   if (result.changes > 0) {
     log.info("auto-purged old activity log entries", { entries: result.changes });
+  }
+}
+
+function purgeOldCrashReports(): void {
+  const cutoff = `-${CRASH_REPORT_RETENTION_DAYS} days`;
+  const result = db.prepare("DELETE FROM crash_report WHERE created_at < datetime('now', ?)").run(cutoff);
+  if (result.changes > 0) {
+    log.info("auto-purged old crash reports", { reports: result.changes });
   }
 }
 
@@ -52,6 +61,7 @@ function purgeExpiredConditionsJob(): void {
 function runDailyPurge(): void {
   purgeOldTrash();
   purgeOldActivityLog();
+  purgeOldCrashReports();
   purgeExpiredSessions();
   purgeExpiredRouteSessions();
   purgeExpiredConditionsJob();

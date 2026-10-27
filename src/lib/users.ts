@@ -1,3 +1,4 @@
+import { randomBytes } from "crypto";
 import { db } from "./db";
 import { hashPassword, verifyPassword } from "./auth";
 
@@ -15,6 +16,8 @@ export interface UserRow {
   active: boolean;
   deletedAt: string | null;
   theme: string;
+  /** IANA zone for streak/day windows; defaults to Europe/Vienna. */
+  timezone: string;
   /** Set as soon as 2FA setup starts, kept even before totpEnabled flips on so the same QR code can be re-confirmed. */
   totpSecret: string | null;
   totpEnabled: boolean;
@@ -32,6 +35,7 @@ interface UserDbRow {
   active: number;
   deleted_at: string | null;
   theme: string;
+  timezone: string;
   totp_secret: string | null;
   totp_enabled: number;
   home_node_id: number | null;
@@ -49,6 +53,7 @@ function mapUser(row: UserDbRow): UserRow {
     active: row.active === 1,
     deletedAt: row.deleted_at,
     theme: row.theme,
+    timezone: row.timezone && row.timezone.trim() !== "" ? row.timezone : "Europe/Vienna",
     totpSecret: row.totp_secret,
     totpEnabled: row.totp_enabled === 1,
     homeNodeId: row.home_node_id ?? null,
@@ -124,6 +129,12 @@ export function updateUserTheme(userId: number, theme: string): void {
   db.prepare("UPDATE users SET theme = ? WHERE id = ?").run(theme, userId);
 }
 
+/** Per-user IANA timezone (decision G). Falls back to Europe/Vienna on save. */
+export function updateUserTimezone(userId: number, timezone: string): void {
+  const zone = timezone.trim() !== "" ? timezone : "Europe/Vienna";
+  db.prepare("UPDATE users SET timezone = ? WHERE id = ?").run(zone, userId);
+}
+
 /** Pass null to go back to using the network-wide default from Settings. */
 export function updateUserWalkSpeed(userId: number, walkSpeedKmh: number | null): void {
   db.prepare("UPDATE users SET walk_speed_kmh = ? WHERE id = ?").run(walkSpeedKmh, userId);
@@ -179,7 +190,7 @@ export function deleteUserPermanently(userId: number): void {
 }
 
 function randomPlaceholderPassword(): string {
-  return Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+  return randomBytes(16).toString("hex");
 }
 
 /** Stores a freshly generated secret without turning 2FA on yet — that happens once the user proves they captured it. */

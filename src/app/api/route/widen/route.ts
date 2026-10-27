@@ -10,6 +10,7 @@ import {
   scoreRoutes,
   pickBest,
   toleranceRange,
+  canonicalSegmentsOf,
   type ScoredRoute,
 } from "@/lib/routing";
 import { updateRouteSession, assertRouteSessionOwner } from "@/lib/routeSessions";
@@ -53,6 +54,7 @@ export async function POST(request: Request) {
   const goldenMap = getGoldenMultiplierMap();
   const canonicalOf = new Map(listSegments().map((s) => [s.id, canonicalSegmentId(s)]));
   const homeAccess = getHomeAccessSegmentIds(user.id);
+  const homeAccessCanonical = canonicalSegmentsOf([...homeAccess], pairOf);
   const mustVisit = session.mustVisitNodeIds?.length
     ? session.mustVisitNodeIds
     : session.waypointNodeId != null
@@ -75,6 +77,7 @@ export async function POST(request: Request) {
     minValue,
     maxValue,
     geometryOf,
+    ignoreSegmentIds: homeAccessCanonical,
   });
 
   const usageMap = getUsageMap(user.id);
@@ -98,7 +101,7 @@ export async function POST(request: Request) {
   if (session.forceGolden) {
     scored = withGoldenHits(scored, goldenMap, canonicalOf);
   }
-  const best = pickBest(scored, session.seenKeys, session.explorerMode, session.surpriseMode, constrainedTour);
+  const best = pickBest(scored, session.seenKeys, session.explorerMode, session.surpriseMode, constrainedTour, true);
 
   if (!best) {
     return NextResponse.json({ error: "no_alternative", tolerancePercent: effectiveTolerance }, { status: 404 });

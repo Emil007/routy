@@ -3,6 +3,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { getActiveRoute } from "@/lib/activeRoute";
 import { db } from "@/lib/db";
+import { getHomeAccessSegmentIds } from "@/lib/homeAccess";
 import {
   computeWalkPointsEarned,
   streakMultiplier,
@@ -19,6 +20,8 @@ import { logActivity } from "@/lib/activityLog";
 import { getGoldenMultiplierMap } from "@/lib/goldenSegments";
 import { checkApiRateLimit } from "@/lib/apiRateLimit";
 import { persistHopTimingsFromWalk } from "@/lib/trackGeometry";
+import { persistAchievements } from "@/lib/achievements";
+import { type Locale } from "@/lib/i18n";
 
 const trackPointSchema = z.object({
   lat: z.number(),
@@ -32,7 +35,8 @@ const trackPointSchema = z.object({
 
 const bodySchema = z
   .object({
-    trackPoints: z.array(trackPointSchema).optional(),
+    trackPoints: z.array(trackPointSchema).max(10_000).optional(),
+    durationMin: z.number().int().nonnegative().max(24 * 60 * 7).optional(),
   })
   .optional();
 
@@ -42,7 +46,10 @@ export async function POST(request: Request) {
 
   const rate = checkApiRateLimit("route_complete", { userId: user.id });
   if (!rate.allowed) {
-    return NextResponse.json({ error: "rate_limited", retryAfterSeconds: rate.retryAfterSeconds }, { status: 429 });
+    return NextResponse.json(
+      { error: "rate_limited", retryAfterSeconds: rate.retryAfterSeconds },
+      { status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds) } },
+    );
   }
 
   const json = await request.json().catch(() => null);
@@ -61,7 +68,10 @@ export async function POST(request: Request) {
   const usageMap = getUsageMap(user.id);
   const goldenMap = getGoldenMultiplierMap();
   const canonicalOf = new Map(listSegments().map((s) => [s.id, canonicalSegmentId(s)]));
-  const breakdown = computeRoutePointPreview(active.segmentIds, active.lengthM, usageMap, goldenMap, canonicalOf);
+  // Preview == booking: ignore home-access connectors exactly like generate does,
+  // so the points shown at generate time match the points booked at complete time.
+  const homeAccess = getHomeAccessSegmentIds(user.id);
+  const breakdown = computeRoutePointPreview(active.segmentIds, active.lengthM, usageMap, goldenMap, canonicalOf, homeAccess);
   const guideMode = active.walkMode === "guide";
   const pointsEarned = computeWalkPointsEarned(breakdown, multiplier, guideMode);
   const goldenHits = countGoldenHits(active.segmentIds, goldenMap, canonicalOf);
@@ -93,11 +103,14 @@ export async function POST(request: Request) {
 
   if (trackPoints && trackPoints.length > 0) {
     const pointsJson = JSON.stringify(trackPoints);
+    // Single source of truth: walk_track.points_json. walk_log.track_json stays
+    // as a legacy column (old rows, schema compatibility) but is no longer
+    // written — every reader prefers walk_track and falls back cleanly. This
+    // removes ~50% of the DB size from track duplication.
     db.prepare(
       `INSERT INTO walk_track (walk_id, points_json) VALUES (?, ?)
        ON CONFLICT(walk_id) DO UPDATE SET points_json = excluded.points_json`,
     ).run(walkId, pointsJson);
-    db.prepare("UPDATE walk_log SET track_json = ? WHERE id = ?").run(pointsJson, walkId);
     persistHopTimingsFromWalk(walkId);
   }
 
@@ -107,6 +120,9 @@ export async function POST(request: Request) {
     durationMin: active.durationMin,
     pointsEarned,
   });
+
+  // Decision E: persist earned achievements so weekWarrior/collector can't regress.
+  persistAchievements(user.id, user.locale as Locale);
 
   const streak = getStreakStats(user.id);
 

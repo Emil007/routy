@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS users (
   deleted_at TEXT,
   walk_speed_kmh REAL,
   theme TEXT NOT NULL DEFAULT 'auto',
+  timezone TEXT NOT NULL DEFAULT 'Europe/Vienna',
   totp_secret TEXT,
   totp_enabled INTEGER NOT NULL DEFAULT 0,
   home_node_id INTEGER,
@@ -265,6 +266,13 @@ CREATE TABLE IF NOT EXISTS crash_report (
   stack TEXT,
   app_version TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS achievements (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  key TEXT NOT NULL,
+  earned_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (user_id, key)
 );
 
 CREATE TRIGGER IF NOT EXISTS trg_nodes_updated_at

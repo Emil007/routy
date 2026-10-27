@@ -1,5 +1,6 @@
 import { db } from "./db";
 import { listSegments, getUsageMap, type SegmentRow } from "./segments";
+import { getUserTimezone, toLocalDateKey, currentLocalDateKey } from "./timezone";
 
 function canonicalSegmentId(s: Pick<SegmentRow, "id" | "reverseOf">): number {
   return s.reverseOf !== null ? Math.min(s.id, s.reverseOf) : s.id;
@@ -53,36 +54,38 @@ export interface StreakStats {
   longestStreak: number;
 }
 
-/** Consecutive calendar days (UTC) with at least one confirmed walk. */
+/** Consecutive calendar days in the user's local timezone with at least one confirmed walk. */
 export function getStreakStats(userId: number): StreakStats {
-  const rows = db
-    .prepare("SELECT DISTINCT date(accepted_at) AS d FROM walk_log WHERE user_id = ? ORDER BY d")
-    .all(userId) as { d: string }[];
-  const dates = rows.map((r) => r.d);
+  const tz = getUserTimezone(userId);
+  const rows = db.prepare("SELECT accepted_at FROM walk_log WHERE user_id = ? ORDER BY accepted_at").all(userId) as {
+    accepted_at: string;
+  }[];
+  // Local calendar day per walk (per-user timezone, decision G).
+  const daySet = new Set<string>();
+  for (const r of rows) {
+    const key = toLocalDateKey(r.accepted_at, tz);
+    if (key) daySet.add(key);
+  }
+  const dates = [...daySet].sort();
   if (dates.length === 0) return { currentStreak: 0, longestStreak: 0 };
 
   const DAY_MS = 86400000;
+  const parse = (d: string) => Date.parse(d + "T00:00:00Z");
   let longestStreak = 1;
   let run = 1;
   for (let i = 1; i < dates.length; i++) {
-    const prev = Date.parse(dates[i - 1] + "T00:00:00Z");
-    const curr = Date.parse(dates[i] + "T00:00:00Z");
-    run = curr - prev === DAY_MS ? run + 1 : 1;
+    run = parse(dates[i]) - parse(dates[i - 1]) === DAY_MS ? run + 1 : 1;
     longestStreak = Math.max(longestStreak, run);
   }
 
-  const todayUTC = new Date();
-  todayUTC.setUTCHours(0, 0, 0, 0);
-  const lastDate = Date.parse(dates[dates.length - 1] + "T00:00:00Z");
-  const daysSinceLast = Math.round((todayUTC.getTime() - lastDate) / DAY_MS);
+  const todayKey = currentLocalDateKey(tz);
+  const daysSinceLast = Math.round((parse(todayKey) - parse(dates[dates.length - 1])) / DAY_MS);
 
   let currentStreak = 0;
   if (daysSinceLast <= 1) {
     currentStreak = 1;
     for (let i = dates.length - 1; i > 0; i--) {
-      const prev = Date.parse(dates[i - 1] + "T00:00:00Z");
-      const curr = Date.parse(dates[i] + "T00:00:00Z");
-      if (curr - prev === DAY_MS) currentStreak++;
+      if (parse(dates[i]) - parse(dates[i - 1]) === DAY_MS) currentStreak++;
       else break;
     }
   }
