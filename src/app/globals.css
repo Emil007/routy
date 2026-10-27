@@ -1073,7 +1073,7 @@ th {
 .completion-overlay {
   position: fixed;
   inset: 0;
-  z-index: 1000;
+  z-index: 1300;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -1183,6 +1183,16 @@ th {
 .map-dock-chip.active {
   background: var(--accent, #2e6b49);
   color: #fff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-theme="contrast"]):not([data-theme="dog"]):not([data-theme="cat"]) .map-dock-chip.active {
+    color: #0e2418;
+  }
+}
+
+:root[data-theme="dark"] .map-dock-chip.active {
+  color: #0e2418;
 }
 
 .map-dock-chip.disabled {

@@ -1,3 +1,5 @@
+"use client";
+
 import { t, type Locale } from "@/lib/i18n";
 import { ConfirmSubmitForm } from "@/components/ConfirmSubmitForm";
 import { restoreNodeAction, purgeNodeAction, restoreSegmentAction, purgeSegmentAction } from "./actions";

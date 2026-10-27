@@ -1173,7 +1173,7 @@ export function RouteGenerator({
       )}
 
       {pendingDestinationReplace !== null && (
-        <div className="card" style={{ position: "fixed", bottom: "4.5rem", left: "50%", transform: "translateX(-50%)", zIndex: 1001, maxWidth: "90vw" }}>
+        <div className="card" style={{ position: "fixed", bottom: "4.5rem", left: "50%", transform: "translateX(-50%)", zIndex: 1200, maxWidth: "90vw" }}>
           <strong style={{ fontSize: "0.95rem" }}>{t(locale, "route.destinationReplaceTitle")}</strong>
           <p className="hint-compact" style={{ margin: "0.35rem 0 0 0" }}>
             {t(locale, "route.destinationReplaceBody", {
@@ -1192,7 +1192,7 @@ export function RouteGenerator({
       )}
 
       {repositionCandidates && myLocation && (
-        <div className="card" style={{ position: "fixed", bottom: "4.5rem", left: "50%", transform: "translateX(-50%)", zIndex: 1000, maxWidth: "90vw" }}>
+        <div className="card" style={{ position: "fixed", bottom: "4.5rem", left: "50%", transform: "translateX(-50%)", zIndex: 1200, maxWidth: "90vw" }}>
           <p className="hint-compact">{t(locale, "route.repositionPickNode")}</p>
           <div className="btn-row">
             {repositionCandidates.map((id) => (

@@ -636,7 +636,14 @@
       "accept_proposal": "Vorschlag angenommen",
       "report_condition": "Zustand gemeldet",
       "reset_totp": "2FA zurücksetzen",
-      "impersonate": "Einloggen als"
+      "impersonate": "Einloggen als",
+      "approve_lock_proposal": "Sperrvorschlag bestätigt",
+      "dismiss_lock_proposal": "Sperrvorschlag verworfen",
+      "lock_proposal": "Sperre vorgeschlagen",
+      "avoid_segment": "Wegabschnitt gemieden",
+      "opening_hours": "Öffnungszeiten gesetzt",
+      "opening_hours_clear": "Öffnungszeiten entfernt",
+      "reposition": "Knoten verschoben"
     },
     "activityEntities": {
       "node": "Knoten",
