@@ -1,10 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { Locale } from "@/lib/i18n";
 import type { AtlasBootstrap } from "@/lib/atlasTypes";
 import type { MapLine } from "@/components/MapView";
-import { RouteGenerator } from "@/components/RouteGenerator";
+import { RouteGenerator, type RouteGeneratorHandle } from "@/components/RouteGenerator";
 import { FreeRoamCard } from "@/components/FreeRoamCard";
 import { useMapShell } from "../MapShellContext";
 
@@ -30,12 +30,17 @@ function networkLinesFromBootstrap(bootstrap: AtlasBootstrap): MapLine[] {
  *  - sonst hidden (RouteGenerator bleibt gemountet, unsichtbar).
  * Freies Gehen ist eine separate FreeRoamCard (hosted), sichtbar nur im GO ohne
  * aktive Route — Start ohne Stationsliste.
+ *
+ * §7.2: Die aktive Route wird als Live-Session nach oben gemeldet. Einen bestätigten
+ * Moduswechsel (MapDock-Dialog) beenden wir über den Discard-Handle des
+ * RouteGenerator — Watch aus über den bestehenden Pfad (H1/H2).
  */
 export function RoutePane({ locale, bootstrap }: { locale: Locale; bootstrap: AtlasBootstrap }) {
-  const { mode, setMode, registerLayers } = useMapShell();
+  const { mode, setMode, registerLayers, setLive, registerLiveStop, pendingChange } = useMapShell();
   const [phase, setPhase] = useState<"suggesting" | "active">(
     bootstrap.activeRoute ? "active" : "suggesting",
   );
+  const generatorRef = useRef<RouteGeneratorHandle>(null);
   const hasActiveRoute = Boolean(bootstrap.activeRoute);
   const networkLines = useMemo(() => networkLinesFromBootstrap(bootstrap), [bootstrap.segmentGeometries]);
 
@@ -56,6 +61,17 @@ export function RoutePane({ locale, bootstrap }: { locale: Locale; bootstrap: At
       ? "hidden"
       : section;
 
+  // §7.2: aktive Route als Live-Session melden + Stopp-Handler registrieren.
+  // phase ist die maßgebliche Quelle (client-seitige Annahme/Discard), nicht nur
+  // der Server-Bootstrap — so greift der Guard auch direkt nach dem Annehmen.
+  useEffect(() => {
+    setLive("activeRoute", phase === "active");
+  }, [phase, setLive]);
+  useEffect(() => {
+    registerLiveStop("activeRoute", () => generatorRef.current?.discardActive({ skipConfirm: true }));
+    return () => registerLiveStop("activeRoute", null);
+  }, [registerLiveStop]);
+
   // Overlays der einen Route auf die eine Karte (PLAN/GO), §7.4 — das Netz bleibt
   // nur sichtbar, solange kein Overlay-Schreiber aktiv ist (siehe MapCanvas).
   useEffect(() => {
@@ -64,10 +80,21 @@ export function RoutePane({ locale, bootstrap }: { locale: Locale; bootstrap: At
     }
   }, [mode, registerLayers]);
 
+  // Guard (§7.2): Nach einem bestätigten Wechsel (aus GO heraus, damit die Route
+  // beendet wurde) NICHT automatisch zurück auf "plan" springen. ohne pendingChange
+  // verhält sich onPhaseChange wie bisher.
+  const onPhaseChange = (next: "suggesting" | "active") => {
+    setPhase(next);
+    if (next === "suggesting") {
+      if (!pendingChange) setMode("plan");
+    }
+  };
+
   return (
     <div className="sheet-body">
       {/* Eine RouteGenerator-Instanz, immer gemountet (hidden via section). */}
       <RouteGenerator
+        ref={generatorRef}
         locale={locale}
         nodes={bootstrap.nodes}
         homeNodeId={bootstrap.homeNodeId}
@@ -82,11 +109,7 @@ export function RoutePane({ locale, bootstrap }: { locale: Locale; bootstrap: At
         isAdmin={bootstrap.role === "admin"}
         hosted
         section={routeGeneratorSection}
-        onPhaseChange={(next) => {
-          setPhase(next);
-          // Annehmen kippt auf Gehen, Verwerfen (ohne aktive Route) zurück auf Planen.
-          if (next === "suggesting") setMode("plan");
-        }}
+        onPhaseChange={onPhaseChange}
         onLayersChange={(layers) => {
           if (mode === "plan" || mode === "go") registerLayers(layers);
         }}

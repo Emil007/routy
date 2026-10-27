@@ -1285,6 +1285,18 @@ th {
   padding: 0.5rem;
 }
 
+/* Bestätigungsdialog für Moduswechsel (§7.2): über dem Dock zentriert, oberhalb des
+   Sheets — kürzer als .map-dialog, damit er nicht hinter dem Sheet verschwindet. */
+.dock-confirm {
+  position: fixed;
+  top: auto;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 6.5rem);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1300;
+  width: min(92vw, 24rem);
+}
+
 /* Ebenen-FAB unter dem Profil-FAB — beide .map-fab, aber unten versetzt (§J5). */
 .map-layers-fab {
   top: calc(max(env(safe-area-inset-top), 0.75rem) + var(--fab-size, 2.5rem) + 0.5rem);

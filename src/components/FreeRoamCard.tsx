@@ -8,6 +8,7 @@ import { MapViewLazy } from "./MapViewLazy";
 import type { MapLayerSink } from "@/lib/mapLayerSink";
 import type { MapMarker, MapLine, MapCircle, MapViewState } from "./MapView";
 import type { NodeRow } from "@/lib/nodes";
+import { useMapShell } from "./map-shell/MapShellContext";
 
 interface ReachableNeighbour {
   nodeId: number;
@@ -60,6 +61,7 @@ export function FreeRoamCard({
   onLayersChange?: (layers: MapLayerSink) => void;
 }) {
   const router = useRouter();
+  const { setLive, registerLiveStop } = useMapShell();
   const [phase, setPhase] = useState<"idle" | "roaming">("idle");
   const [token, setToken] = useState<string | null>(null);
   const [startNodeId, setStartNodeId] = useState<number | null>(null);
@@ -80,6 +82,22 @@ export function FreeRoamCard({
   useEffect(() => {
     isRoamingRef.current = phase === "roaming";
   }, [phase]);
+
+  // §7.2/H2: Freies Gehen gilt solange als Live-Sitzung, wie geraden ein GPS-Watch
+  // läuft. Beim Wechsel in einen anderen Modus über den Dock bestätigt der Nutzer,
+  // dann stoppt der registrierte Handler über stopRoaming (Watch aus + Reset).
+  const stopRoamingRef = useRef(stopRoaming);
+  stopRoamingRef.current = stopRoaming;
+  useEffect(() => {
+    setLive("freeRoam", phase === "roaming");
+  }, [phase, setLive]);
+  useEffect(() => {
+    registerLiveStop("freeRoam", () => stopRoamingRef.current());
+    return () => {
+      registerLiveStop("freeRoam", null);
+      setLive("freeRoam", false);
+    };
+  }, [registerLiveStop, setLive]);
   useEffect(() => {
     tokenRef.current = token;
   }, [token]);

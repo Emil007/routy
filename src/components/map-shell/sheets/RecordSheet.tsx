@@ -48,7 +48,7 @@ export function RecordSheet({
   walkSpeedKmh: number;
 }) {
   const router = useRouter();
-  const { mode, setMode, registerLayers } = useMapShell();
+  const { mode, setMode, registerLayers, setLive, registerLiveStop } = useMapShell();
   const [phase, setPhase] = useState<"idle" | "recording" | "paused" | "confirm">("idle");
   const [points, setPoints] = useState<LatLng[]>([]);
   const [currentPos, setCurrentPos] = useState<LatLng | null>(null);
@@ -64,6 +64,20 @@ export function RecordSheet({
   useEffect(() => {
     isRecordingRef.current = phase === "recording";
   }, [phase]);
+
+  // §7.2/H2: Live-Sitzung nach oben melden + Stopp-Handler registrieren. Die Aufnahme
+  // ist live, solange ein GPS-Watch läuft (RECORDING/PAUSED). CONFIRM hat keinen Watch
+  // mehr (§J4 Web-Regel) — der Wechsel aus CONFIRM braucht keine Bestätigung. Der
+  // registrierte Stopp läuft über stop(): Watch aus, Punkte bleiben im CONFIRM erhalten.
+  const stopFnRef = useRef(stop);
+  stopFnRef.current = stop;
+  useEffect(() => {
+    setLive("record", phase === "recording" || phase === "paused");
+  }, [phase, setLive]);
+  useEffect(() => {
+    registerLiveStop("record", () => stopFnRef.current());
+    return () => registerLiveStop("record", null);
+  }, [registerLiveStop]);
 
   useEffect(() => {
     return () => {

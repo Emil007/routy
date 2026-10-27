@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import type { Ref } from "react";
 import { useRouter } from "next/navigation";
 import { t, type Locale } from "@/lib/i18n";
 import { haversineMeters, bearing, compassDirection } from "@/lib/geo";
@@ -61,6 +62,11 @@ const PRESET_HINT_KEYS: Record<LengthPreset, string> = {
   surprise: "route.presetSurpriseHint",
 };
 
+export interface RouteGeneratorHandle {
+  /** Aktive Route über den bestehenden Discard-Pfad beenden (Watch aus). */
+  discardActive: (opts?: { skipConfirm?: boolean }) => Promise<void>;
+}
+
 export function RouteGenerator({
   locale,
   nodes,
@@ -78,7 +84,9 @@ export function RouteGenerator({
   section = "plan",
   onLayersChange,
   onPhaseChange,
+  ref,
 }: {
+  ref?: Ref<RouteGeneratorHandle>;
   locale: Locale;
   nodes: NodeRow[];
   homeNodeId: number | null;
@@ -717,8 +725,8 @@ export function RouteGenerator({
     }
   }
 
-  async function handleDiscardActive() {
-    if (!window.confirm(t(locale, "route.discardConfirm"))) return;
+  async function handleDiscardActive(opts?: { skipConfirm?: boolean }) {
+    if (!opts?.skipConfirm && !window.confirm(t(locale, "route.discardConfirm"))) return;
     setStatus("loading");
     await callApi("/api/route/discard");
     setResult(null);
@@ -734,6 +742,17 @@ export function RouteGenerator({
     }
     if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
   }
+
+  // §7.2/H1: Discard-Handle für die Hülle — der durch MapDock bestätigte Moduswechsel
+  // beendet die aktive Route über diesen Handle (skipConfirm, denn der Bestätigungs-
+  // Dialog kam schon im Dock). Watch wird dabei über den bestehenden Pfad gestoppt (H2).
+  useImperativeHandle(
+    ref,
+    () => ({
+      discardActive: (opts?: { skipConfirm?: boolean }) => handleDiscardActive(opts),
+    }),
+    [handleDiscardActive],
+  );
 
   async function handleLoadFavorite(favorite: FavoriteEntry) {
     setStatus("loading");
@@ -874,7 +893,7 @@ export function RouteGenerator({
           <button type="button" className="btn-primary btn-compact" onClick={handleComplete} disabled={status === "loading"}>
             {t(locale, "route.completeButton")}
           </button>
-          <button type="button" className="btn-danger btn-compact" onClick={handleDiscardActive} disabled={status === "loading"}>
+          <button type="button" className="btn-danger btn-compact" onClick={() => void handleDiscardActive()} disabled={status === "loading"}>
             {t(locale, "route.discardButton")}
           </button>
           <input

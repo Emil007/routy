@@ -697,6 +697,12 @@
     "recordingPill": "Aufnahme läuft",
     "layers": "Ebenen",
     "editNetwork": "Netz bearbeiten",
-    "destinationHint": "Ziel oder Knoten"
+    "destinationHint": "Ziel oder Knoten",
+    "leaveActiveRoute": "Aktive Tour beenden?",
+    "leaveActiveRouteBody": "Die laufende Route wird verworfen und zählt nicht als gegangen.",
+    "leaveFreeRoam": "Freies Gehen beenden?",
+    "leaveFreeRoamBody": "Die laufende Erkundung wird beendet, der Track verworfen.",
+    "leaveRecording": "Aufnahme beenden?",
+    "leaveRecordingBody": "Der GPS-Watch wird gestoppt; bereits erfasste Punkte bleiben für das Speichern erhalten."
   }
 }

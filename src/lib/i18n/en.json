@@ -697,6 +697,12 @@
     "recordingPill": "Recording",
     "layers": "Layers",
     "editNetwork": "Edit network",
-    "destinationHint": "Destination or junction"
+    "destinationHint": "Destination or junction",
+    "leaveActiveRoute": "End the active tour?",
+    "leaveActiveRouteBody": "The running route will be discarded and won't count as walked.",
+    "leaveFreeRoam": "End free roaming?",
+    "leaveFreeRoamBody": "The running roam will be stopped and the track discarded.",
+    "leaveRecording": "Stop the recording?",
+    "leaveRecordingBody": "The GPS tracking stops; already captured points stay available for saving."
   }
 }
