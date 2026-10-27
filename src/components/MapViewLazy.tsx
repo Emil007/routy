@@ -4,5 +4,5 @@ import dynamic from "next/dynamic";
 
 export const MapViewLazy = dynamic(() => import("./MapView").then((m) => m.MapView), {
   ssr: false,
-  loading: () => <div className="map-box" />,
+  loading: () => <div className="map-box map-box-fill" />,
 });

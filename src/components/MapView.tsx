@@ -68,7 +68,26 @@ function dotIcon(color: string) {
   });
 }
 
-function FitBounds({ markers, lines, fitKey }: { markers: MapMarker[]; lines: MapLine[]; fitKey?: string | number }) {
+export interface MapFitPadding {
+  top: number;
+  right: number;
+  bottom: number;
+  left: number;
+}
+
+const DEFAULT_FIT_PADDING: MapFitPadding = { top: 24, right: 24, bottom: 24, left: 24 };
+
+function FitBounds({
+  markers,
+  lines,
+  fitKey,
+  fitPadding = DEFAULT_FIT_PADDING,
+}: {
+  markers: MapMarker[];
+  lines: MapLine[];
+  fitKey?: string | number;
+  fitPadding?: MapFitPadding;
+}) {
   const map = useMap();
   useEffect(() => {
     const points: [number, number][] = [
@@ -80,9 +99,25 @@ function FitBounds({ markers, lines, fitKey }: { markers: MapMarker[]; lines: Ma
       map.setView(points[0], 16);
       return;
     }
-    map.fitBounds(L.latLngBounds(points), { padding: [24, 24] });
+    map.fitBounds(L.latLngBounds(points), {
+      paddingTopLeft: [fitPadding.left, fitPadding.top],
+      paddingBottomRight: [fitPadding.right, fitPadding.bottom],
+      maxZoom: 16,
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fitKey]);
+  return null;
+}
+
+function ZoomControl({ position }: { position: L.ControlPosition }) {
+  const map = useMap();
+  useEffect(() => {
+    const control = L.control.zoom({ position });
+    control.addTo(map);
+    return () => {
+      control.remove();
+    };
+  }, [map, position]);
   return null;
 }
 
@@ -111,6 +146,7 @@ export function MapView({
   lines = [],
   circles = [],
   height = 360,
+  fill = false,
   locale: _locale = "de",
   onMarkerClick,
   onMarkerDragEnd,
@@ -118,16 +154,20 @@ export function MapView({
   onLineClick,
   autoFit = true,
   fitKey,
+  fitPadding,
   initialView,
   onViewChange,
   className,
   baseLayerId = "streets",
   showTrails = false,
+  zoomControlPosition = "topleft",
 }: {
   markers?: MapMarker[];
   lines?: MapLine[];
   circles?: MapCircle[];
   height?: number;
+  /** When true, the wrapper takes 100% height of its parent instead of an inline height. */
+  fill?: boolean;
   /** Kept for host API compatibility; layer labels live in options menus. */
   locale?: Locale;
   onMarkerClick?: (id: number | string) => void;
@@ -136,11 +176,13 @@ export function MapView({
   onLineClick?: (id: number | string, lat: number, lng: number) => void;
   autoFit?: boolean;
   fitKey?: string | number;
+  fitPadding?: MapFitPadding;
   initialView?: MapViewState;
   onViewChange?: (view: MapViewState) => void;
   className?: string;
   baseLayerId?: BaseLayerId | string;
   showTrails?: boolean;
+  zoomControlPosition?: L.ControlPosition;
 }) {
   const defaultCenter = useMemo<[number, number]>(() => {
     if (initialView) return initialView.center;
@@ -152,16 +194,21 @@ export function MapView({
 
   const baseLayer = TILE_LAYERS.find((l) => l.id === baseLayerId) ?? TILE_LAYERS[0];
 
+  const wrapperStyle = fill ? { position: "relative" as const, height: "100%" } : { position: "relative" as const, height };
+  const mapBoxClass = `map-box ${fill ? "map-box-fill " : ""}${className ?? ""}`.trim();
+
   return (
-    <div className={`map-box ${className ?? ""}`} style={{ height, position: "relative" }}>
+    <div className={mapBoxClass} style={wrapperStyle}>
       <MapContainer
         center={defaultCenter}
         zoom={initialView?.zoom ?? 14}
         style={{ width: "100%", height: "100%" }}
         scrollWheelZoom
         closePopupOnClick={false}
+        zoomControl={false}
       >
         {onViewChange && <ViewTracker onViewChange={onViewChange} />}
+        <ZoomControl position={zoomControlPosition} />
         <TileLayer key={baseLayer.id} attribution={baseLayer.attribution} url={baseLayer.url} />
         {showTrails && (
           <TileLayer attribution={TRAILS_OVERLAY.attribution} url={TRAILS_OVERLAY.url} opacity={0.85} />
@@ -208,7 +255,7 @@ export function MapView({
             {marker.popup && <Popup>{marker.popup}</Popup>}
           </Marker>
         ))}
-        {autoFit && !initialView && <FitBounds markers={markers} lines={lines} fitKey={fitKey} />}
+        {autoFit && !initialView && <FitBounds markers={markers} lines={lines} fitKey={fitKey} fitPadding={fitPadding} />}
         {onMapClick && <ClickHandler onMapClick={onMapClick} />}
       </MapContainer>
     </div>

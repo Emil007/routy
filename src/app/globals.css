@@ -15,6 +15,17 @@
   --danger-soft: #f3e1db;
   --shadow: 0 1px 2px rgba(24, 32, 24, 0.04), 0 6px 20px rgba(24, 32, 24, 0.06);
   --radius: 12px;
+
+  /* Atlas chrome tokens (docs/UNIFIED-REDESIGN.md §6) */
+  --float: #fffcf8;
+  --float-solid: #ffffff;
+  --scrim: rgba(24, 32, 24, 0.28);
+  --float-shadow:
+    0 1px 2px rgba(24, 32, 24, 0.06),
+    0 8px 28px rgba(24, 32, 24, 0.14);
+  --sheet-radius: 16px;
+  --dock-gap: 0.4rem;
+  --fab-size: 2.5rem;
 }
 
 /* Theme selection ('auto' | 'light' | 'dark' | 'contrast', from Settings) is applied as
@@ -37,6 +48,10 @@
     --danger: #e08669;
     --danger-soft: #3a241d;
     --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
+    --float: rgba(23, 29, 20, 0.94);
+    --float-solid: #171d14;
+    --scrim: rgba(0, 0, 0, 0.45);
+    --float-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
   }
   html:not([data-theme="light"]):not([data-theme="contrast"]):not([data-theme="dog"]):not([data-theme="cat"]) {
     color-scheme: dark;
@@ -59,6 +74,10 @@
   --danger: #e08669;
   --danger-soft: #3a241d;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 8px 24px rgba(0, 0, 0, 0.35);
+  --float: rgba(23, 29, 20, 0.94);
+  --float-solid: #171d14;
+  --scrim: rgba(0, 0, 0, 0.45);
+  --float-shadow: 0 8px 28px rgba(0, 0, 0, 0.45);
 }
 html[data-theme="dark"] {
   color-scheme: dark;
@@ -82,6 +101,11 @@ html[data-theme="dark"] {
   --danger-soft: #ffd6d6;
   --shadow: 0 0 0 1px #000000;
   --radius: 6px;
+  --float: #ffffff;
+  --float-solid: #ffffff;
+  --scrim: rgba(0, 0, 0, 0.55);
+  --float-shadow: 0 0 0 2px #000000;
+  --sheet-radius: 6px;
 }
 html[data-theme="contrast"] {
   color-scheme: light;
@@ -109,6 +133,9 @@ html[data-theme="contrast"] {
   --danger-soft: #f6ddd6;
   --shadow: 0 1px 2px rgba(90, 60, 20, 0.08), 0 6px 20px rgba(90, 60, 20, 0.12);
   --radius: 16px;
+  --float: var(--surface);
+  --float-solid: var(--surface);
+  --float-shadow: var(--shadow);
 }
 html[data-theme="dog"] {
   color-scheme: light;
@@ -131,6 +158,9 @@ html[data-theme="dog"] {
   --danger-soft: #fbdde3;
   --shadow: 0 1px 2px rgba(90, 40, 110, 0.08), 0 6px 20px rgba(90, 40, 110, 0.12);
   --radius: 16px;
+  --float: var(--surface);
+  --float-solid: var(--surface);
+  --float-shadow: var(--shadow);
 }
 html[data-theme="cat"] {
   color-scheme: light;
@@ -297,6 +327,16 @@ button,
 .btn-primary {
   background: var(--accent);
   color: #fff;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]):not([data-theme="contrast"]):not([data-theme="dog"]):not([data-theme="cat"]) .btn-primary {
+    color: #0e2418;
+  }
+}
+
+:root[data-theme="dark"] .btn-primary {
+  color: #0e2418;
 }
 
 .btn-primary:hover {
@@ -492,6 +532,13 @@ th {
   overflow: hidden;
   border: 1px solid var(--line);
   position: relative;
+}
+
+.map-box-fill {
+  height: 100%;
+  min-height: 0;
+  border-radius: 0;
+  border: none;
 }
 
 .row-selected td {
