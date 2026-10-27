@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from "react";
 import { t, type Locale } from "@/lib/i18n";
-import { useMapShell } from "./MapShellContext";
 
 /**
  * Ebenen-Popover auf der Karte (§J5, optional klein): drei Karten-Basislayer plus
