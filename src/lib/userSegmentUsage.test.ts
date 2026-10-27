@@ -14,11 +14,13 @@ function ensureTestUser(username: string): number {
     | { id: number }
     | undefined;
   if (existing) return existing.id;
+  // Zeitzone explizit setzen: DEFAULT ist Europe/Vienna, was den Datums-Key vom
+  // Host-TZ abhängig macht — mit fester TZ ist der Daily-Usage-Test deterministisch.
   return Number(
     db
       .prepare(
-        `INSERT INTO users (username, password_hash, display_name, locale)
-         VALUES (?, 'x', ?, 'en')`,
+        `INSERT INTO users (username, password_hash, display_name, locale, timezone)
+         VALUES (?, 'x', ?, 'en', 'UTC')`,
       )
       .run(username, username).lastInsertRowid,
   );
