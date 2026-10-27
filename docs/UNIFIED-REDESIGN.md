@@ -1,6 +1,6 @@
 # Routy: verbindlicher Implementierungsplan Web + Android
 
-**Status:** Einziger Umsetzungsplan. Ersetzt `REDESIGN-WEB.md` und `REDESIGN-ANDROID.md`. Noch keine Implementierung.
+**Status:** Einziger Umsetzungsplan. Ersetzt `REDESIGN-WEB.md` und `REDESIGN-ANDROID.md`. **Umsetzung abgeschlossen (J0–J7, alle Phasen), lokale Commits, kein Push.** Abnahme im Browser (Desktop + Telefon) gegen den Dev-Server und den Standalone-Produktions-Build verifiziert; Gates grün. Die Phasenliste §10 ist die einzige Abnahme-Quelle.
 **Stand:** gegen den Code in diesem Workspace geprüft (Web Next.js 16.3.2 / React 19 / Leaflet; Android Jetpack Compose / MapLibre / Material3).
 **Für wen:** Umsetzung in einem Rutsch, aber **phasenweise reviewbar**. Eine Phase ist fertig, wenn beide Plattformen das Abnahme-Kriterium der Phase erfüllen und die Gate-Kommandos grün sind.
 
