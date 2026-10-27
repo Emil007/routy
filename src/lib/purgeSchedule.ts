@@ -2,6 +2,7 @@ import { db } from "./db";
 import { log } from "./logger";
 import { sweepExpiredRouteSessions } from "./routeSessions";
 import { purgeExpiredConditions } from "./segmentConditions";
+import { purgeExpiredFreeRoamCompletions } from "./freeRoam";
 
 const TRASH_RETENTION_DAYS = 30;
 const ACTIVITY_LOG_RETENTION_DAYS = 180;
@@ -58,10 +59,18 @@ function purgeExpiredConditionsJob(): void {
   }
 }
 
+function purgeFreeRoamCompletionsJob(): void {
+  const removed = purgeExpiredFreeRoamCompletions();
+  if (removed > 0) {
+    log.info("auto-purged expired free-roam tombstone rows", { rows: removed });
+  }
+}
+
 function runDailyPurge(): void {
   purgeOldTrash();
   purgeOldActivityLog();
   purgeOldCrashReports();
+  purgeFreeRoamCompletionsJob();
   purgeExpiredSessions();
   purgeExpiredRouteSessions();
   purgeExpiredConditionsJob();

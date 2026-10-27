@@ -332,7 +332,7 @@ export function recordWalkWithPoints(
   durationMin: number,
   nickname: string | null,
   points: WalkPointsLedger | null,
-  options: { claimActiveRoute?: boolean } = {},
+  options: { claimActiveRoute?: boolean; freeRoamStartedAt?: number } = {},
 ): number | null {
   const claim = options.claimActiveRoute === true;
   return db.transaction(() => {
@@ -372,6 +372,17 @@ export function recordWalkWithPoints(
           )
           .run(userId, JSON.stringify(nodeChain), JSON.stringify(segmentIds), lengthM, durationMin, nickname);
 
+    const walkId = Number(info.lastInsertRowid);
+
+    // Anti-replay tombstone for stateless free-roam sessions (decision K): written
+    // in the SAME transaction as the walk so a lost response / client retry can
+    // never double-credit — the tombstone and the walk row commit atomically.
+    if (options.freeRoamStartedAt != null) {
+      db.prepare(
+        "INSERT OR IGNORE INTO free_roam_completed (user_id, started_at, walk_id) VALUES (?, ?, ?)",
+      ).run(userId, options.freeRoamStartedAt, walkId);
+    }
+
     const bump = db.prepare(
       `INSERT INTO user_segment_usage (user_id, segment_id, usage_count, last_used_at)
        VALUES (?, ?, 1, datetime('now'))
@@ -381,7 +392,7 @@ export function recordWalkWithPoints(
     );
     for (const id of segmentIds) bump.run(userId, id);
 
-    return Number(info.lastInsertRowid);
+    return walkId;
   })();
 }
 

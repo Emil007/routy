@@ -3,7 +3,7 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { getStreakStats } from "@/lib/stats";
 import { db } from "@/lib/db";
-import { assertFreeRoamOwner, matchTrackToNetwork } from "@/lib/freeRoam";
+import { assertFreeRoamOwner, matchTrackToNetwork, completedWalkIdFor } from "@/lib/freeRoam";
 import {
   listSegments,
   recordWalkWithPoints,
@@ -69,6 +69,22 @@ export async function POST(request: Request) {
   if (access === "missing") return NextResponse.json({ error: "session_expired" }, { status: 410 });
   if (access === "forbidden") return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
+  // Anti-replay (decision K + security review): the stateless HMAC token has no
+  // server-side "spent" flag, so a completed token must not be redeemable again.
+  // The tombstone is keyed by (userId, startedAt) — the session's immutable id
+  // shared by every rotated token. Written atomically with the walk row inside
+  // recordWalkWithPoints. If a retry arrives after the response was lost, the
+  // SAME already-credited walk is returned instead of double-booking.
+  const alreadyDone = completedWalkIdFor(access);
+  if (alreadyDone != null) {
+    return NextResponse.json({
+      success: true,
+      walkId: alreadyDone,
+      freeRoam: true,
+      alreadyCredited: true,
+    });
+  }
+
   const { nodeChain, segmentIds } = matchTrackToNetwork(trackPoints);
 
   // Server-side length (deep-review #1, critical): points must NOT be awarded
@@ -113,7 +129,8 @@ export async function POST(request: Request) {
       celebrationTier,
       goldenHits,
     },
-    { claimActiveRoute: false },
+    // Walk row + anti-replay tombstone commit in ONE transaction (decision K).
+    { claimActiveRoute: false, freeRoamStartedAt: access.startedAt },
   );
   if (walkId == null) return NextResponse.json({ error: "insert_failed" }, { status: 500 });
 
@@ -132,8 +149,8 @@ export async function POST(request: Request) {
     detectProposalsFromTrack(trackPoints as { lat: number; lng: number }[], user.id);
   }
 
-  // Stateless sessions (decision K): nothing to delete — the token simply stops
-  // being forwarded once the client resets its local state.
+  // Stateless sessions (decision K): the token IS the session state; no map to
+  // clear. The anti-replay tombstone was already committed with the walk row.
   logActivity(user.id, "walk_complete", "walk", walkId, {
     freeRoam: true,
     nickname,
@@ -143,7 +160,13 @@ export async function POST(request: Request) {
   });
 
   // Decision E: persist earned achievements so weekWarrior/collector can't regress.
-  persistAchievements(user.id, user.locale as Locale);
+  // Best-effort: the walk is already committed — a failure here must not surface
+  // as a 500 that makes mobile clients retry and double-book.
+  try {
+    persistAchievements(user.id, user.locale as Locale);
+  } catch (err) {
+    console.error("persistAchievements failed (walk already credited):", err);
+  }
 
   const streak = getStreakStats(user.id);
   return NextResponse.json({

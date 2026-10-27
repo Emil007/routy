@@ -91,6 +91,19 @@ function migrateAchievementsTable(db: Database.Database): void {
   `);
 }
 
+function migrateFreeRoamCompleted(db: Database.Database): void {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS free_roam_completed (
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      started_at INTEGER NOT NULL,
+      walk_id INTEGER REFERENCES walk_log(id) ON DELETE CASCADE,
+      completed_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (user_id, started_at)
+    );
+    CREATE INDEX IF NOT EXISTS idx_free_roam_completed_at ON free_roam_completed(completed_at);
+  `);
+}
+
 export const MIGRATIONS: Migration[] = [
   { id: 1, name: "legacy_schema_hardening", up: noop },
   { id: 2, name: "per_user_home", up: noop },
@@ -102,6 +115,7 @@ export const MIGRATIONS: Migration[] = [
   { id: 8, name: "opening_hours_and_walk_mode", up: migrateOpeningHoursAndWalkMode },
   { id: 9, name: "per_user_timezone", up: migratePerUserTimezone },
   { id: 10, name: "achievements_table", up: migrateAchievementsTable },
+  { id: 11, name: "free_roam_completed_antireplay", up: migrateFreeRoamCompleted },
 ];
 
 export function runAllMigrations(db: Database.Database): void {

@@ -66,6 +66,10 @@ export function FreeRoamCard({
   const isRoamingRef = useRef(false);
   const tokenRef = useRef<string | null>(null);
   const lastCheckinRef = useRef<{ lat: number; lng: number } | null>(null);
+  // Monotonic guard: only the LATEST checkin response may rotate the token.
+  // Promises can resolve out of order, so an older response must not clobber a
+  // newer rotated token (stateless HMAC tokens differ per checkin, decision K).
+  const checkinSeqRef = useRef(0);
 
   useEffect(() => {
     isRoamingRef.current = phase === "roaming";
@@ -183,6 +187,9 @@ export function FreeRoamCard({
     const last = lastCheckinRef.current;
     if (last && haversineMeters(last, pos) < 10) return; // not moved enough
     lastCheckinRef.current = pos;
+    // Sequence this request: any earlier in-flight response must be ignored when
+    // it lands (it would carry a token older than a later checkin's rotation).
+    const seq = ++checkinSeqRef.current;
     try {
       const res = await fetch("/api/route/free-roam/checkin", {
         method: "POST",
@@ -192,11 +199,11 @@ export function FreeRoamCard({
       if (!res.ok) return;
       const data = (await res.json()) as CheckinResponse;
       // Stateless token rotation (decision K): keep the latest signed token.
-      if (data.token) {
+      if (data.token && seq === checkinSeqRef.current) {
         setToken(data.token);
         tokenRef.current = data.token;
       }
-      if (data.newlyReached.length > 0) {
+      if (seq === checkinSeqRef.current && data.newlyReached.length > 0) {
         setReached((prev) => [...prev.filter((r) => !data.newlyReached.some((n) => n.nodeId === r.nodeId)), ...data.newlyReached]);
       }
     } catch {

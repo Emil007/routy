@@ -275,6 +275,21 @@ CREATE TABLE IF NOT EXISTS achievements (
   PRIMARY KEY (user_id, key)
 );
 
+-- Anti-replay tombstones for stateless free-roam sessions (decision K): a
+-- completed session token must not be redeemable twice. The token itself is
+-- HMAC-signed and stateless, so "spent" must live server-side. Keyed by
+-- (user_id, started_at) — startedAt is the token's session id (ms epoch), so
+-- two concurrent sessions of the same user never collide. Rows are purged
+-- after TTL so the table stays bounded.
+CREATE TABLE IF NOT EXISTS free_roam_completed (
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  started_at INTEGER NOT NULL,
+  walk_id INTEGER REFERENCES walk_log(id) ON DELETE CASCADE,
+  completed_at TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (user_id, started_at)
+);
+CREATE INDEX IF NOT EXISTS idx_free_roam_completed_at ON free_roam_completed(completed_at);
+
 CREATE TRIGGER IF NOT EXISTS trg_nodes_updated_at
 AFTER UPDATE ON nodes
 BEGIN

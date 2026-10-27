@@ -53,6 +53,8 @@ export interface FreeRoamSession {
 }
 
 const TTL_MS = 12 * 60 * 60 * 1000;
+/** Tombstones are purged 36 h after completion (larger than TTL + slack). */
+const SPENT_RETENTION_MS = 36 * 60 * 60 * 1000;
 const SECRET_SETTINGS_KEY = "free_roam_secret";
 
 // ---------------------------------------------------------------------------
@@ -166,6 +168,35 @@ export function getFreeRoamSession(token: string): FreeRoamSession | null {
   if (!session) return null;
   if (isStale(session)) return null;
   return session;
+}
+
+/** Anti-replay (decision K + review security): remember a completed session so its
+ *  token can never earn points a second time. The stateless HMAC token carries no
+ *  server-side state, so "spent" has to live here — keyed by (userId, startedAt),
+ *  which is the session's immutable id regardless of which rotated token is shown.
+ *  Returns the already-credited walk id, or null when the session is still spendable. */
+export function completedWalkIdFor(session: FreeRoamSession): number | null {
+  const row = db
+    .prepare("SELECT walk_id FROM free_roam_completed WHERE user_id = ? AND started_at = ?")
+    .get(session.userId, session.startedAt) as { walk_id: number | null } | undefined;
+  return row?.walk_id ?? null;
+}
+
+/** Records a completed session as spent (idempotent). */
+export function markFreeRoamCompleted(session: FreeRoamSession, walkId: number | null = null): void {
+  db.prepare("INSERT OR IGNORE INTO free_roam_completed (user_id, started_at, walk_id) VALUES (?, ?, ?)").run(
+    session.userId,
+    session.startedAt,
+    walkId,
+  );
+}
+
+/** Bounded retention: drop tombstones older than the window above. Returns count. */
+export function purgeExpiredFreeRoamCompletions(): number {
+  const info = db
+    .prepare("DELETE FROM free_roam_completed WHERE datetime(completed_at) < datetime(?, 'unixepoch')")
+    .run(Math.floor(Date.now() - SPENT_RETENTION_MS));
+  return info.changes;
 }
 
 /** Applies a patch and returns a NEW signed token (the old token stays valid as
