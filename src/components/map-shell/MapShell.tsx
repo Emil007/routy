@@ -12,6 +12,7 @@ import { BottomSheet } from "./BottomSheet";
 import { ExploreSheet } from "./sheets/ExploreSheet";
 import { RoutePane } from "./sheets/RoutePane";
 import { RecordSheet } from "./sheets/RecordSheet";
+import { LayersFab } from "./LayersFab";
 
 /** Netzlinien aus dem Bootstrap (für RecordSheet + FreeRoamCard), §7.4. */
 function networkLinesFromBootstrap(bootstrap: AtlasBootstrap): MapLine[] {
@@ -38,6 +39,7 @@ function ShellInner({
   return (
     <div className="atlas-shell">
       <MapCanvas locale={locale} bootstrap={bootstrap} />
+      <LayersFab locale={locale} />
       <MapDock locale={locale} />
       <ProfileMenu
         locale={locale}

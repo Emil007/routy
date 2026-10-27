@@ -840,6 +840,8 @@ th {
 
 .page-dense .card {
   padding: 0.65rem 0.75rem;
+  border-radius: var(--sheet-radius);
+  box-shadow: var(--float-shadow);
 }
 
 .page-dense .card + .card {
@@ -1345,6 +1347,18 @@ th {
   background: var(--float-solid, #fff);
   box-shadow: var(--float-shadow, 0 8px 28px rgba(24,32,24,0.14));
   padding: 0.5rem;
+}
+
+/* Ebenen-FAB unter dem Profil-FAB — beide .map-fab, aber unten versetzt (§J5). */
+.map-layers-fab {
+  top: calc(max(env(safe-area-inset-top), 0.75rem) + var(--fab-size, 2.5rem) + 0.5rem);
+  left: 0.75rem;
+  right: auto;
+}
+
+.layers-popover {
+  top: calc(max(env(safe-area-inset-top), 0.75rem) + var(--fab-size, 2.5rem) + 0.5rem + var(--fab-size, 2.5rem));
+  left: 0.75rem;
 }
 
 .profile-menu {

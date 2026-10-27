@@ -14,7 +14,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         locale={locale}
         embedded={embedded}
         displayName={user.displayName}
-        isAdmin={user.role === "admin"}
         impersonating={impersonating}
       >
         {children}
