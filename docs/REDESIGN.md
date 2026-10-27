@@ -1,6 +1,6 @@
 # Routy Layout-Umbau: Vollbild-Karte, UI als Einblendung
 
-**Status:** Verbindlicher Plan (Entscheidungen festgelegt durch Emil am 2026-10-27). Noch **keine Implementierung** — Umsetzung startet erst nach Freigabe, phasenweise reviewbar.
+**Status: SUPERSEDED.** Dieser Plan ist durch `UNIFIED-REDESIGN.md` ersetzt (J0–J7 umgesetzt, lokale Commits, kein Push). Hier wird der alte Web-Plan dokumentarisch aufbewahrt; als Abnahme-Quelle gilt ausschließlich `UNIFIED-REDESIGN.md` §10.
 **Desktop-Panel: RECHTE Seite** (Entscheidung 1, korrigiert 14:37 per Mockup-Feedback — bewusst nicht 1:1 Google-Maps, wo das Panel links sitzt; rechts fühlt sich besser/selbstständiger an und ist so gewollt.).
 **Basis:** Synthese zweier Cursor-Pläne (Grok 4.7 Extra High = Architektur-Hauptquelle, Composer 2.5 = Detail-Beiträge), verifiziert gegen den Ist-Code.
 

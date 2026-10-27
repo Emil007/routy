@@ -11,13 +11,11 @@ import {
   stationSpeakName,
   voiceAnnounceRadiusM,
 } from "@/lib/voiceAnnounce";
-import { MapViewLazy } from "./MapViewLazy";
 import type { MapLayerSink } from "@/lib/mapLayerSink";
-import { FreeRoamCard } from "./FreeRoamCard";
-import { useMapPreferences } from "@/lib/useMapPreferences";
 import { RouteCompletionDialog, type RouteCompletionData } from "./RouteCompletionDialog";
 import { type MapLine, type MapMarker } from "./MapView";
 import type { NodeRow } from "@/lib/nodes";
+import { mapAccentHex } from "@/lib/mapAccent";
 import type { RouteDisplay } from "@/lib/routeDisplay";
 
 interface GenerateResponse {
@@ -80,7 +78,6 @@ export function RouteGenerator({
   initialUsingNetworkFallback,
   disconnectedSegmentIds = [],
   isAdmin = false,
-  hosted = false,
   section = "plan",
   onLayersChange,
   onPhaseChange,
@@ -99,9 +96,7 @@ export function RouteGenerator({
   initialUsingNetworkFallback: boolean;
   disconnectedSegmentIds?: number[];
   isAdmin?: boolean;
-  /** Host-betrieb (§4.5): keine eigene Karte, Layer via onLayersChange nach oben. */
-  hosted?: boolean;
-  /** Nur RouteGenerator: welcher Teil gerendert wird. */
+  /** Welcher Teil gerendert wird: hidden → nichts, go ohne aktive Route → nichts. */
   section?: "plan" | "go" | "hidden";
   onLayersChange?: (layers: MapLayerSink) => void;
   /** Annehmen → "active", Verwerfen/Abbrechen → "suggesting" (§4.5, ab J3 Dock-Switch). */
@@ -109,13 +104,22 @@ export function RouteGenerator({
 }) {
   const router = useRouter();
   const nodesById = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
+  // §6: Akzent-Farbe der Karte deterministisch aus dem HTML data-theme (auto → prefers-color-scheme).
+  const accentHex = useMemo(
+    () =>
+      mapAccentHex(
+        typeof document !== "undefined" ? document.documentElement.dataset.theme : undefined,
+        typeof window !== "undefined" && window.matchMedia?.(`(prefers-color-scheme: dark)`).matches,
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [],
+  );
   const [deletedFavoriteIds, setDeletedFavoriteIds] = useState<Set<number>>(() => new Set());
   const favorites = useMemo(
     () => initialFavorites.filter((f) => !deletedFavoriteIds.has(f.id)),
     [initialFavorites, deletedFavoriteIds],
   );
   const [favoritesOpen, setFavoritesOpen] = useState(false);
-  const mapPrefs = useMapPreferences();
   const disconnectedSet = useMemo(() => new Set(disconnectedSegmentIds), [disconnectedSegmentIds]);
   const [lengthPreset, setLengthPreset] = useState<LengthPreset>("short");
 
@@ -275,7 +279,9 @@ export function RouteGenerator({
 
   const routeMapLines = useMemo(() => {
     if (!result) return [];
-    const lines: MapLine[] = [{ id: "route", points: result.route.geometry }];
+    // §2.2/§6: Die Routenlinie nutzt die Akzent-Farbe des Themes (mapAccentHex) statt
+    // hart dunkelgrün — Dark-Theme bekommt die helle Variante (#6fc08c).
+    const lines: MapLine[] = [{ id: "route", points: result.route.geometry, color: accentHex }];
     const hitIds = new Set(
       result.goldenHitIds ?? result.route.segmentIds.filter((id) => goldenSet.has(id)),
     );
@@ -291,7 +297,7 @@ export function RouteGenerator({
       });
     }
     return lines;
-  }, [result, goldenSet, segmentGeometries]);
+  }, [result, goldenSet, segmentGeometries, accentHex]);
 
   const networkMapLines = useMemo((): MapLine[] => {
     if (mode !== "suggesting" || result) return [];
@@ -363,9 +369,10 @@ export function RouteGenerator({
     ? result.token || result.route.nodeChain.join("-")
     : `plan-${startNodeId}-${endNodeId}-${mustVisitNodeIds.join(",")}-${requiredSegmentIds.join(",")}`;
 
-  // Host-betrieb: Layer nach oben melden, keine eigene Karte (§4.5).
+  // §4.5: Layer nach oben melden — MapCanvas zeichnet die eine Karte, RouteGenerator
+  // liefert nur das Overlay (Route/Plan-Marker). Eine eigene Karte gibt es seit J7 nicht.
   useEffect(() => {
-    if (!hosted || !onLayersChange) return;
+    if (!onLayersChange) return;
     onLayersChange({
       markers: mapMarkers,
       lines: mapLines,
@@ -374,7 +381,7 @@ export function RouteGenerator({
       onLineClick: mode === "suggesting" && !result ? handleLineClick : undefined,
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [hosted, mapMarkers, mapLines, mapFitKey, mode, result]);
+  }, [mapMarkers, mapLines, mapFitKey, mode, result]);
 
   async function readApiError(res: Response): Promise<string> {
     const data = (await res.json().catch(() => null)) as { error?: string; retryAfterSeconds?: number } | null;
@@ -813,38 +820,6 @@ export function RouteGenerator({
   }
   const summaryText = summaryParts.join(" · ");
 
-  const routeChips = result ? (
-    <>
-      <span className="chip">
-        {t(locale, "route.distanceLabel")}: {(result.route.lengthM / 1000).toFixed(2)} {t(locale, "common.km")}
-      </span>
-      <span className="chip">
-        {t(locale, "route.durationLabel")}: {result.route.durationMin} {t(locale, "common.min")}
-      </span>
-      {result.route.elevation && (
-        <>
-          <span className="chip">↗ {t(locale, "route.elevationGain", { gain: result.route.elevation.gainM })}</span>
-          <span className="chip">↘ {t(locale, "route.elevationLoss", { loss: result.route.elevation.lossM })}</span>
-        </>
-      )}
-      {result.pointPreview && (
-        <>
-          <span className="chip">{t(locale, "route.pointPreview", { points: result.pointPreview.total })}</span>
-          <span className="chip">{t(locale, "route.pointPreviewBase", { points: result.pointPreview.base })}</span>
-          {result.pointPreview.golden > 0 && (
-            <span className="chip">{t(locale, "route.pointPreviewGolden", { points: result.pointPreview.golden })}</span>
-          )}
-          {result.pointPreview.exploration > 0 && (
-            <span className="chip">{t(locale, "route.pointPreviewExploration", { points: result.pointPreview.exploration })}</span>
-          )}
-          {result.pointPreview.diversity > 0 && (
-            <span className="chip">{t(locale, "route.pointPreviewDiversity", { points: result.pointPreview.diversity })}</span>
-          )}
-        </>
-      )}
-    </>
-  ) : null;
-
   const actionBar = result ? (
     <div className="route-action-bar">
       {mode === "suggesting" ? (
@@ -911,45 +886,13 @@ export function RouteGenerator({
     </div>
   ) : null;
 
-  // J3-Host-Prop: hidden → nichts, go ohne aktive Route → nichts (GoSheet mountet
-  // FreeRoamCard separat), plan → nur der suggesting-Zweig.
-  if (hosted && section === "hidden") return null;
-  if (hosted && section === "go" && mode !== "active") return null;
+  // §4.5: section steuert, was gerendert wird (hidden → nichts, go ohne aktive Route →
+  // nichts, plan → nur der suggesting-Zweig). Die eine Karte liegt immer in MapCanvas.
+  if (section === "hidden") return null;
+  if (section === "go" && mode !== "active") return null;
 
   return (
-    <div className="route-shell has-map">
-      {!hosted && (
-        <div className="route-map-pane">
-          <MapViewLazy
-            fitKey={mapFitKey}
-            lines={mapLines}
-            markers={mapMarkers}
-            onMarkerClick={mode === "suggesting" && !result ? handleMarkerClick : undefined}
-            onLineClick={mode === "suggesting" && !result ? handleLineClick : undefined}
-            height={360}
-            baseLayerId={mapPrefs.baseLayerId}
-            showTrails={mapPrefs.showTrails}
-          />
-          {result && routeChips && (
-            <div className="route-action-bar" style={{ marginTop: "0.45rem" }}>
-              {routeChips}
-            </div>
-          )}
-          {result && (
-            <p
-              className="route-stations-oneline route-abbrev-display"
-              title={result.route.shortStationGroups
-                .map((g) => (g.viaSegmentName ? `${g.text} (${t(locale, "route.via", { name: g.viaSegmentName })})` : g.text))
-                .join(" › ")}
-            >
-              {result.route.shortStationGroups
-                .map((g) => (g.viaSegmentName ? `${g.text} (${t(locale, "route.via", { name: g.viaSegmentName })})` : g.text))
-                .join(" › ")}
-            </p>
-          )}
-        </div>
-      )}
-
+    <div className="route-shell">
       <div className="route-controls-pane">
         {pointBalance !== null && (
           <div className="btn-row" style={{ marginBottom: "0.35rem" }}>
@@ -1075,19 +1018,6 @@ export function RouteGenerator({
                 ) : null}
               </div>
             </details>
-
-            {!hosted && (
-              <details className="card" style={{ marginTop: "0.5rem" }}>
-                <summary style={{ fontSize: "0.95rem", fontWeight: 600, cursor: "pointer" }}>{t(locale, "route.freeRoamStart")}</summary>
-                <div className="stack" style={{ marginTop: "0.5rem", gap: "0.35rem" }}>
-                  <FreeRoamCard
-                    locale={locale}
-                    nodes={nodes}
-                    networkLines={networkMapLines}
-                  />
-                </div>
-              </details>
-            )}
 
             <div className="route-action-bar">
               {(usingNetworkFallback === true || usingNetworkFallback === false) && (

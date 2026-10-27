@@ -1,6 +1,6 @@
 # Routy Android: Layout-Umbau auf Google-Maps-artige UX (Jetpack Compose)
 
-**Status:** Verbindlicher Plan (Entscheidungen Emil, 2026-10-27). Noch **keine Implementierung** — startet nach Freigabe, phasenweise reviewbar.
+**Status: SUPERSEDED.** Dieser Plan ist durch `UNIFIED-REDESIGN.md` ersetzt (J0–J7 umgesetzt, lokale Commits, kein Push). Hier wird der alte Android-Plan dokumentarisch aufbewahrt; als Abnahme-Quelle gilt ausschließlich `UNIFIED-REDESIGN.md` §10.
 **Basis:** Synthese zweier Cursor-Pläne (Grok 4.7 Extra High = Architektur-Hauptquelle; Composer 2.5 = Beiträge wie `MapShellCoordinator`), verifiziert gegen den Ist-Code.
 **Web-Pendant:** `docs/REDESIGN.md` — beide Pläne teilen Designsprache (**Parität**, s. §0 unten).
 

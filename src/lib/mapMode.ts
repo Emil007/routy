@@ -1,5 +1,4 @@
 export type AtlasMode = "explore" | "plan" | "go" | "record";
-export type SheetSnap = "peek" | "half" | "full";
 export type ExploreTool =
   | null
   | "draw"

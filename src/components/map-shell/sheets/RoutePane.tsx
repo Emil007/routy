@@ -107,7 +107,6 @@ export function RoutePane({ locale, bootstrap }: { locale: Locale; bootstrap: At
         initialUsingNetworkFallback={bootstrap.usingNetworkFallback}
         disconnectedSegmentIds={bootstrap.disconnectedSegmentIds}
         isAdmin={bootstrap.role === "admin"}
-        hosted
         section={routeGeneratorSection}
         onPhaseChange={onPhaseChange}
         onLayersChange={(layers) => {
