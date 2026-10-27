@@ -1,5 +1,3 @@
-import { db } from "./db";
-
 /** Default IANA zone for all users (per-user override lives in users.timezone). */
 export const DEFAULT_TIMEZONE = "Europe/Vienna";
 
@@ -24,13 +22,6 @@ export type Timezone = (typeof TIMEZONES)[number];
 
 export function isTimezone(value: string | null | undefined): value is Timezone {
   return !!value && (TIMEZONES as readonly string[]).includes(value);
-}
-
-export function getUserTimezone(userId: number): string {
-  const row = db.prepare("SELECT timezone FROM users WHERE id = ?").get(userId) as
-    | { timezone: string | null }
-    | undefined;
-  return row?.timezone && row.timezone.trim() !== "" ? row.timezone : DEFAULT_TIMEZONE;
 }
 
 /** Local calendar date (YYYY-MM-DD) for an ISO timestamp, in the given IANA zone. */
@@ -65,14 +56,4 @@ export function toLocalHour(isoTs: string | null | undefined, tz: string): numbe
   return raw === 24 ? 0 : raw;
 }
 
-/** How many of the user's walks fall within an inclusive local hour range (0–23). */
-export function countWalksInLocalHourRange(userId: number, fromHour: number, toHour: number): number {
-  const timezone = getUserTimezone(userId);
-  const rows = db.prepare("SELECT accepted_at FROM walk_log WHERE user_id = ?").all(userId) as {
-    accepted_at: string;
-  }[];
-  return rows.filter((r) => {
-    const h = toLocalHour(r.accepted_at, timezone);
-    return h >= fromHour && h <= toHour;
-  }).length;
-}
+

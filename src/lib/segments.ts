@@ -2,7 +2,8 @@ import { db } from "./db";
 import { type LatLng, reversePoints, pathLengthMeters, estimateMinutes, elevationStats, closestPointOnPath, haversineMeters, REPOSITION_OFF_PATH_THRESHOLD_M } from "./geo";
 import type { ElevationStats } from "./geo";
 import { createNode, getNode, updateNodePosition, type NodeRow, type NodeNameParts } from "./nodes";
-import { getUserTimezone, toLocalDateKey, currentLocalDateKey } from "./timezone";
+import { getUserTimezone } from "./timezoneServer";
+import { toLocalDateKey, currentLocalDateKey } from "./timezone";
 
 export interface SegmentRow {
   id: number;

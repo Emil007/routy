@@ -1,6 +1,7 @@
 import { db } from "./db";
 import { listSegments, getUsageMap, type SegmentRow } from "./segments";
-import { getUserTimezone, toLocalDateKey, currentLocalDateKey } from "./timezone";
+import { getUserTimezone } from "./timezoneServer";
+import { toLocalDateKey, currentLocalDateKey } from "./timezone";
 
 function canonicalSegmentId(s: Pick<SegmentRow, "id" | "reverseOf">): number {
   return s.reverseOf !== null ? Math.min(s.id, s.reverseOf) : s.id;

@@ -1,7 +1,8 @@
 import { db } from "./db";
 import { listSegments, type SegmentRow } from "./segments";
 import { getStreakStats } from "./stats";
-import { getUserTimezone, toLocalDateKey, currentLocalDateKey } from "./timezone";
+import { getUserTimezone } from "./timezoneServer";
+import { toLocalDateKey, currentLocalDateKey } from "./timezone";
 
 export const GUIDE_POINTS_MULTIPLIER = 0.7;
 /** Free-roam mode (no fixed route, relaxed points). */

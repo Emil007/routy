@@ -4,7 +4,7 @@ import { listSegments, isCanonicalSegment } from "./segments";
 import { favoriteCount } from "./favorites";
 import { computeUserPoints } from "./points";
 import { t, type Locale } from "./i18n";
-import { countWalksInLocalHourRange } from "./timezone";
+import { countWalksInLocalHourRange } from "./timezoneServer";
 
 export const TIERS = ["stein", "blech", "bronze", "silber", "gold", "platin", "diamant"] as const;
 export type Tier = (typeof TIERS)[number];
