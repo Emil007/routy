@@ -1,9 +1,10 @@
 # Routy Layout-Umbau: Vollbild-Karte, UI als Einblendung
 
 **Status:** Verbindlicher Plan (Entscheidungen festgelegt durch Emil am 2026-10-27). Noch **keine Implementierung** — Umsetzung startet erst nach Freigabe, phasenweise reviewbar.
+**Desktop-Panel: RECHTE Seite** (Entscheidung 1, korrigiert 14:37 per Mockup-Feedback — bewusst nicht 1:1 Google-Maps, wo das Panel links sitzt; rechts fühlt sich besser/selbstständiger an und ist so gewollt.).
 **Basis:** Synthese zweier Cursor-Pläne (Grok 4.7 Extra High = Architektur-Hauptquelle, Composer 2.5 = Detail-Beiträge), verifiziert gegen den Ist-Code.
 
-Ziel ist ein Google-Maps-artiges Web-UI: eine Karte, die den Bildschirm beherrscht, Kern-Flows als Einblendungen (Bottom-Sheet auf Mobil, Seiten-Panel auf Desktop) darüber. Routy-Grün bleibt Identität. Stats, Settings und Admin bleiben eigene, app-gestaltete Seiten mit Rückweg zur Karte.
+Ziel ist ein Google-Maps-artiges Web-UI: eine Karte, die den Bildschirm beherrscht, Kern-Flows als Einblendungen (Bottom-Sheet auf Mobil, **rechtes** Seiten-Panel auf Desktop) darüber. Routy-Grün bleibt Identität. Stats, Settings und Admin bleiben eigene, app-gestaltete Seiten mit Rückweg zur Karte.
 
 Prüfen nach jeder Phase:
 
@@ -85,18 +86,18 @@ Sheet voll (Formular, Liste, Favoriten): Karte bleibt dahinter, Sheet max ~92dvh
 ### 2.2 ASCII — Desktop (ab 960px)
 
 ```
-┌───────────────────────────────────────────────────┐
-│ [R]  Erkunden  Plan  Gehen  Aufnahme         (o)  │
-│ ┌─────────────────────┐                           │
-│ │ Sheet links         │      VOLLE KARTE          │
-│ │ max 400px           │                           │
-│ │ Start / Ziel        │                           │
-│ │ Länge   [Generieren]│                           │
-│ │                     │                     [+]   │
-│ │                     │                     [-]   │
-│ └─────────────────────┘                           │
-│ OSM-Attribution unten links, über dem Rand        │
-└───────────────────────────────────────────────────┘
+┌──────────────────────────────────────────────────┐
+│ [R]  Erkunden  Plan  Gehen  Aufnahme         (o) │
+│ ┌─────────────────────────┐  ┌────────────────┐ │
+│ │                         │  │ Sheet rechts   │ │
+│ │                         │  │ max 400px      │ │
+│ │      VOLLE KARTE        │  │ Start / Ziel   │ │
+│ │                         │  │ Länge[Generier]│ │
+│ │                         │  │                │ │
+│ │                 [+] [-] │  └────────────────┘ │
+│ └─────────────────────────┘                     │
+│ OSM-Attribution unten links, über dem Rand       │
+└──────────────────────────────────────────────────┘
 ```
 
 Kein zweites Menü. Werkzeuge der Übersicht (Zeichnen, GPX, Form bearbeiten, Segmentliste, Papierkorb, Proposals) sind Zeilen **im** Erkunden-Sheet, nicht im Dock.
@@ -517,7 +518,7 @@ Attribution von OSM/Esri/OpenTopoMap sichtbar lassen. CSS:
 }
 ```
 
-Konkret mobil: Attribution `max-width: 55vw`, Schrift 10px, Hintergrund `var(--float-solid)`. Bei `data-sheet="full"` Attribution ausblenden ist **nicht** erlaubt (Lizenz). Sie bleibt am oberen Rand des Sheets als eine Zeile im Sheet-Header rechts, oder Leaflet-Control bekommt `margin-bottom` gleich der Sheet-Höhe. Zweiteres ist weniger DOM-Umzug: CSS-Variable `--sheet-cover` setzt die Shell (peek `4.5rem`, half `46dvh`, full `92dvh`) und `.leaflet-bottom { margin-bottom: calc(var(--sheet-cover) + env(safe-area-inset-bottom)); }` nur unter 960px. Desktop: Sheet ist links, Attribution unten links ohne Extra-Margin, Zoom unten rechts.
+Konkret mobil: Attribution `max-width: 55vw`, Schrift 10px, Hintergrund `var(--float-solid)`. Bei `data-sheet="full"` Attribution ausblenden ist **nicht** erlaubt (Lizenz). Sie bleibt am oberen Rand des Sheets als eine Zeile im Sheet-Header rechts, oder Leaflet-Control bekommt `margin-bottom` gleich der Sheet-Höhe. Zweiteres ist weniger DOM-Umzug: CSS-Variable `--sheet-cover` setzt die Shell (peek `4.5rem`, half `46dvh`, full `92dvh`) und `.leaflet-bottom { margin-bottom: calc(var(--sheet-cover) + env(safe-area-inset-bottom)); }` nur unter 960px. Desktop: Sheet ist rechts, Attribution unten links ohne Extra-Margin, Zoom unten rechts.
 
 Nach jedem Snap und nach `resize`: `map.invalidateSize()` in `MapCanvas` (sonst graue Ränder, bekannter Leaflet-Fall bei flex).
 
