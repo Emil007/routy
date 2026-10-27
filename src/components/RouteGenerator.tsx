@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import type { Ref } from "react";
 import { useRouter } from "next/navigation";
 import { t, type Locale } from "@/lib/i18n";
@@ -81,6 +81,7 @@ export function RouteGenerator({
   section = "plan",
   onLayersChange,
   onPhaseChange,
+  onAdoptedChange,
   ref,
 }: {
   ref?: Ref<RouteGeneratorHandle>;
@@ -101,6 +102,10 @@ export function RouteGenerator({
   onLayersChange?: (layers: MapLayerSink) => void;
   /** Annehmen → "active", Verwerfen/Abbrechen → "suggesting" (§4.5, ab J3 Dock-Switch). */
   onPhaseChange?: (phase: "suggesting" | "active") => void;
+  /** Meldet den lokalen „Auswählen"-Zustand (adopted) nach oben, damit RoutePane
+   *  die Route als aktiv führt (Frei-Wechsel verlangt Bestätigung, Go bleibt
+   *  sichtbar) — Parität mit Android select(). */
+  onAdoptedChange?: (adopted: boolean) => void;
 }) {
   const router = useRouter();
   const nodesById = useMemo(() => new Map(nodes.map((n) => [n.id, n])), [nodes]);
@@ -138,8 +143,16 @@ export function RouteGenerator({
   const [mode, setMode] = useState<"suggesting" | "active">(initialActiveRoute ? "active" : "suggesting");
   // Parität mit Android: „Auswählen" übernimmt die Route nur lokal (kein Server-
   // accept, Token bleibt). Erst „Go" ruft /api/route/accept und startet das
-  // Tracking — der Dock wechselt nicht vorher auf Gehen/Frei.
-  const [adopted, setAdopted] = useState(false);
+  // Tracking — der Dock wechselt nicht vorher auf Gehen/Frei. Der Wert wird via
+  // onAdoptedChange an RoutePane gemeldet (routeActive/Frei-Bestätigung).
+  const [adopted, setAdoptedState] = useState(false);
+  const setAdopted = useCallback(
+    (next: boolean) => {
+      setAdoptedState(next);
+      onAdoptedChange?.(next);
+    },
+    [onAdoptedChange],
+  );
   const [result, setResult] = useState<GenerateResponse | null>(
     initialActiveRoute ? { token: "", route: initialActiveRoute } : null,
   );
@@ -528,6 +541,7 @@ export function RouteGenerator({
     if (res.ok) {
       const data = (await res.json()) as GenerateResponse;
       setResult(data);
+      setAdopted(false); // neue Route ⇒ lokale Auswahl-Übernahme verwerfen (Grok)
       setUsingNetworkFallback(data.usingNetworkFallback ?? null);
       setStatus("idle");
       if (data.lengthRelaxed) {
@@ -541,6 +555,7 @@ export function RouteGenerator({
       }
     } else {
       setResult(null);
+      setAdopted(false);
       setUsingNetworkFallback(null);
       setStatus("error");
       flashMessage(await readApiError(res), true);
@@ -554,6 +569,7 @@ export function RouteGenerator({
     if (res.ok) {
       const data = (await res.json()) as GenerateResponse;
       setResult(data);
+      setAdopted(false); // neue/gedrehte Route ⇒ Auswahl-Übernahme verwerfen (Grok)
       setStatus("idle");
       clearMessage();
     } else {
@@ -592,6 +608,7 @@ export function RouteGenerator({
     if (res.ok) {
       const data = (await res.json()) as GenerateResponse;
       setResult(data);
+      setAdopted(false); // angepasste Route ⇒ Auswahl-Übernahme verwerfen (Grok)
       setStatus("idle");
       clearMessage();
     } else {
@@ -719,6 +736,10 @@ export function RouteGenerator({
       setResult(null);
       setMode("suggesting");
       setAdopted(false);
+      // Wichtig (Grok-Finding): OHNE onPhaseChange bleibt RoutePane phase=active
+      // → Frei-Pane bleibt blockiert + Gehen-Dock/Stop-Prompt hängt. Erst das
+      // Signal zurück auf suggesting räumt liveSession/GO-Zwang auf.
+      onPhaseChange?.("suggesting");
       setStatus("idle");
       setCompletionData({
         ...data,

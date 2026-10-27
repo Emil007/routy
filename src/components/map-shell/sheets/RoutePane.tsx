@@ -40,6 +40,11 @@ export function RoutePane({ locale, bootstrap }: { locale: Locale; bootstrap: At
   const [phase, setPhase] = useState<"suggesting" | "active">(
     bootstrap.activeRoute ? "active" : "suggesting",
   );
+  // Lokaler Spiegel des „Auswählen"-Zustands (“adopted”) aus dem RouteGenerator:
+  // nach Auswählen ist die Route lokal übernommen, aber noch nicht serverseitig
+  // gestartet — deshalb wie aktive Route behandeln (Frei-Wechsel verlangt
+  // Bestätigung, Go bleibt sichtbar), ohne schon phase auf active zu setzen.
+  const [adopted, setAdopted] = useState(false);
   const generatorRef = useRef<RouteGeneratorHandle>(null);
   const hasActiveRoute = Boolean(bootstrap.activeRoute);
   const networkLines = useMemo(() => networkLinesFromBootstrap(bootstrap), [bootstrap.segmentGeometries]);
@@ -52,9 +57,9 @@ export function RoutePane({ locale, bootstrap }: { locale: Locale; bootstrap: At
   const section: "plan" | "go" | "hidden" =
     mode === "plan" ? "plan" : mode === "go" ? "go" : "hidden";
 
-  // Aktive Route = Server-Zustand ODER client-seitig angenommen (phase === "active").
-  // Go ohne aktive Route → RouteGenerator unsichtbar (Freies Gehen übernimmt).
-  const routeActive = hasActiveRoute || phase === "active";
+  // Aktive Route = Server-Zustand ODER client-seitig angenommen (phase === "active"
+  // ODER Auswählen/adopted). Go ohne aktive Route → RouteGenerator unsichtbar.
+  const routeActive = hasActiveRoute || phase === "active" || adopted;
   const routeGeneratorSection: "plan" | "go" | "hidden" = routeActive
     ? section
     : section === "go"
@@ -62,11 +67,11 @@ export function RoutePane({ locale, bootstrap }: { locale: Locale; bootstrap: At
       : section;
 
   // §7.2: aktive Route als Live-Session melden + Stopp-Handler registrieren.
-  // phase ist die maßgebliche Quelle (client-seitige Annahme/Discard), nicht nur
-  // der Server-Bootstrap — so greift der Guard auch direkt nach dem Annehmen.
+  // phase/adopted sind die maßgebliche Quelle (client-seitige Annahme/Discard),
+  // nicht nur der Server-Bootstrap — so greift der Guard auch direkt nach Annehmen.
   useEffect(() => {
-    setLive("activeRoute", phase === "active");
-  }, [phase, setLive]);
+    setLive("activeRoute", phase === "active" || adopted);
+  }, [phase, adopted, setLive]);
   useEffect(() => {
     registerLiveStop("activeRoute", () => generatorRef.current?.discardActive({ skipConfirm: true }));
     return () => registerLiveStop("activeRoute", null);
@@ -85,10 +90,17 @@ export function RoutePane({ locale, bootstrap }: { locale: Locale; bootstrap: At
   // verhält sich onPhaseChange wie bisher.
   const onPhaseChange = (next: "suggesting" | "active") => {
     setPhase(next);
+    // Sobald phase aktiv ist, übernimmt es die Führung — adopted ist dann
+    // (falls gesetzt) obsolete; der RouteGenerator setzt es via handleAccept
+    // selbst auf false, hier defensiv den Spiegel räumen.
+    if (next === "active") setAdopted(false);
     if (next === "suggesting") {
       if (!pendingChange) setMode("plan");
     }
   };
+
+  // Miror des Auswählen-Zustands aus dem RouteGenerator (Parität, §adopted).
+  const onAdoptedChange = (value: boolean) => setAdopted(value);
 
   return (
     <div className="sheet-body">
@@ -109,6 +121,7 @@ export function RoutePane({ locale, bootstrap }: { locale: Locale; bootstrap: At
         isAdmin={bootstrap.role === "admin"}
         section={routeGeneratorSection}
         onPhaseChange={onPhaseChange}
+        onAdoptedChange={onAdoptedChange}
         onLayersChange={(layers) => {
           if (mode === "plan" || mode === "go") registerLayers(layers);
         }}
