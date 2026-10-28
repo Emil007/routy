@@ -122,9 +122,10 @@ export function RoutePane({ locale, bootstrap }: { locale: Locale; bootstrap: At
         section={routeGeneratorSection}
         onPhaseChange={onPhaseChange}
         onAdoptedChange={onAdoptedChange}
-        onLayersChange={(layers) => {
-          if (mode === "plan" || mode === "go") registerLayers(layers);
-        }}
+        // M6-1: RouteGenerator räumt seine Layer selbst ab (null), wenn seine
+        // Section unsichtbar wird — registriere das ungefiltert, damit weder ein
+        // veraltetes Routen-Overlay hängen bleibt noch Doppelzeichnung entsteht.
+        onLayersChange={registerLayers}
       />
 
       {/* Freies Gehen: nur im Go-Modus ohne aktive Route, über der Karte. */}

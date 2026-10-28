@@ -102,7 +102,8 @@ export function RouteGenerator({
   isAdmin?: boolean;
   /** Welcher Teil gerendert wird: hidden → nichts, go ohne aktive Route → nichts. */
   section?: "plan" | "go" | "hidden";
-  onLayersChange?: (layers: MapLayerSink) => void;
+  /** M6: null = Section unsichtbar → Layer abräumen. */
+  onLayersChange?: (layers: MapLayerSink | null) => void;
   /** Annehmen → "active", Verwerfen/Abbrechen → "suggesting" (§4.5, ab J3 Dock-Switch). */
   onPhaseChange?: (phase: "suggesting" | "active") => void;
   /** Meldet den lokalen „Auswählen"-Zustand (adopted) nach oben, damit RoutePane
@@ -400,10 +401,15 @@ export function RouteGenerator({
     ? result.token || result.route.nodeChain.join("-")
     : `plan-${startNodeId}-${endNodeId}-${mustVisitNodeIds.join(",")}-${requiredSegmentIds.join(",")}`;
 
-  // §4.5: Layer nach oben melden — MapCanvas zeichnet die eine Karte, RouteGenerator
-  // liefert nur das Overlay (Route/Plan-Marker). Eine eigene Karte gibt es seit J7 nicht.
+  // §4.5/M6-1: Layer nach oben melden — MapCanvas zeichnet die eine Karte, RouteGenerator
+  // liefert nur das Overlay (Route/Plan-Marker). NUR wenn diese Section sichtbar ist
+  // (plan/go); Cleanup räumt die Layer, damit hidden/reocrd/explore nicht das Overlay
+  // einer unsichtbaren Route zeichnet.
   useEffect(() => {
-    if (!onLayersChange) return;
+    if (!onLayersChange || (section !== "plan" && section !== "go")) {
+      onLayersChange?.(null);
+      return;
+    }
     onLayersChange({
       markers: mapMarkers,
       lines: mapLines,
@@ -411,8 +417,9 @@ export function RouteGenerator({
       onMarkerClick: mode === "suggesting" && !result ? handleMarkerClick : undefined,
       onLineClick: mode === "suggesting" && !result ? handleLineClick : undefined,
     });
+    return () => onLayersChange(null);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mapMarkers, mapLines, mapFitKey, mode, result]);
+  }, [mapMarkers, mapLines, mapFitKey, mode, result, section]);
 
   async function readApiError(res: Response): Promise<string> {
     const data = (await res.json().catch(() => null)) as { error?: string; retryAfterSeconds?: number } | null;
