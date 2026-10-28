@@ -88,7 +88,6 @@ export function DrawPathWizard({
       markers: [...nodeMarkers, ...draftMarkers],
       lines: [...networkLines, ...draftLine],
       circles: nodeCircles,
-      fitKey: `draw-${points.length}`,
       onMapClick: phase === "drawing" ? handleMapClick : undefined,
       onMarkerClick: phase === "drawing" ? handleMarkerClick : undefined,
       onMarkerDragEnd: phase === "drawing" ? handleDraftDragEnd : undefined,

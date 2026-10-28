@@ -1,9 +1,16 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
-import { createFreeRoamSession, reachableNeighbours, nearestNodeId, FREE_ROAM_START_RADIUS_M } from "@/lib/freeRoam";
+import {
+  createFreeRoamSession,
+  reachableNeighbours,
+  nearestNodeId,
+  freeRoamAnnouncementText,
+  FREE_ROAM_START_RADIUS_M,
+} from "@/lib/freeRoam";
 import { listNodes } from "@/lib/nodes";
 import { FREE_ROAM_POINTS_MULTIPLIER } from "@/lib/points";
+import { type Locale } from "@/lib/i18n";
 
 const bodySchema = z.object({
   /** GPS position where the walk starts (used to pick the nearest node). */
@@ -38,11 +45,19 @@ export async function POST(request: Request) {
   }
 
   const seedReachable = effectiveStart != null ? reachableNeighbours(effectiveStart) : [];
+  const locale = (user.locale ?? "de") as Locale;
+  const startNode = effectiveStart != null ? listNodes().find((n) => n.id === effectiveStart) : null;
+  // 0.57: auch der Start wird sofort lokalisiert angesagt („Angekommen bei …").
+  const announcement =
+    effectiveStart != null && seedReachable.length > 0
+      ? freeRoamAnnouncementText(locale, startNode?.name ?? null, seedReachable)
+      : null;
 
   return NextResponse.json({
     token,
     startNodeId: effectiveStart,
     startReachable: seedReachable,
+    announcement,
     freeRoam: true,
     pointsMultiplier: FREE_ROAM_POINTS_MULTIPLIER,
   });

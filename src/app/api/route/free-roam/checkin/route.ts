@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { assertFreeRoamOwner, checkinFreeRoam } from "@/lib/freeRoam";
+import { type Locale } from "@/lib/i18n";
 
 const bodySchema = z.object({
   token: z.string().min(1),
@@ -22,7 +23,7 @@ export async function POST(request: Request) {
   if (access === "missing") return NextResponse.json({ error: "session_expired" }, { status: 410 });
   if (access === "forbidden") return NextResponse.json({ error: "forbidden" }, { status: 403 });
 
-  const result = checkinFreeRoam(token, { lat, lng });
+  const result = checkinFreeRoam(token, { lat, lng }, (user.locale ?? "de") as Locale);
   // Stateless sessions (decision K): every checkin rotates the token. The client
   // MUST store the returned `token` and send it on the next call.
   return NextResponse.json({ ok: true, ...result });

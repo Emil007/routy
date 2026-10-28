@@ -1,6 +1,6 @@
 "use client";
 
-import { type ReactNode, useEffect, useMemo } from "react";
+import { type ReactNode, useEffect, useMemo, useRef } from "react";
 import { MapContainer, TileLayer, Marker, Polyline, Circle, Popup, Tooltip, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -68,12 +68,23 @@ function FitBounds({
   fitPadding?: MapFitPadding;
 }) {
   const map = useMap();
+  // Nur der allererste Fit (Karte öffnet) + explizite Routen-Fits (fitKey) dürfen
+  // die Kamera bewegen. Jede spätere Datenänderung ohne neuen fitKey (Zeichnen,
+  // Menü-Wechsel, GPS-Updates) lässt die Kamera unberührt (User-Feedback 0.57:
+  // „beim Start alle Wege sehen, sonst Zoom/Pan nie anfassen“).
+  const didInitialFitRef = useRef(false);
+  const lastFitKeyRef = useRef<string | number | undefined>(undefined);
   useEffect(() => {
     const points: [number, number][] = [
       ...markers.map((m): [number, number] => [m.lat, m.lng]),
       ...lines.flatMap((l) => l.points),
     ];
     if (points.length === 0) return;
+    const isInitial = !didInitialFitRef.current;
+    const isExplicit = fitKey !== undefined && lastFitKeyRef.current !== fitKey;
+    if (!isInitial && !isExplicit) return;
+    lastFitKeyRef.current = fitKey;
+    didInitialFitRef.current = true;
     if (points.length === 1) {
       map.setView(points[0], 16);
       return;

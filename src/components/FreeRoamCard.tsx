@@ -27,6 +27,8 @@ interface StartResponse {
   token: string;
   startNodeId: number | null;
   startReachable: ReachableNeighbour[];
+  /** 0.57: lokalisierte Start-Ansage („Angekommen bei … mögliche Wege zu…“). */
+  announcement: string | null;
   freeRoam: boolean;
   pointsMultiplier: number | null;
 }
@@ -35,6 +37,8 @@ interface CheckinResponse {
   ok: boolean;
   newlyReached: ReachedNode[];
   shouldAnnounce: boolean;
+  /** 0.57: vollständiger, lokalisierter Ansage-Text vom Server. */
+  announcement: string | null;
   visitedCount: number;
   /** Rotation token (stateless sessions, decision K): MUST replace the stored one. */
   token: string;
@@ -68,6 +72,8 @@ export function FreeRoamCard({
   const [track, setTrack] = useState<LatLng[]>([]);
   const [currentPos, setCurrentPos] = useState<LatLng | null>(null);
   const [reached, setReached] = useState<ReachedNode[]>([]);
+  // 0.57: vollstaendige, lokalisierte Ansage vom Server ("Angekommen bei ... Richtung ...").
+  const [announceText, setAnnounceText] = useState<string | null>(null);
   const [watchId, setWatchId] = useState<number | null>(null);
   const [status, setStatus] = useState<"idle" | "starting" | "saving" | "error">("idle");
   const [message, setMessage] = useState<string | null>(null);
@@ -145,19 +151,33 @@ export function FreeRoamCard({
     return circles;
   }, [reached, nodes]);
 
-  // Host-betrieb: Layer nach oben melden, keine eigene Karte (§4.5).
+  // Host-betrieb: Layer nach oben melden, keine eigene Karte (§4.5). Kein fitKey —
+  // die Kamera bleibt während des freien Gehens unberührt (User-Feedback 0.57).
   const hostedLayers = useMemo(
     () => ({
       markers: [...nodeMarkers, ...myMarker],
       lines: [...networkLines, ...trackLine],
       circles: reachCircles,
-      fitKey: `roam-${track.length}`,
     }),
     [nodeMarkers, myMarker, networkLines, trackLine, reachCircles, track.length],
   );
   useEffect(() => {
     if (hosted && onLayersChange) onLayersChange(hostedLayers);
   }, [hosted, onLayersChange, hostedLayers]);
+
+  // 0.57: Sobald eine lokalisierte Free-Roam-Ansage vom Server kommt, laut
+  // vorlesen (Paritüt mit Android VoiceGuidance).
+  const lastSpokenRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!announceText || announceText === lastSpokenRef.current) return;
+    lastSpokenRef.current = announceText;
+    if (typeof window !== "undefined" && "speechSynthesis" in window) {
+      if (window.speechSynthesis.speaking) window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(announceText);
+      u.lang = locale === "de" ? "de-DE" : "en-US";
+      window.speechSynthesis.speak(u);
+    }
+  }, [announceText, locale]);
 
   async function startRoaming() {
     if (typeof navigator === "undefined" || !navigator.geolocation) {
@@ -189,6 +209,7 @@ export function FreeRoamCard({
               ? [{ nodeId: data.startNodeId!, name: nodes.find((n) => n.id === data.startNodeId)?.name ?? null, reachable: data.startReachable }]
               : [],
           );
+          setAnnounceText(data.announcement);
           setTrack([start]);
           setCurrentPos(start);
           setPhase("roaming");
@@ -219,6 +240,7 @@ export function FreeRoamCard({
     setTrack([]);
     setCurrentPos(null);
     setReached([]);
+    setAnnounceText(null);
   }
 
   // M5-2: manueller Stopp fragt erst — der Dock-Stopp hat den Dialog schon selbst
@@ -255,6 +277,10 @@ export function FreeRoamCard({
       }
       if (seq === checkinSeqRef.current && data.newlyReached.length > 0) {
         setReached((prev) => [...prev.filter((r) => !data.newlyReached.some((n) => n.nodeId === r.nodeId)), ...data.newlyReached]);
+      }
+      // 0.57: lokalisierte Checkin-Ansage (einmal) setzen → unten vorlesen + anzeigen.
+      if (seq === checkinSeqRef.current && data.announcement) {
+        setAnnounceText(data.announcement);
       }
     } catch {
       // transient network issue — next checkin retries
@@ -302,6 +328,7 @@ export function FreeRoamCard({
       setTrack([]);
       setCurrentPos(null);
       setReached([]);
+      setAnnounceText(null);
       setStatus("idle");
       setMessage(
         data?.pointsEarned != null
@@ -379,6 +406,11 @@ export function FreeRoamCard({
           </div>
           {reached.length > 0 && (
             <div className="stack" style={{ gap: "0.25rem" }}>
+              {announceText && (
+                <p className="hint-compact" style={{ margin: 0, fontSize: "0.8rem" }}>
+                  {announceText}
+                </p>
+              )}
               {reached.map((r) => (
                 <div key={r.nodeId} className="btn-row" style={{ gap: "0.35rem", flexWrap: "wrap", fontSize: "0.8rem" }}>
                   <span className="chip" style={{ backgroundColor: "var(--ok, #2e6b49)", color: "#fff" }}>

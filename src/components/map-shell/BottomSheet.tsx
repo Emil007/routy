@@ -40,7 +40,9 @@ function useDesktop(): boolean {
 export function BottomSheet({ locale, children }: { locale: Locale; children: ReactNode }) {
   const { stage, setStage, profileOpen, setProfileOpen } = useMapShell();
   const isDesktop = useDesktop();
-  const openStage = profileOpen ? "profile" : stage;
+  // 0.57: Das Profil-Menü schwebt als Dropdown ÜBER der Karte — es klappt das
+  // darunterliegende Sheet NICHT zusätzlich auf (vorher „profil“-Stage = voll).
+  const openStage = stage;
   const height = STAGE_HEIGHT[openStage] ?? "var(--sheet-cover-half)";
 
   useEffect(() => {
@@ -53,15 +55,31 @@ export function BottomSheet({ locale, children }: { locale: Locale; children: Re
     return () => window.removeEventListener("keydown", onKey);
   }, [profileOpen, setProfileOpen, stage, setStage]);
 
-  const hidden = openStage === "hidden" || openStage === "peek";
+  const hidden = openStage === "hidden" || openStage === "peek" || profileOpen;
 
   return (
-    <section
-      className={`sheet ${isDesktop ? "sheet-panel" : "sheet-bottom"} ${hidden ? "sheet-peeked" : ""}`}
-      style={hidden ? undefined : { height }}
-      aria-hidden={hidden}
-    >
-      {children}
-    </section>
+    <>
+      <section
+        className={`sheet ${isDesktop ? "sheet-panel" : "sheet-bottom"} ${hidden ? "sheet-peeked" : ""}`}
+        style={hidden ? undefined : isDesktop ? undefined : { height }}
+        aria-hidden={hidden}
+      >
+        {children}
+      </section>
+      {/* 0.57: Einklapp-Pfeil am Rand statt „Ausblenden“-Button. Liegt AUSSERHALB des
+          transformierten Sheets, damit er auch eingeklappt klickbar bleibt.
+          Desktop: rechts außen am Panel, Telefon: unterhalb des Peek-Streifens. */}
+      {!profileOpen && openStage !== "hidden" && (
+        <button
+          type="button"
+          className={`sheet-collapse-arrow${isDesktop ? " desktop" : " bottom"}${stage === "peek" ? " collapsed" : ""}`}
+          aria-label={t(locale, "shell.collapse")}
+          title={t(locale, "shell.collapse")}
+          onClick={() => setStage(stage === "peek" ? "half" : "peek")}
+        >
+          <span aria-hidden="true" />
+        </button>
+      )}
+    </>
   );
 }

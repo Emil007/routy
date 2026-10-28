@@ -51,8 +51,11 @@ export function MapCanvas({ locale, bootstrap }: { locale: Locale; bootstrap: At
         return {
           id: s.id,
           points: s.geometry.map((p): [number, number] => [p.lat, p.lng]),
-          color: disconnected ? "#c53030" : golden ? "#c99a2e" : writerActive ? "#9a9a90" : undefined,
-          weight: writerActive ? 2 : golden || disconnected ? 6 : 4,
+          // Kräftige, immer erkennbare Wege-Farben (User-Feedback 0.57): kein
+          // blasses Hellgrau mehr hinter aktiven Schreiben — das Netz bleibt
+          // sichtbar, nur etwas dünner als im freien Erkunden.
+          color: disconnected ? "#c53030" : golden ? "#c99a2e" : writerActive ? "#5a7d6c" : undefined,
+          weight: writerActive ? 2.5 : golden || disconnected ? 6 : 4,
           dashed: golden || isLocked(s) || disconnected,
           popup:
             explore && !writerActive ? (
@@ -106,7 +109,7 @@ export function MapCanvas({ locale, bootstrap }: { locale: Locale; bootstrap: At
     [bootstrap.nodes, locale, explore, writerActive, bootstrap.homeNodeId],
   );
 
-  const fitKey = `${bootstrap.segments.length}-${bootstrap.nodes.length}:${layers?.fitKey ?? "none"}`;
+  const fitKey = layers?.fitKey;
 
   return (
     <div className="atlas-map-fill" style={{ position: "absolute", inset: 0 }}>

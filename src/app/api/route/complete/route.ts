@@ -18,7 +18,7 @@ import { getStreakStats } from "@/lib/stats";
 import { logActivity } from "@/lib/activityLog";
 import { getGoldenMultiplierMap } from "@/lib/goldenSegments";
 import { checkApiRateLimit } from "@/lib/apiRateLimit";
-import { persistHopTimingsFromWalk } from "@/lib/trackGeometry";
+import { persistHopTimingsFromWalk, enqueueWalkGeometryAnalysis } from "@/lib/trackGeometry";
 import { persistAchievements } from "@/lib/achievements";
 import { type Locale } from "@/lib/i18n";
 
@@ -130,6 +130,9 @@ export async function POST(request: Request) {
       // F04: only the owning walker or an admin may retime another profile's
       // segment; the speed band is enforced inside applyGpsHopDurationIfMissing.
       persistHopTimingsFromWalk(walkId, { walkUserId: user.id, walkerIsAdmin: user.role === "admin" });
+      // 0.57: GPS-Aufnahme sofort zur persistenten Segment-Analyse anmelden
+      // (einmalig rechnen, danach aus der DB lesen — kein O(n²) mehr pro Aufruf).
+      enqueueWalkGeometryAnalysis(walkId);
     }
   } catch (err) {
     console.error("track/hop persistence failed (walk already booked):", err);

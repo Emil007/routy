@@ -119,6 +119,25 @@ function migratePendingTotp(db: Database.Database): void {
   addColumnIfMissing(db, "users", "totp_pending_secret", "ALTER TABLE users ADD COLUMN totp_pending_secret TEXT");
 }
 
+function migrateWalkGeometryAnalysis(db: Database.Database): void {
+  // Persistente Track-Geometry-Analyse (0.57): Die aufwendige Segment-Aufteilung
+  // wird genau EINMAL beim Einspeisen gerechnet und hier gespeichert — stattdessen
+  // wurde sie bei jedem Seitenaufruf neu berechnet (O(n²) über alle Walks, „hängt").
+  // status: pending → done → trashed. attempts zählt Fehlschläge für Retry am Start.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS walk_geometry_analysis (
+      walk_id INTEGER PRIMARY KEY REFERENCES walk_log(id) ON DELETE CASCADE,
+      status TEXT NOT NULL DEFAULT 'pending',
+      attempts INTEGER NOT NULL DEFAULT 0,
+      suggestions_json TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      analyzed_at TEXT,
+      trashed_at TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_walk_geometry_status ON walk_geometry_analysis(status, trashed_at);
+  `);
+}
+
 export const MIGRATIONS: Migration[] = [
   { id: 1, name: "legacy_schema_hardening", up: noop },
   { id: 2, name: "per_user_home", up: noop },
@@ -133,6 +152,7 @@ export const MIGRATIONS: Migration[] = [
   { id: 11, name: "free_roam_completed_antireplay", up: migrateFreeRoamCompleted },
   { id: 12, name: "share_link_expiry", up: migrateShareExpiry },
   { id: 13, name: "pending_totp_secret", up: migratePendingTotp },
+  { id: 14, name: "walk_geometry_analysis", up: migrateWalkGeometryAnalysis },
 ];
 
 export function runAllMigrations(db: Database.Database): void {

@@ -135,21 +135,12 @@ export function ExploreSheet({ locale, bootstrap }: { locale: Locale; bootstrap:
         >
           {t(locale, "map.trashHeading")}
         </button>
-        <button
-          type="button"
-          className="btn-secondary btn-compact"
-          onClick={() => setStage("peek")}
-          title={t(locale, "shell.collapse")}
-        >
-          {t(locale, "shell.collapse")}
-        </button>
         {bootstrap.role === "admin" && (
           <button type="button" className="btn-secondary btn-compact" onClick={() => (window.location.href = "/admin/track-geometry")}>
             {t(locale, "admin.trackGeometryHeading")}
           </button>
         )}
       </div>
-
       {tool === "draw" && (
         <div className="stack" style={{ marginTop: "0.5rem" }}>
           <DrawPathWizard

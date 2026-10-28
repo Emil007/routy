@@ -262,6 +262,7 @@ function isOutlierSuggestion(
 }
 
 /** Backup current canonical geometry before replacing it. */
+/** Backup current canonical geometry before replacing it. */
 export function backupSegmentGeometry(segmentId: number, reason: string): void {
   const segment = getSegment(segmentId);
   if (!segment || !isCanonicalSegment(segment)) return;
@@ -280,6 +281,276 @@ export function backupSegmentGeometry(segmentId: number, reason: string): void {
     reason,
   );
 }
+
+// ---------------------------------------------------------------------------
+// Persistente Analyse (0.57): Die Segment-Aufteilung wird EINMAL beim Einspeisen
+// gerechnet und in walk_geometry_analysis gespeichert. Vorher wurde bei jedem
+// Seitenaufruf der Track-Geometry-Adminseite über alle Walks hinweg neu analysiert
+// (O(n²)-Hops + priorRecordings über alle Walks je Segment) — das hängte die Seite.
+// Statusmodell: pending (noch nicht analysiert) → done → trashed (Papierkorb).
+// Bei Fehlschlag bleibt pending und attempts steigt; der Startup-/Einspeisungs-Hook
+// versucht es später erneut.
+// ---------------------------------------------------------------------------
+
+type WalkAnalysisStatus = "pending" | "done" | "trashed";
+
+function analysisRow(walkId: number): {
+  status: WalkAnalysisStatus;
+  attempts: number;
+  suggestions_json: string | null;
+} | null {
+  return (db
+    .prepare("SELECT status, attempts, suggestions_json FROM walk_geometry_analysis WHERE walk_id = ?")
+    .get(walkId) as { status: WalkAnalysisStatus; attempts: number; suggestions_json: string | null } | undefined) ?? null;
+}
+
+/** Nach dem Einspeisen (complete/free-roam) die Walk-Analyse anlegen/aktualisieren. */
+export function enqueueWalkGeometryAnalysis(walkId: number): void {
+  db.prepare(
+    `INSERT INTO walk_geometry_analysis (walk_id, status, attempts) VALUES (?, 'pending', 0)
+     ON CONFLICT(walk_id) DO UPDATE SET status = 'pending', attempts = 0, trashed_at = NULL`,
+  ).run(walkId);
+}
+
+/** Alle Walks mit erreichter Analyse berechnen (einmalig je Walk). Idempotent. */
+export function runPendingGeometryAnalysis(limit = 200): { analyzed: number; failed: number } {
+  const pending = db
+    .prepare(
+      `SELECT w.id
+       FROM walk_log w
+       LEFT JOIN walk_geometry_analysis a ON a.walk_id = w.id
+       WHERE a.walk_id IS NULL OR a.status = 'pending'
+       ORDER BY w.accepted_at ASC
+       LIMIT ?`,
+    )
+    .all(limit) as { id: number }[];
+
+  let analyzed = 0;
+  let failed = 0;
+  for (const { id } of pending) {
+    const res = analyzeWalkGeometry(id);
+    if (res) analyzed++;
+    else failed++;
+  }
+  return { analyzed, failed };
+}
+
+/**
+ * Berechnet die Vorschläge EINES Walks und legt sie dauerhaft ab.
+ * Gibt die Suggestions zurück oder null bei Fehlschlag (bleibt pending, Retry am Start).
+ */
+export function analyzeWalkGeometry(walkId: number): SegmentTrackSuggestion[] | null {
+  try {
+    const suggestions = computeWalkGeoSuggestions(walkId);
+    db.prepare(
+      `INSERT INTO walk_geometry_analysis (walk_id, status, attempts, suggestions_json, analyzed_at)
+       VALUES (?, 'done', 0, ?, datetime('now'))
+       ON CONFLICT(walk_id) DO UPDATE SET status = 'done', suggestions_json = excluded.suggestions_json,
+         analyzed_at = excluded.analyzed_at`,
+    ).run(walkId, JSON.stringify(suggestions));
+    return suggestions;
+  } catch (err) {
+    console.error(`walk geometry analysis failed (walk ${walkId}):`, err);
+    db.prepare(
+      `INSERT INTO walk_geometry_analysis (walk_id, status, attempts) VALUES (?, 'pending', 1)
+       ON CONFLICT(walk_id) DO UPDATE SET attempts = attempts + 1`,
+    ).run(walkId);
+    return null;
+  }
+}
+
+/** Sidecar: falls noch keine Zeile existiert (Altdaten), einmalige Analyse nachholen. */
+export function ensureWalkGeometryAnalysis(walkId: number): void {
+  if (analysisRow(walkId) == null) enqueueWalkGeometryAnalysis(walkId);
+}
+
+/** Enum-Status einer Analyse für die API/UI (oder undefined bei fehlendem Eintrag). */
+export function analysisStatusFor(walkId: number): WalkAnalysisStatus | "unanalyzed" {
+  const a = analysisRow(walkId);
+  if (!a) return "unanalyzed";
+  return a.status;
+}
+
+function computeWalkGeoSuggestions(walkId: number): SegmentTrackSuggestion[] {
+  const walkRow = db
+    .prepare(
+      `SELECT w.id, w.accepted_at, w.segment_ids, w.node_chain, w.track_json
+       FROM walk_log w WHERE w.id = ?`,
+    )
+    .get(walkId) as
+    | {
+        id: number;
+        accepted_at: string;
+        segment_ids: string;
+        node_chain: string;
+        track_json: string | null;
+      }
+    | undefined;
+  if (!walkRow) return [];
+
+  const track = loadWalkTrack(walkId, walkRow.track_json);
+  if (track.length < 2) return [];
+
+  const nodeChain = JSON.parse(walkRow.node_chain) as number[];
+  const segmentIds = JSON.parse(walkRow.segment_ids) as number[];
+  const slices = splitTrackByRoute(track, nodeChain, segmentIds);
+  const suggestions: SegmentTrackSuggestion[] = [];
+  const seenCanonical = new Set<number>();
+
+  for (const [segmentId, points] of slices) {
+    const segment = getSegment(segmentId);
+    if (!segment) continue;
+    const canonId = canonicalSegmentId(segment);
+    // Beide Richtungen beachten: forward+reverse sind EIN physischer Weg (§6.3).
+    if (seenCanonical.has(canonId)) continue;
+    seenCanonical.add(canonId);
+
+    const walkedReverse = !isCanonicalSegment(segment);
+    const oriented = orientSliceToCanonical(points as TrackPoint[], walkedReverse);
+    const trimmed = trimSuggestionTrack(oriented);
+    if (trimmed.length < 2) continue;
+
+    const officialSeg = getSegment(canonId) ?? segment;
+    const official = officialSeg.geometry;
+    // Für die Distanz gegen die ERSTE Aufnahme reicht die bisherige Aufnahme aus
+    // dieser Walk-Analyse (only that walk) — willkürlich, aber konsistent für die
+    // Admin-Entscheidung. (Die alte „alle Walks“-Basis war der O(n²)-Hänger.)
+    const firstRecordingGeometry = null;
+    const { isOutlier, avgOfficial } = isOutlierSuggestion(trimmed, official, null);
+
+    const dismissal = getDismissal(walkId, canonId);
+    let resolution: SuggestionResolution = "pending";
+    if (dismissal?.resolution === "accepted") resolution = "accepted";
+    else if (dismissal) resolution = "discarded";
+
+    suggestions.push({
+      walkId,
+      segmentId: canonId,
+      canonicalSegmentId: canonId,
+      segmentName: officialSeg.name,
+      points: trimmed,
+      firstRecordingGeometry,
+      recordedAt: walkRow.accepted_at,
+      isOutlier,
+      avgDistanceToOfficialM: Math.round(avgOfficial),
+      avgDistanceToFirstRecordingM: null,
+      resolution,
+    });
+  }
+
+  return suggestions.sort((a, b) => a.segmentId - b.segmentId);
+}
+
+/** Aus der persistenten Analyse lesen (keine Neuberechnung mehr). */
+export function getWalkTrackSuggestions(walkId: number): SegmentTrackSuggestion[] {
+  const row = analysisRow(walkId);
+  if (!row || row.status === "pending" || row.status === "trashed" || !row.suggestions_json) return [];
+  try {
+    const parsed = JSON.parse(row.suggestions_json) as SegmentTrackSuggestion[];
+    // Resolution immer live aus der Dismissals-Tabelle spiegeln.
+    return parsed.map((s) => {
+      const dismissal = getDismissal(walkId, s.canonicalSegmentId);
+      let resolution: SuggestionResolution = "pending";
+      if (dismissal?.resolution === "accepted") resolution = "accepted";
+      else if (dismissal) resolution = "discarded";
+      return { ...s, resolution };
+    });
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Liste aller Walk-Aufnahmen (auch ohne empfangene Track-Analyse), für die Papierkorb-/Review-Ansicht.
+ * Enthält status/pending/done und Zahl offener + gelöster Vorschläge.
+ */
+export interface WalkAnalysisRow {
+  walk: WalkWithTrackRow;
+  analysisStatus: WalkAnalysisStatus | "unanalyzed";
+  pendingCount: number;
+  resolvedCount: number;
+}
+
+export function listWalkAnalyses(): WalkAnalysisRow[] {
+  const walks = listWalksWithTrack();
+  const out: WalkAnalysisRow[] = [];
+  for (const walk of walks) {
+    const a = analysisRow(walk.id);
+    const status: WalkAnalysisStatus | "unanalyzed" =
+      !a ? "unanalyzed" : a.status === "trashed" ? "trashed" : a.status === "done" ? "done" : "pending";
+    const suggestions = status === "done" ? walkSuggestionsFromJson(a?.suggestions_json) : [];
+    const pendingCount = suggestions.filter((s) => s.resolution === "pending" && !s.isOutlier).length;
+    const resolvedCount = suggestions.filter((s) => s.resolution !== "pending").length;
+    out.push({ walk, analysisStatus: status, pendingCount, resolvedCount });
+  }
+  return out;
+}
+
+function walkSuggestionsFromJson(json: string | null | undefined): SegmentTrackSuggestion[] {
+  if (!json) return [];
+  try {
+    return JSON.parse(json) as SegmentTrackSuggestion[];
+  } catch {
+    return [];
+  }
+}
+
+/** Papierkorb: Aufnahme + Analyse inaktivieren (review abgeschlossen/zurückgelegt). */
+export function trashWalkAnalysis(walkId: number): { ok: true } | { error: string } {
+  const row = analysisRow(walkId);
+  if (!row) return { error: "not_found" };
+  const trashedAt = new Date().toISOString();
+  db.prepare(
+    "UPDATE walk_geometry_analysis SET status = 'trashed', trashed_at = ? WHERE walk_id = ?",
+  ).run(trashedAt, walkId);
+  return { ok: true };
+}
+
+/** Manuelles Löschen: Aufnahme komplett entfernen (ohne dass alle Segmente geprüft wurden). */
+export function deleteWalkAnalysis(walkId: number): { ok: true } | { error: string } {
+  const walk = db.prepare("SELECT id FROM walk_log WHERE id = ?").get(walkId) as { id: number } | undefined;
+  if (!walk) return { error: "not_found" };
+  const tx = db.transaction(() => {
+    db.prepare("DELETE FROM walk_geometry_analysis WHERE walk_id = ?").run(walkId);
+    db.prepare("DELETE FROM track_geometry_dismissals WHERE walk_id = ?").run(walkId);
+    db.prepare("DELETE FROM walk_track WHERE walk_id = ?").run(walkId);
+    db.prepare("UPDATE walk_log SET track_json = NULL WHERE id = ?").run(walkId);
+  });
+  tx();
+  return { ok: true };
+}
+
+/** Papierkorb aufräumen: trashed-Aufnahmen nach 30d + nochmal 30d Papierkorb löschen. */
+export function purgeTrashedWalkAnalyses(): number {
+  const info = db
+    .prepare(
+      `DELETE FROM walk_geometry_analysis
+       WHERE status = 'trashed' AND trashed_at IS NOT NULL
+         AND trashed_at < datetime('now', '-30 days')`,
+    )
+    .run();
+  // Auch die eigentlichen Aufnahmen sind dann weg.
+  let removedRecs = 0;
+  if (info.changes > 0) {
+    const walks = db
+      .prepare(
+        `SELECT w.id FROM walk_log w
+         INNER JOIN walk_geometry_analysis a ON a.walk_id = w.id
+         WHERE a.status = 'trashed' AND a.trashed_at IS NOT NULL
+           AND a.trashed_at < datetime('now', '-30 days')`,
+      )
+      .all() as { id: number }[];
+    for (const { id } of walks) {
+      db.prepare("DELETE FROM walk_track WHERE walk_id = ?").run(id);
+      db.prepare("DELETE FROM track_geometry_dismissals WHERE walk_id = ?").run(id);
+      db.prepare("UPDATE walk_log SET track_json = NULL WHERE id = ?").run(id);
+      db.prepare("DELETE FROM walk_geometry_analysis WHERE walk_id = ?").run(id);
+    }
+    removedRecs = walks.length;
+  }
+  return info.changes + removedRecs;
+}
+
 
 export function listWalksWithTrack(): WalkWithTrackRow[] {
   const rows = db
@@ -322,104 +593,13 @@ export function listWalksWithTrack(): WalkWithTrackRow[] {
   });
 }
 
-/** All non-outlier track slices for a canonical segment (oldest first). */
-function priorRecordingsForSegment(canonicalId: number): LatLng[][] {
-  const canonical = getSegment(canonicalId);
-  if (!canonical) return [];
-  const official = canonical.geometry;
-  const recordings: LatLng[][] = [];
-
-  for (const walk of listWalksWithTrack()) {
-    const track = loadWalkTrack(walk.id, null);
-    if (track.length < 2) continue;
-    const slices = splitTrackByRoute(track, walk.nodeChain, walk.segmentIds);
-    for (const [segId, points] of slices) {
-      const hop = getSegment(segId);
-      if (!hop || canonicalSegmentId(hop) !== canonicalId) continue;
-      const oriented = orientSliceToCanonical(points as TrackPoint[], !isCanonicalSegment(hop));
-      const trimmed = trimSuggestionTrack(oriented);
-      const { isOutlier } = isOutlierSuggestion(trimmed, official, recordings[0] ?? null);
-      if (!isOutlier) recordings.push(trimmed);
-    }
-  }
-  return recordings;
-}
-
-export function getWalkTrackSuggestions(walkId: number): SegmentTrackSuggestion[] {
-  const walkRow = db
-    .prepare(
-      `SELECT w.id, w.accepted_at, w.segment_ids, w.node_chain, w.track_json
-       FROM walk_log w WHERE w.id = ?`,
-    )
-    .get(walkId) as
-    | {
-        id: number;
-        accepted_at: string;
-        segment_ids: string;
-        node_chain: string;
-        track_json: string | null;
-      }
-    | undefined;
-  if (!walkRow) return [];
-
-  const track = loadWalkTrack(walkId, walkRow.track_json);
-  if (track.length < 2) return [];
-
-  const nodeChain = JSON.parse(walkRow.node_chain) as number[];
-  const segmentIds = JSON.parse(walkRow.segment_ids) as number[];
-  const slices = splitTrackByRoute(track, nodeChain, segmentIds);
-  const suggestions: SegmentTrackSuggestion[] = [];
-
-  const seenCanonical = new Set<number>();
-  let outlierCount = 0;
-  for (const [segmentId, points] of slices) {
-    const segment = getSegment(segmentId);
-    if (!segment) continue;
-    const canonId = canonicalSegmentId(segment);
-    if (seenCanonical.has(canonId)) continue;
-    seenCanonical.add(canonId);
-
-    const walkedReverse = !isCanonicalSegment(segment);
-    const oriented = orientSliceToCanonical(points as TrackPoint[], walkedReverse);
-    const trimmed = trimSuggestionTrack(oriented);
-    if (trimmed.length < 2) continue;
-
-    const officialSeg = getSegment(canonId) ?? segment;
-    const official = officialSeg.geometry;
-    const prior = priorRecordingsForSegment(canonId);
-    const firstRecording = prior[0] ?? null;
-    const { isOutlier, avgOfficial, avgFirst } = isOutlierSuggestion(trimmed, official, firstRecording);
-    if (isOutlier) outlierCount++;
-
-    const dismissal = getDismissal(walkId, canonId);
-    let resolution: SuggestionResolution = "pending";
-    if (dismissal?.resolution === "accepted") resolution = "accepted";
-    else if (dismissal) resolution = "discarded";
-
-    suggestions.push({
-      walkId,
-      segmentId: canonId,
-      canonicalSegmentId: canonId,
-      segmentName: officialSeg.name,
-      points: trimmed,
-      firstRecordingGeometry: firstRecording,
-      recordedAt: walkRow.accepted_at,
-      isOutlier,
-      avgDistanceToOfficialM: Math.round(avgOfficial),
-      avgDistanceToFirstRecordingM: avgFirst !== null ? Math.round(avgFirst) : null,
-      resolution,
-    });
-  }
-
-  void outlierCount;
-  return suggestions.sort((a, b) => a.segmentId - b.segmentId);
-}
-
-/** Pending = latest non-outlier, non-resolved suggestion per canonical segment across all walks. */
+/** Pending = neueste nicht-outlier, nicht-aufgelöster Vorschlag pro kanonischem Segment,
+ *  jetzt aus der PERSISTENTEN Analyse gelesen (keine Neuberechnung, 0.57). */
 export function listPendingSegmentSuggestions(): SegmentTrackSuggestion[] {
   const byCanonical = new Map<number, SegmentTrackSuggestion>();
-  for (const walk of listWalksWithTrack()) {
-    for (const s of getWalkTrackSuggestions(walk.id)) {
+  for (const row of listWalkAnalyses()) {
+    if (row.analysisStatus !== "done") continue;
+    for (const s of getWalkTrackSuggestions(row.walk.id)) {
       if (s.isOutlier || s.resolution !== "pending") continue;
       const existing = byCanonical.get(s.canonicalSegmentId);
       if (!existing || s.recordedAt > existing.recordedAt) {

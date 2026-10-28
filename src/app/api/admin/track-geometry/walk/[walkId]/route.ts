@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
-import { getWalkTrackSuggestions } from "@/lib/trackGeometry";
+import { getWalkTrackSuggestions, ensureWalkGeometryAnalysis, analysisStatusFor } from "@/lib/trackGeometry";
 import { getSegment } from "@/lib/segments";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ walkId: string }> }) {
@@ -12,6 +12,9 @@ export async function GET(_request: Request, { params }: { params: Promise<{ wal
   const walkId = Number(walkIdRaw);
   if (!Number.isFinite(walkId)) return NextResponse.json({ error: "invalid_id" }, { status: 400 });
 
+  // Nur falls noch keiner Analyse-Eintrag existiert (Altdaten), einmalig nachholen.
+  ensureWalkGeometryAnalysis(walkId);
+
   const suggestions = getWalkTrackSuggestions(walkId);
   const enriched = suggestions.map((s) => {
     const segment = getSegment(s.segmentId);
@@ -21,5 +24,5 @@ export async function GET(_request: Request, { params }: { params: Promise<{ wal
     };
   });
 
-  return NextResponse.json({ walkId, suggestions: enriched });
+  return NextResponse.json({ walkId, suggestions: enriched, analysisStatus: analysisStatusFor(walkId) });
 }

@@ -25,9 +25,10 @@ import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { listNodes, type NodeRow } from "./nodes";
 import { listSegments } from "./segments";
 import { loadGraphContext } from "./routeContext";
-import { haversineMeters, type LatLng } from "./geo";
+import { haversineMeters, bearing, compassDirection, type CompassPoint, type LatLng } from "./geo";
 import { capTrackPoints } from "./discovery";
 import { db } from "./db";
+import { t, type Locale } from "./i18n";
 
 /** How close GPS must be (metres) to count as "reached" for announcement. */
 export const FREE_ROAM_REACH_M = 30;
@@ -237,6 +238,8 @@ export interface ReachableNeighbour {
   distanceM: number;
   /** Name of the segment (path) leading to the neighbour, if it has one. */
   viaSegmentName: string | null;
+  /** 0.57: Kompassrichtung von hier zum Nachbarn (für die Ansage „… Richtung Westen“). */
+  directionCompass: CompassPoint;
 }
 
 /**
@@ -260,12 +263,20 @@ export function reachableNeighbours(nodeId: number): ReachableNeighbour[] {
       name: null, // filled by caller from nodesById
       distanceM: Math.round(e.lengthM),
       viaSegmentName: seg.name,
+      directionCompass: "N", // filled below from node coords
     });
   }
-  // Fill names from the node table.
+  // Fill names + compass direction from the node table.
   const nodesById = new Map(listNodes().map((n) => [n.id, n]));
+  const here = nodesById.get(nodeId);
   for (const r of out) {
     r.name = nodesById.get(r.nodeId)?.name ?? null;
+    const nb = nodesById.get(r.nodeId);
+    if (here && nb) {
+      r.directionCompass = compassDirection(
+        bearing({ lat: here.lat, lng: here.lng }, { lat: nb.lat, lng: nb.lng }),
+      );
+    }
   }
   return out.sort((a, b) => a.distanceM - b.distanceM);
 }
@@ -279,10 +290,28 @@ export interface CheckinResult {
   }[];
   /** True once a node was reached and should trigger a voice announcement. */
   shouldAnnounce: boolean;
+  /** 0.57: fertiger, lokalisierter Ansage-Text („Angekommen bei … mögliche Wege zu … Richtung …“). */
+  announcement: string | null;
   visitedCount: number;
   /** The FRESH signed token. Clients MUST store this and send it on the next
    *  checkin/complete — the previous token is the pre-checkin snapshot. */
   token: string;
+}
+
+/** Lokalisierter Free-Roam-Ansage-Text je Freigabe/Erreichen. */
+export function freeRoamAnnouncementText(
+  locale: Locale,
+  reachedName: string | null | undefined,
+  reachable: ReachableNeighbour[],
+): string | null {
+  const here = reachedName || t(locale, "route.freeRoamAnnounceHere");
+  if (reachable.length === 0) return t(locale, "route.freeRoamAnnounceAlone", { here });
+  const parts = reachable.slice(0, 6).map((nb) => {
+    const nbName = nb.name ?? `#${nb.nodeId}`;
+    const dir = t(locale, `route.compass${nb.directionCompass}`);
+    return t(locale, "route.freeRoamAnnounceNeighbour", { name: nbName, direction: dir });
+  });
+  return t(locale, "route.freeRoamAnnounce", { here, neighbours: parts.join(", ") });
 }
 
 /**
@@ -290,10 +319,14 @@ export interface CheckinResult {
  * reachable neighbours for voice/visual announcement, plus the rotated token.
  * Repeated checkins at the same node are deduped via `announcedNodeIds`.
  */
-export function checkinFreeRoam(token: string, position: { lat: number; lng: number }): CheckinResult {
+export function checkinFreeRoam(
+  token: string,
+  position: { lat: number; lng: number },
+  locale: Locale = "de",
+): CheckinResult {
   const session = getFreeRoamSession(token);
   if (!session) {
-    return { newlyReached: [], shouldAnnounce: false, visitedCount: 0, token };
+    return { newlyReached: [], shouldAnnounce: false, announcement: null, visitedCount: 0, token };
   }
 
   // Accumulate a straight-line walk estimate (deep-review #6): lengthM/durationMin
@@ -321,10 +354,15 @@ export function checkinFreeRoam(token: string, position: { lat: number; lng: num
       reachable: reachableNeighbours(nearest),
     });
   }
+  const shouldAnnounce = newlyReached.length > 0;
+  const announcement = shouldAnnounce
+    ? freeRoamAnnouncementText(locale, newlyReached[0]?.name, newlyReached.flatMap((n) => n.reachable))
+    : null;
 
   return {
     newlyReached,
-    shouldAnnounce: newlyReached.length > 0,
+    shouldAnnounce,
+    announcement,
     visitedCount: session.visitedNodeIds.length,
     token: signSession(session),
   };

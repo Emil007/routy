@@ -102,16 +102,15 @@ export function RecordSheet({
     [currentPos],
   );
 
-  // Host-betrieb: Layer nach oben melden, keine eigene Karte (§4.5).
+  // Host-betrieb: Layer nach oben melden, keine eigene Karte (§4.5). Kein fitKey —
+  // die Kamera bleibt während der Aufnahme unberührt (User-Feedback 0.57).
   const hostedLayers = useMemo(() => {
     const sink: MapLayerSink = {
       markers: [...nodeMarkers, ...liveMarkers],
       lines: [...networkLines, ...trackLine],
-      fitKey: `record-${points.length}`,
     };
-    if (phase === "confirm") sink.fitKey = `record-${points.length}`;
     return sink;
-  }, [nodeMarkers, liveMarkers, networkLines, trackLine, points.length, phase]);
+  }, [nodeMarkers, liveMarkers, networkLines, trackLine]);
   useEffect(() => {
     if (mode === "record") registerLayers(hostedLayers);
   }, [mode, registerLayers, hostedLayers]);

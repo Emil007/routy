@@ -232,7 +232,11 @@
     "freeRoamStopConfirm": "Really end free roam? The current track won't be saved as a walk.",
     "freeRoamVia": "via {via}",
     "selectButton": "Select",
-    "goButton": "Go"
+    "goButton": "Go",
+    "freeRoamAnnounceHere": "a known place",
+    "freeRoamAnnounceAlone": "Arrived at {here}. No network paths continue from here.",
+    "freeRoamAnnounce": "Arrived at {here}. Possible paths: {neighbours}",
+    "freeRoamAnnounceNeighbour": "{name} heading {direction}"
   },
   "share": {
     "subtitle": "Read-only, shared route.",
@@ -689,7 +693,22 @@
     "trackGeometryDiscarded": "Suggestion ignored for this walk+segment.",
     "trackGeometryRemoveRecording": "Remove this recording",
     "trackGeometryRemoveRecordingConfirm": "Delete the GPS recording for this walk from admin review? Walk stats stay; only the track used for suggestions is removed.",
-    "trackGeometryRemoveRecordingDone": "Recording removed from review."
+    "trackGeometryRemoveRecordingDone": "Recording removed from review.",
+    "trackGeometryStatusAnalysis": "Analysis",
+    "trackGeometryStatusPending": "running…",
+    "trackGeometryStatusDone": "done",
+    "trackGeometryStatusTrashed": "trash",
+    "trackGeometryStatusUnanalyzed": "not analyzed",
+    "trackGeometryOpenShort": "open",
+    "trackGeometryResolvedShort": "done",
+    "trackGeometryTrash": "Trash",
+    "trackGeometryTrashHint": "Move entire recording to trash (deleted after 30+30 days)",
+    "trackGeometryTrashConfirm": "Move recording to trash? All suggestions count as resolved.",
+    "trackGeometryTrashed": "Recording moved to trash.",
+    "trackGeometryDelete": "Delete",
+    "trackGeometryDeleteHint": "Permanently delete the recording, even without reviewing all segments",
+    "trackGeometryDeleteConfirm": "Permanently delete this recording? This cannot be undone.",
+    "trackGeometryDeleted": "Recording deleted."
   },
   "shell": {
     "explore": "Explore",

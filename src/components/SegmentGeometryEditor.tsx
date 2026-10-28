@@ -110,12 +110,12 @@ export function SegmentGeometryEditor({
     ? [{ id: "split-preview", lat: splitTarget.point.lat, lng: splitTarget.point.lng, color: "#1e4a32" }]
     : [];
 
-  // Host-betrieb: Layer nach oben melden, keine eigene Karte (§4.5).
+  // Host-betrieb: Layer nach oben melden, keine eigene Karte (§4.5). Kein fitKey —
+  // die Kamera bleibt beim Editieren unberührt (User-Feedback 0.57).
   const hostedLayers = useMemo(
     () => ({
       markers: [...vertexMarkers, ...splitMarkers],
       lines: [...networkLines, editLine],
-      fitKey: `geometry-${segmentId}-${points.length}`,
       onLineClick: canEditSegment ? handleLineClick : undefined,
       onMarkerDragEnd: canEditSegment ? handleVertexDragEnd : undefined,
     }),

@@ -23,7 +23,7 @@ import { getGoldenMultiplierMap } from "@/lib/goldenSegments";
 import { logActivity } from "@/lib/activityLog";
 import { checkApiRateLimit } from "@/lib/apiRateLimit";
 import { detectProposalsFromTrack } from "@/lib/discovery";
-import { persistHopTimingsFromWalk } from "@/lib/trackGeometry";
+import { persistHopTimingsFromWalk, enqueueWalkGeometryAnalysis } from "@/lib/trackGeometry";
 import { pathLengthMeters, haversineMeters } from "@/lib/geo";
 import { persistAchievements } from "@/lib/achievements";
 import { type Locale } from "@/lib/i18n";
@@ -198,6 +198,8 @@ export async function POST(request: Request) {
        ON CONFLICT(walk_id) DO UPDATE SET points_json = excluded.points_json`,
     ).run(walkId, pointsJson);
     persistHopTimingsFromWalk(walkId, { walkUserId: user.id, walkerIsAdmin: user.role === "admin" });
+    // 0.57: GPS-Aufnahme sofort zur persistenten Segment-Analyse anmelden.
+    enqueueWalkGeometryAnalysis(walkId);
     // Feed the recorded ground into proposal detection (new junctions).
     detectProposalsFromTrack(trackPoints as { lat: number; lng: number }[], user.id);
   }

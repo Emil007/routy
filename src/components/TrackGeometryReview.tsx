@@ -13,6 +13,15 @@ interface WalkRow {
   pointCount: number;
 }
 
+// 0.57: walks kommen jetzt als analysierte Aufnahmen (persistente Analyse, inkl.
+// Analyse-Status + offene/gelöste Vorschlagszahlen für die Papierkorb-/Übersicht).
+interface WalkAnalysisDisplay {
+  walk: WalkRow;
+  analysisStatus: "pending" | "done" | "trashed" | "unanalyzed";
+  pendingCount: number;
+  resolvedCount: number;
+}
+
 interface SuggestionRow {
   walkId: number;
   segmentId: number;
@@ -38,20 +47,20 @@ function pickNextPending(list: SuggestionRow[], afterSegmentId: number | null): 
 }
 
 export function TrackGeometryReview({ locale }: { locale: Locale }) {
-  const [walks, setWalks] = useState<WalkRow[]>([]);
   const [selectedWalkId, setSelectedWalkId] = useState<number | null>(null);
   const [suggestions, setSuggestions] = useState<SuggestionRow[]>([]);
   const [selectedSegmentId, setSelectedSegmentId] = useState<number | null>(null);
   const [overlayMode, setOverlayMode] = useState<OverlayMode>("both");
-  const [status, setStatus] = useState<"idle" | "loading" | "accepting" | "discarding" | "removing">("idle");
+  const [walkAnalyses, setWalkAnalyses] = useState<WalkAnalysisDisplay[]>([]);
+  const [status, setStatus] = useState<"idle" | "loading" | "accepting" | "discarding" | "removing" | "trashing" | "deleting">("idle");
   const [message, setMessage] = useState<string | null>(null);
 
   const loadWalks = useCallback(async () => {
     setStatus("loading");
     const res = await fetch("/api/admin/track-geometry/walks");
     if (res.ok) {
-      const data = (await res.json()) as { walks: WalkRow[] };
-      setWalks(data.walks);
+      const data = (await res.json()) as { walks: WalkAnalysisDisplay[] };
+      setWalkAnalyses(data.walks);
     }
     setStatus("idle");
   }, []);
@@ -199,11 +208,60 @@ export function TrackGeometryReview({ locale }: { locale: Locale }) {
     setStatus("idle");
   }
 
+  // 0.57: Aufnahme in den Papierkorb verschieben (30d + 30d), unabhängig davon,
+  // ob alle Segmente geprüft sind.
+  async function handleTrash(walkId: number) {
+    if (!window.confirm(t(locale, "admin.trackGeometryTrashConfirm"))) return;
+    setStatus("trashing");
+    setMessage(null);
+    const res = await fetch("/api/admin/track-geometry/trash", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ walkId }),
+    });
+    if (res.ok) {
+      if (selectedWalkId === walkId) {
+        setSelectedWalkId(null);
+        setSuggestions([]);
+        setSelectedSegmentId(null);
+      }
+      setMessage(t(locale, "admin.trackGeometryTrashed"));
+      void loadWalks();
+    } else {
+      setMessage(t(locale, "common.error"));
+    }
+    setStatus("idle");
+  }
+
+  // 0.57: Aufnahme manuell komplett löschen, ohne dass alle Segmente geprüft wurden.
+  async function handleDelete(walkId: number) {
+    if (!window.confirm(t(locale, "admin.trackGeometryDeleteConfirm"))) return;
+    setStatus("deleting");
+    setMessage(null);
+    const res = await fetch("/api/admin/track-geometry/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ walkId }),
+    });
+    if (res.ok) {
+      if (selectedWalkId === walkId) {
+        setSelectedWalkId(null);
+        setSuggestions([]);
+        setSelectedSegmentId(null);
+      }
+      setMessage(t(locale, "admin.trackGeometryDeleted"));
+      void loadWalks();
+    } else {
+      setMessage(t(locale, "common.error"));
+    }
+    setStatus("idle");
+  }
+
   return (
     <div className="stack" style={{ gap: "1rem" }}>
       <div className="card">
         <h2>{t(locale, "admin.trackGeometryWalksHeading")}</h2>
-        {walks.length === 0 ? (
+        {walkAnalyses.length === 0 ? (
           <p className="hint">{t(locale, "admin.trackGeometryEmpty")}</p>
         ) : (
           <div className="table-wrap">
@@ -215,11 +273,12 @@ export function TrackGeometryReview({ locale }: { locale: Locale }) {
                   <th>{t(locale, "route.routeNamePlaceholder")}</th>
                   <th>{t(locale, "route.distanceLabel")}</th>
                   <th>{t(locale, "admin.trackGeometryPoints")}</th>
+                  <th>{t(locale, "admin.trackGeometryStatus")}</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
-                {walks.map((w) => (
+                {walkAnalyses.map(({ walk: w, analysisStatus, pendingCount, resolvedCount }) => (
                   <tr key={w.id} className={selectedWalkId === w.id ? "row-selected" : undefined}>
                     <td>{new Date(w.acceptedAt.replace(" ", "T") + "Z").toLocaleString(locale === "de" ? "de-DE" : "en-US")}</td>
                     <td>{w.userDisplayName}</td>
@@ -227,17 +286,51 @@ export function TrackGeometryReview({ locale }: { locale: Locale }) {
                     <td>{(w.lengthM / 1000).toFixed(2)} {t(locale, "common.km")}</td>
                     <td>{w.pointCount}</td>
                     <td>
-                      <button
-                        type="button"
-                        className="btn-secondary btn-compact"
-                        onClick={() => {
-                          setSelectedWalkId(w.id);
-                          setSuggestions([]);
-                          setSelectedSegmentId(null);
-                        }}
-                      >
-                        {t(locale, "admin.trackGeometryReview")}
-                      </button>
+                      <span className={`chip track-geometry-status-${analysisStatus}`}>
+                        {analysisStatus === "done"
+                          ? `${t(locale, "admin.trackGeometryStatusDone")} · ${pendingCount} ${t(locale, "admin.trackGeometryOpenShort")} / ${resolvedCount} ${t(locale, "admin.trackGeometryResolvedShort")}`
+                          : analysisStatus === "pending"
+                            ? t(locale, "admin.trackGeometryStatusPending")
+                            : analysisStatus === "trashed"
+                              ? t(locale, "admin.trackGeometryStatusTrashed")
+                              : t(locale, "admin.trackGeometryStatusUnanalyzed")}
+                      </span>
+                    </td>
+                    <td>
+                      <div className="btn-row" style={{ gap: "0.35rem", flexWrap: "wrap" }}>
+                        <button
+                          type="button"
+                          className="btn-secondary btn-compact"
+                          disabled={analysisStatus === "trashed"}
+                          onClick={() => {
+                            setSelectedWalkId(w.id);
+                            setSuggestions([]);
+                            setSelectedSegmentId(null);
+                          }}
+                        >
+                          {t(locale, "admin.trackGeometryReview")}
+                        </button>
+                        {analysisStatus !== "trashed" && (
+                          <button
+                            type="button"
+                            className="btn-secondary btn-compact"
+                            onClick={() => void handleTrash(w.id)}
+                            disabled={status === "trashing"}
+                            title={t(locale, "admin.trackGeometryTrashHint")}
+                          >
+                            {t(locale, "admin.trackGeometryTrash")}
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          className="btn-danger btn-compact"
+                          onClick={() => void handleDelete(w.id)}
+                          disabled={status === "deleting"}
+                          title={t(locale, "admin.trackGeometryDeleteHint")}
+                        >
+                          {t(locale, "admin.trackGeometryDelete")}
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 ))}

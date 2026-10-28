@@ -309,11 +309,12 @@ export function RouteGenerator({
 
   const routeMapLines = useMemo(() => {
     if (!result) return [];
-    // §2.2/§6: Die Routenlinie nutzt die Akzent-Farbe des Themes (mapAccentHex) statt
-    // hart dunkelgrün — Dark-Theme bekommt die helle Variante (#6fc08c).
+    // §2.2/§6 + 0.57: Die Route muss im Plan/Go-Modus KLAR vom Hintergrund-Netz
+    // abheben. Das Netz nutzt jetzt die Akzentfarbe — die Route bekommt ein
+    // kräftiges, kontrastreiches Blau mit dicker Linie (in jedem Theme sichtbar).
     // M1-16: RouteDisplay.geometry arrives as { lat, lng }[] — MapLine wants [lat, lng].
     const points = result.route.geometry.map((p) => [p.lat, p.lng] as [number, number]);
-    const lines: MapLine[] = [{ id: "route", points, color: accentHex }];
+    const lines: MapLine[] = [{ id: "route", points, color: "#2563eb", weight: 7 }];
     const hitIds = new Set(
       result.goldenHitIds ?? result.route.segmentIds.filter((id) => goldenSet.has(id)),
     );
@@ -344,7 +345,7 @@ export function RouteGenerator({
       lines.push({
         id: segmentId,
         points,
-        color: isDisconnected ? "#c53030" : isExcluded ? "#c53030" : isRequired ? "#2b6cb0" : isGolden ? "#c99a2e" : "#6b9080",
+        color: isDisconnected ? "#e05a45" : isExcluded ? "#e05a45" : isRequired ? "#2b6cb0" : isGolden ? "#c99a2e" : accentHex,
         weight: isRequired || isGolden || isDisconnected ? 6 : 4,
         dashed: isExcluded || isGolden || isDisconnected,
       });
@@ -1157,42 +1158,46 @@ export function RouteGenerator({
             <p className="hint-compact route-map-hint">{t(locale, "route.mapTapHint")}</p>
 
             {selectedNodeId !== null && nodesById.get(selectedNodeId) && (
-              <div className="route-selection-bar">
+              <div className="route-selection-bar route-selection-stack">
                 <strong className="route-abbrev-display">{nodesById.get(selectedNodeId)!.name || `#${selectedNodeId}`}</strong>
-                <button type="button" className="btn-secondary btn-compact" onClick={() => setNodeAsStart(selectedNodeId)}>
-                  {t(locale, "route.nodeMenuStart")}
-                </button>
-                <button type="button" className="btn-secondary btn-compact" onClick={() => setNodeAsEnd(selectedNodeId)}>
-                  {t(locale, "route.nodeMenuEnd")}
-                </button>
-                <button type="button" className="btn-secondary btn-compact" onClick={() => toggleMustVisit(selectedNodeId)}>
-                  {t(locale, "route.nodeMenuMustVisit")}
-                </button>
-                <button
-                  type="button"
-                  className="btn-secondary btn-compact"
-                  onClick={() => {
-                    clearNodeRole(selectedNodeId);
-                    setSelectedNodeId(null);
-                  }}
-                >
-                  {t(locale, "route.nodeMenuClear")}
-                </button>
+                <div className="btn-row" style={{ gap: "0.35rem", flexWrap: "wrap" }}>
+                  <button type="button" className="btn-secondary btn-compact" onClick={() => setNodeAsStart(selectedNodeId)}>
+                    {t(locale, "route.nodeMenuStart")}
+                  </button>
+                  <button type="button" className="btn-secondary btn-compact" onClick={() => setNodeAsEnd(selectedNodeId)}>
+                    {t(locale, "route.nodeMenuEnd")}
+                  </button>
+                  <button type="button" className="btn-secondary btn-compact" onClick={() => toggleMustVisit(selectedNodeId)}>
+                    {t(locale, "route.nodeMenuMustVisit")}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary btn-compact"
+                    onClick={() => {
+                      clearNodeRole(selectedNodeId);
+                      setSelectedNodeId(null);
+                    }}
+                  >
+                    {t(locale, "route.nodeMenuClear")}
+                  </button>
+                </div>
               </div>
             )}
 
             {selectedSegmentId !== null && (
-              <div className="route-selection-bar">
+              <div className="route-selection-bar route-selection-stack">
                 <strong className="route-abbrev-display">{segmentLabel(selectedSegmentId)}</strong>
-                <button type="button" className="btn-secondary btn-compact" onClick={() => setSegmentRequired(selectedSegmentId)}>
-                  {t(locale, "route.segmentMenuRequired")}
-                </button>
-                <button type="button" className="btn-secondary btn-compact" onClick={() => setSegmentExcluded(selectedSegmentId)}>
-                  {t(locale, "route.segmentMenuExcluded")}
-                </button>
-                <button type="button" className="btn-secondary btn-compact" onClick={() => clearSegmentConstraint(selectedSegmentId)}>
-                  {t(locale, "route.segmentMenuClear")}
-                </button>
+                <div className="btn-row" style={{ gap: "0.35rem", flexWrap: "wrap" }}>
+                  <button type="button" className="btn-secondary btn-compact" onClick={() => setSegmentRequired(selectedSegmentId)}>
+                    {t(locale, "route.segmentMenuRequired")}
+                  </button>
+                  <button type="button" className="btn-secondary btn-compact" onClick={() => setSegmentExcluded(selectedSegmentId)}>
+                    {t(locale, "route.segmentMenuExcluded")}
+                  </button>
+                  <button type="button" className="btn-secondary btn-compact" onClick={() => clearSegmentConstraint(selectedSegmentId)}>
+                    {t(locale, "route.segmentMenuClear")}
+                  </button>
+                </div>
               </div>
             )}
 
@@ -1241,49 +1246,43 @@ export function RouteGenerator({
             </details>
 
             <div className="route-action-bar">
-              {(usingNetworkFallback === true || usingNetworkFallback === false) && (
-                <span
-                  className="chip"
-                  title={
-                    usingNetworkFallback
-                      ? t(locale, "route.lengthTasteNetworkHint")
-                      : t(locale, "route.lengthTastePersonalHint")
-                  }
-                >
-                  {usingNetworkFallback ? t(locale, "route.lengthTasteNetwork") : t(locale, "route.lengthTastePersonal")}
-                </span>
-              )}
-              <button
-                type="button"
-                className="btn-secondary btn-compact"
-                onClick={() => setFavoritesOpen((o) => !o)}
-              >
-                {favorites.length > 0
-                  ? `${t(locale, "route.favoritesTitle")} (${favorites.length})`
-                  : t(locale, "route.favoritesTitle")}
-              </button>
-              {(["short", "normal", "long"] as const).map((preset) => (
+              <div className="btn-row" style={{ gap: "0.4rem", flexWrap: "wrap" }}>
+                {(["short", "normal", "long"] as const).map((preset) => (
+                  <button
+                    key={preset}
+                    type="button"
+                    className={preset === lengthPreset ? "btn-primary btn-compact" : "btn-secondary btn-compact"}
+                    disabled={status === "loading"}
+                    onClick={() => setLengthPreset(preset)}
+                    title={t(locale, PRESET_HINT_KEYS[preset])}
+                  >
+                    {t(locale, PRESET_LABEL_KEYS[preset])}
+                  </button>
+                ))}
+              </div>
+              <div className="btn-row" style={{ gap: "0.4rem", marginTop: "0.6rem" }}>
                 <button
-                  key={preset}
                   type="button"
-                  className={preset === lengthPreset ? "btn-primary btn-compact" : "btn-secondary btn-compact"}
-                  disabled={status === "loading"}
-                  onClick={() => setLengthPreset(preset)}
-                  title={t(locale, PRESET_HINT_KEYS[preset])}
+                  className="btn-primary btn-compact route-generate-arrow"
+                  disabled={status === "loading" || !startNodeId}
+                  onClick={() => generate(lengthPreset)}
+                  title={t(locale, "route.generateHint")}
+                  aria-label={t(locale, "route.generateHint")}
                 >
-                  {t(locale, PRESET_LABEL_KEYS[preset])}
+                  {status === "loading" ? "…" : t(locale, "route.generateLabel")}
                 </button>
-              ))}
-              <button
-                type="button"
-                className="btn-primary btn-compact route-generate-arrow"
-                disabled={status === "loading" || !startNodeId}
-                onClick={() => generate(lengthPreset)}
-                title={t(locale, "route.generateHint")}
-                aria-label={t(locale, "route.generateHint")}
-              >
-                {status === "loading" ? "…" : t(locale, "route.generateLabel")}
-              </button>
+              </div>
+              <div className="btn-row" style={{ gap: "0.4rem", marginTop: "1.1rem" }}>
+                <button
+                  type="button"
+                  className="btn-secondary btn-compact"
+                  onClick={() => setFavoritesOpen((o) => !o)}
+                >
+                  {favorites.length > 0
+                    ? `${t(locale, "route.favoritesTitle")} (${favorites.length})`
+                    : t(locale, "route.favoritesTitle")}
+                </button>
+              </div>
             </div>
             {favoritesOpen && (
               <div className="card route-panel-compact" style={{ marginTop: "0.35rem" }}>

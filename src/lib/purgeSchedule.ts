@@ -3,6 +3,7 @@ import { log } from "./logger";
 import { sweepExpiredRouteSessions } from "./routeSessions";
 import { purgeExpiredConditions } from "./segmentConditions";
 import { purgeExpiredFreeRoamCompletions } from "./freeRoam";
+import { runPendingGeometryAnalysis, purgeTrashedWalkAnalyses } from "./trackGeometry";
 
 const TRASH_RETENTION_DAYS = 30;
 const ACTIVITY_LOG_RETENTION_DAYS = 180;
@@ -66,11 +67,28 @@ function purgeFreeRoamCompletionsJob(): void {
   }
 }
 
+/** 0.57: trashed Walk-Aufnahmen nach 30d + 30d Papierkorb endgültig löschen. */
+function purgeTrashedWalkAnalysesJob(): void {
+  const removed = purgeTrashedWalkAnalyses();
+  if (removed > 0) {
+    log.info("auto-purged trashed walk analyses", { removed });
+  }
+}
+
+/** 0.57: beim Start offene Walk-Analysen (pending) einmalig nachrechnen. */
+function bootstrapWalkAnalysis(): void {
+  const { analyzed, failed } = runPendingGeometryAnalysis(200);
+  if (analyzed > 0 || failed > 0) {
+    log.info("walk geometry bootstrap analysis", { analyzed, failed });
+  }
+}
+
 function runDailyPurge(): void {
   purgeOldTrash();
   purgeOldActivityLog();
   purgeOldCrashReports();
   purgeFreeRoamCompletionsJob();
+  purgeTrashedWalkAnalysesJob();
   purgeExpiredSessions();
   purgeExpiredRouteSessions();
   purgeExpiredConditionsJob();
@@ -79,5 +97,7 @@ function runDailyPurge(): void {
 /** Runs once on startup, then daily — trash, activity log retention, and expired sessions. */
 export function startPurgeSchedule(): void {
   runDailyPurge();
+  // Nach der Migration noch offene Walk-Analysen einmalig nachholen.
+  bootstrapWalkAnalysis();
   setInterval(runDailyPurge, INTERVAL_MS);
 }

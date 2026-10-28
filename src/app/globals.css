@@ -8,6 +8,7 @@
   --accent: #2e6b49;
   --accent-strong: #1e4a32;
   --accent-soft: #dceae0;
+  --surface-muted: #f7f5f0;
   --waymark: #a5711c;
   --waymark-soft: #f1e3c4;
   --line: #d9ded2;
@@ -42,6 +43,7 @@
     --accent: #6fc08c;
     --accent-strong: #8fda9f;
     --accent-soft: #1e3327;
+    --surface-muted: #1e251b;
     --waymark: #e3a94e;
     --waymark-soft: #3a2c15;
     --line: #2a3225;
@@ -68,6 +70,7 @@
   --accent: #6fc08c;
   --accent-strong: #8fda9f;
   --accent-soft: #1e3327;
+  --surface-muted: #1e251b;
   --waymark: #e3a94e;
   --waymark-soft: #3a2c15;
   --line: #2a3225;
@@ -94,6 +97,7 @@ html[data-theme="dark"] {
   --accent: #005a2b;
   --accent-strong: #003d1d;
   --accent-soft: #cdeedb;
+  --surface-muted: #f0f0f0;
   --waymark: #7a4a00;
   --waymark-soft: #ffe7b3;
   --line: #000000;
@@ -126,6 +130,7 @@ html[data-theme="contrast"] {
   --accent: #c9791f;
   --accent-strong: #a45f12;
   --accent-soft: #f3dfb0;
+  --surface-muted: #f7ead0;
   --waymark: #8a5a2b;
   --waymark-soft: #ecd9b8;
   --line: #e8d5ac;
@@ -151,6 +156,7 @@ html[data-theme="dog"] {
   --accent: #a855c9;
   --accent-strong: #7e3aa0;
   --accent-soft: #ecd6f7;
+  --surface-muted: #ece0fb;
   --waymark: #d6336c;
   --waymark-soft: #fbd9e6;
   --line: #ddc9f0;
@@ -1179,7 +1185,7 @@ th {
   position: absolute;
   top: max(env(safe-area-inset-top), 0.75rem);
   right: 0.75rem;
-  z-index: 1100;
+  z-index: 1200;
   width: var(--fab-size, 2.5rem);
   height: var(--fab-size, 2.5rem);
   border-radius: 50%;
@@ -1234,14 +1240,24 @@ liefert den Kontrast). */
   .sheet {
     left: auto;
     right: 0;
-    top: 0;
+    /* 0.57: Panel beginnt UNTER dem Profil-Icon (rechts oben) — es überdeckt nie
+       die FAB-Ecke. Höhe ist inhaltgetrieben (wächst statt zu scrollen), gedeckelt
+       auf den verbleibenden Raum. */
+    top: calc(max(env(safe-area-inset-top), 0.75rem) + var(--fab-size, 2.5rem) + 0.5rem);
     bottom: 0;
     width: 400px;
+    height: auto;
+    max-height: calc(100% - (max(env(safe-area-inset-top), 0.75rem) + var(--fab-size, 2.5rem) + 0.5rem));
+    overflow: auto;
     border-radius: 0;
     transition: transform 200ms ease;
   }
   .sheet.sheet-panel.sheet-peeked {
     transform: translateX(115%);
+  }
+  .sheet-pane {
+    height: auto;
+    overflow: visible;
   }
   .leaflet-bottom {
     margin-right: var(--panel-cover, 416px);
@@ -1249,6 +1265,60 @@ liefert den Kontrast). */
   .leaflet-top.leaflet-left {
     margin-right: var(--panel-cover, 416px);
   }
+}
+
+/* 0.57: Einklapp-Pfeil am Sheet-Rand statt „Ausblenden“-Button. Liegt AUSSERHALB
+   des transformierten .sheet, damit er auch im eingeklappten Zustand klickbar bleibt. */
+.sheet-collapse-arrow {
+  position: absolute;
+  z-index: 1300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 1px solid var(--line, #d9ded2);
+  border-radius: 50%;
+  background: var(--float-solid, #fff);
+  color: var(--ink, #111);
+  box-shadow: var(--float-shadow, 0 8px 28px rgba(24, 32, 24, 0.14));
+  cursor: pointer;
+  transition: opacity 150ms ease;
+}
+.sheet-collapse-arrow:hover {
+  opacity: 0.85;
+}
+.sheet-collapse-arrow > span {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-right: 2px solid currentColor;
+  border-bottom: 2px solid currentColor;
+  transition: transform 150ms ease;
+}
+/* Desktop: rechts außen am Panel, „schließt nach rechts“. */
+.sheet-collapse-arrow.desktop {
+  top: calc(max(env(safe-area-inset-top), 0.75rem) + var(--fab-size, 2.5rem) + 0.25rem);
+  right: calc(400px + 0.6rem);
+}
+.sheet-collapse-arrow.desktop > span {
+  transform: rotate(-45deg); /* › */
+}
+.sheet-collapse-arrow.desktop.collapsed > span {
+  transform: rotate(135deg); /* ‹ */
+}
+/* Telefon: unterhalb des Peek-Streifens, „schließt nach unten“. */
+.sheet-collapse-arrow.bottom {
+  bottom: calc(var(--sheet-cover-peek, 4.5rem) + max(env(safe-area-inset-bottom), 0.5rem) + 0.5rem);
+  left: 50%;
+  transform: translateX(-50%);
+}
+.sheet-collapse-arrow.bottom > span {
+  transform: rotate(45deg); /* v */
+}
+.sheet-collapse-arrow.bottom.collapsed > span {
+  transform: rotate(-135deg); /* ^ */
 }
 
 .sheet-pane {
@@ -1289,16 +1359,26 @@ liefert den Kontrast). */
   width: min(92vw, 24rem);
 }
 
-/* Ebenen-FAB unter dem Profil-FAB — beide .map-fab, aber unten versetzt (§J5). */
+/* Ebenen-Hamburger: sitzt UNTER der Leaflet-Zoom-Spalte (oben links) und sieht wie
+   ein dritter Zoom-Button aus (§6, User-Feedback 0.57: kein Überlappen der Zoom-
+   steuerung, gleiches Design in einer Spalte). Leaflet-Zoom: 2 Buttons à 30px
+   (touch) mit 1px Border, margin-top 10px, margin-left 10px. */
 .map-layers-fab {
-  top: calc(max(env(safe-area-inset-top), 0.75rem) + var(--fab-size, 2.5rem) + 0.5rem);
-  left: 0.75rem;
+  top: calc(10px + 30px + 1px + 30px + 1px + 6px);
+  left: 10px;
   right: auto;
+  width: 30px;
+  height: 30px;
+  border-radius: 0 0 4px 4px;
+  background: var(--float-solid, #fff);
+  color: var(--ink, #111);
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.3);
+  border: 1px solid rgba(0, 0, 0, 0.2);
 }
 
 .layers-popover {
-  top: calc(max(env(safe-area-inset-top), 0.75rem) + var(--fab-size, 2.5rem) + 0.5rem + var(--fab-size, 2.5rem));
-  left: 0.75rem;
+  top: calc(10px + 30px + 1px + 30px + 1px + 6px + 30px + 0.5rem);
+  left: 10px;
 }
 
 .profile-menu {

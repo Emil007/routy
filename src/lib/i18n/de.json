@@ -232,7 +232,11 @@
     "freeRoamStopConfirm": "Free Roam wirklich beenden? Der bisherige Track wird nicht als Runde gespeichert.",
     "freeRoamVia": "über {via}",
     "selectButton": "Auswählen",
-    "goButton": "Go"
+    "goButton": "Go",
+    "freeRoamAnnounceHere": "einem bekannten Ort",
+    "freeRoamAnnounceAlone": "Angekommen bei {here}. Von hier führen keine Wege im Netz weiter.",
+    "freeRoamAnnounce": "Angekommen bei {here}. Mögliche Wege: {neighbours}",
+    "freeRoamAnnounceNeighbour": "{name} Richtung {direction}"
   },
   "share": {
     "subtitle": "Schreibgeschützte, geteilte Route.",
@@ -689,7 +693,22 @@
     "trackGeometryDiscarded": "Vorschlag für diesen Spaziergang+Weg ignoriert.",
     "trackGeometryRemoveRecording": "Diese Aufzeichnung entfernen",
     "trackGeometryRemoveRecordingConfirm": "GPS-Aufzeichnung dieses Spaziergangs aus der Admin-Prüfung löschen? Statistiken bleiben; nur der Track für Vorschläge wird entfernt.",
-    "trackGeometryRemoveRecordingDone": "Aufzeichnung aus der Prüfung entfernt."
+    "trackGeometryRemoveRecordingDone": "Aufzeichnung aus der Prüfung entfernt.",
+    "trackGeometryStatusAnalysis": "Analyse",
+    "trackGeometryStatusPending": "läuft…",
+    "trackGeometryStatusDone": "fertig",
+    "trackGeometryStatusTrashed": "Papierkorb",
+    "trackGeometryStatusUnanalyzed": "nicht analysiert",
+    "trackGeometryOpenShort": "offen",
+    "trackGeometryResolvedShort": "erledigt",
+    "trackGeometryTrash": "Papierkorb",
+    "trackGeometryTrashHint": "Aufnahme komplett in den Papierkorb verschieben (nach 30+30 Tagen gelöscht)",
+    "trackGeometryTrashConfirm": "Aufnahme wirklich in den Papierkorb verschieben? Alle Vorschläge gelten dann als erledigt.",
+    "trackGeometryTrashed": "Aufnahme in den Papierkorb verschoben.",
+    "trackGeometryDelete": "Löschen",
+    "trackGeometryDeleteHint": "Aufnahme manuell komplett löschen, auch ohne dass alle Segmente geprüft wurden",
+    "trackGeometryDeleteConfirm": "Aufnahme wirklich komplett löschen? Das kann nicht rückgängig gemacht werden.",
+    "trackGeometryDeleted": "Aufnahme gelöscht."
   },
   "shell": {
     "explore": "Erkunden",
