@@ -227,6 +227,9 @@
     "freeRoamCompleteTitle": "Freies Gehen abschließen",
     "freeRoamPointsHint": "Freies Gehen gibt weniger Punkte (halber Faktor).",
     "freeRoamDone": "Free Roam abgeschlossen — Track gespeichert.",
+    "freeRoamDonePoints": "Free Roam abgeschlossen — {points} Punkte erhalten.",
+    "freeRoamRateLimited": "Zu schnell — versuch es in {seconds} Sekunden erneut.",
+    "freeRoamStopConfirm": "Free Roam wirklich beenden? Der bisherige Track wird nicht als Runde gespeichert.",
     "freeRoamVia": "über {via}",
     "selectButton": "Auswählen",
     "goButton": "Go"

@@ -180,6 +180,9 @@ export function RouteGenerator({
   const [gpsAccuracyM, setGpsAccuracyM] = useState<number>(35);
   const announcedStationIndexRef = useRef(0);
   const waitingToLeaveIndexRef = useRef<number | null>(null);
+  // M4: GPS-Walk-Puffer + Startzeit für den Complete-Body (trackPoints, durationMin).
+  const trackBufferRef = useRef<{ lat: number; lng: number; accuracy?: number; time: string }[]>([]);
+  const walkStartedAtRef = useRef<number | null>(null);
   const followEnabled = watchId !== null;
 
   const requiredSet = useMemo(() => new Set(requiredSegmentIds), [requiredSegmentIds]);
@@ -502,13 +505,28 @@ export function RouteGenerator({
       setWatchId(null);
       setMyLocation(null);
       setVoiceEnabled(false);
+      trackBufferRef.current = [];
+      walkStartedAtRef.current = null;
       return;
     }
     if (typeof navigator === "undefined" || !navigator.geolocation) return;
     const id = navigator.geolocation.watchPosition(
       (pos) => {
+        const accuracy = pos.coords.accuracy || 35;
         setMyLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude });
-        setGpsAccuracyM(pos.coords.accuracy || 35);
+        setGpsAccuracyM(accuracy);
+        // M4: Punkte nur in den Puffer, wenn die Route läuft (mode active) und die
+        // Genauigkeit ausreicht — gefiltert auf ≥4 m Abstand (Android-Parität).
+        if (mode === "active" && accuracy <= 40) {
+          const last = trackBufferRef.current.length
+            ? trackBufferRef.current[trackBufferRef.current.length - 1]!
+            : null;
+          const p = { lat: pos.coords.latitude, lng: pos.coords.longitude, accuracy, time: new Date().toISOString() };
+          if (!last || haversineMeters(last, { lat: p.lat, lng: p.lng }) >= 4) {
+            if (walkStartedAtRef.current === null) walkStartedAtRef.current = Date.now();
+            trackBufferRef.current.push(p);
+          }
+        }
       },
       () => setMyLocation(null),
       { enableHighAccuracy: true, maximumAge: 5000 },
@@ -817,10 +835,20 @@ export function RouteGenerator({
       window.speechSynthesis.cancel();
     }
     const completedRoute = result?.route;
-    const res = await callApi("/api/route/complete", {});
+    // M4: Track + tatsächliche Dauer mitschicken. durationMin = seit dem ersten
+    // GPS-Fix nach Go verstrichene Minuten (floor, mindestens 1). Der Server
+    // speichert diesen Wert als Ist-Dauer statt der geplanten Plan-Dauer.
+    const startedAt = walkStartedAtRef.current;
+    const durationMin = startedAt !== null ? Math.max(1, Math.floor((Date.now() - startedAt) / 60000)) : undefined;
+    const res = await callApi("/api/route/complete", {
+      trackPoints: trackBufferRef.current.slice(-5000),
+      ...(durationMin !== undefined ? { durationMin } : {}),
+    });
     if (res.ok) {
       playRoutySound("route_finish");
       const data = (await res.json()) as RouteCompletionData;
+      trackBufferRef.current = [];
+      walkStartedAtRef.current = null;
       setResult(null);
       setMode("suggesting");
       setAdopted(false);
@@ -875,6 +903,8 @@ export function RouteGenerator({
       setMyLocation(null);
     }
     if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
+    trackBufferRef.current = [];
+    walkStartedAtRef.current = null;
   }
 
   // M3-3/Q1: Der Dock-Stop auf der Zwischenseite (adopted, Mode suggesting) darf

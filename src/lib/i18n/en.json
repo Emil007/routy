@@ -227,6 +227,9 @@
     "freeRoamCompleteTitle": "Finish free roam",
     "freeRoamPointsHint": "Free roam earns fewer points (half rate).",
     "freeRoamDone": "Free roam finished — track saved.",
+    "freeRoamDonePoints": "Free roam finished — {points} points earned.",
+    "freeRoamRateLimited": "Too fast — try again in {seconds} seconds.",
+    "freeRoamStopConfirm": "Really end free roam? The current track won't be saved as a walk.",
     "freeRoamVia": "via {via}",
     "selectButton": "Select",
     "goButton": "Go"

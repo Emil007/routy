@@ -219,12 +219,18 @@ export function FreeRoamCard({
     setReached([]);
   }
 
+  // M5-2: manueller Stopp fragt erst — der Dock-Stopp hat den Dialog schon selbst
+  // (registered live-stop ruft stopRoaming direkt, das bleibt bestätigt).
+  function requestStopRoaming() {
+    if (!window.confirm(t(locale, "route.freeRoamStopConfirm"))) return;
+    stopRoaming();
+  }
+
   async function doCheckin(pos: LatLng) {
     const tkn = tokenRef.current;
     if (!tkn) return;
     const last = lastCheckinRef.current;
     if (last && haversineMeters(last, pos) < 10) return; // not moved enough
-    lastCheckinRef.current = pos;
     // Sequence this request: any earlier in-flight response must be ignored when
     // it lands (it would carry a token older than a later checkin's rotation).
     const seq = ++checkinSeqRef.current;
@@ -235,6 +241,10 @@ export function FreeRoamCard({
         body: JSON.stringify({ token: tkn, lat: pos.lat, lng: pos.lng }),
       });
       if (!res.ok) return;
+      // M5-1: der Cursor rückt erst nach OK vor — ein Fehlschlag wird bei der
+      // nächsten Bewegung erneut versucht statt den Eintritt dauerhaft zu verpassen.
+      if (!isRoamingRef.current) return;
+      lastCheckinRef.current = pos;
       const data = (await res.json()) as CheckinResponse;
       // Stateless token rotation (decision K): keep the latest signed token.
       if (data.token && seq === checkinSeqRef.current) {
@@ -259,7 +269,6 @@ export function FreeRoamCard({
     }
     setStatus("saving");
     setMessage(null);
-    const durationMin = Math.max(1, Math.round(lengthM / 1000 / (walkSpeedKmh || 5) * 60));
     try {
       const res = await fetch("/api/route/free-roam/complete", {
         method: "POST",
@@ -268,15 +277,21 @@ export function FreeRoamCard({
           token: tkn,
           trackPoints: track.map((p) => ({ lat: p.lat, lng: p.lng })),
           lengthM,
-          durationMin,
           nickname: null,
         }),
       });
       if (!res.ok) {
         setStatus("error");
-        setMessage(t(locale, "common.error"));
+        // M5-2: 429 zeigt die Wartezeit; Session/Track bleiben für den Retry.
+        const body = (await res.json().catch(() => null)) as { error?: string; retryAfterSeconds?: number } | null;
+        if (body?.error === "rate_limited" && body.retryAfterSeconds != null) {
+          setMessage(t(locale, "route.freeRoamRateLimited", { seconds: body.retryAfterSeconds }));
+        } else {
+          setMessage(t(locale, "common.error"));
+        }
         return;
       }
+      const data = (await res.json().catch(() => null)) as { pointsEarned?: number } | null;
       if (watchId !== null) navigator.geolocation.clearWatch(watchId);
       setWatchId(null);
       setPhase("idle");
@@ -286,7 +301,11 @@ export function FreeRoamCard({
       setCurrentPos(null);
       setReached([]);
       setStatus("idle");
-      setMessage(t(locale, "route.freeRoamDone"));
+      setMessage(
+        data?.pointsEarned != null
+          ? t(locale, "route.freeRoamDonePoints", { points: data.pointsEarned })
+          : t(locale, "route.freeRoamDone"),
+      );
       router.refresh();
     } catch {
       setStatus("error");
@@ -377,7 +396,7 @@ export function FreeRoamCard({
             <button type="button" className="btn-primary btn-compact" onClick={finishRoaming} disabled={status === "saving"}>
               {status === "saving" ? t(locale, "common.loading") : t(locale, "route.freeRoamCompleteTitle")}
             </button>
-            <button type="button" className="btn-danger btn-compact" onClick={stopRoaming}>
+            <button type="button" className="btn-danger btn-compact" onClick={requestStopRoaming}>
               {t(locale, "route.freeRoamStop")}
             </button>
           </div>
