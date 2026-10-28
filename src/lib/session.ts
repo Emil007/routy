@@ -3,6 +3,7 @@ import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { db } from "./db";
 import { hashToken, newSessionToken } from "./auth";
+import { parseSqliteIso } from "./timezone";
 
 export const SESSION_COOKIE = "routy_session";
 /** M2-5/F11: short-lived browser-only session for the Android WebView. Its token
@@ -189,7 +190,11 @@ export async function getCurrentUser(): Promise<SessionUser | null> {
     .get(tokenHash) as SessionRow | undefined;
 
   if (!row) return null;
-  if (new Date(row.expiresAt).getTime() < Date.now()) {
+  // M35/M29: expires_at liegt als SQLite-UTC ohne Zone in der DB — mit `new Date(row.expiresAt)`
+  // läse man sie als Host-Lokalzeit (auf UTC+1 ~45 min falsch), die 15-Minuten-WebView-Session
+  // würde sofort sterben. Immer über parseSqliteIso als UTC lesen (Review-Fix).
+  const expiresAt = parseSqliteIso(row.expiresAt);
+  if (!expiresAt || expiresAt.getTime() < Date.now()) {
     db.prepare("DELETE FROM sessions WHERE token_hash = ?").run(tokenHash);
     return null;
   }
@@ -265,7 +270,10 @@ export async function endImpersonation(): Promise<boolean> {
        WHERE s.token_hash = ?`,
     )
     .get(impersonatorHash) as { role: string; active: number; expiresAt: string } | undefined;
-  const stillValidAdmin = row && row.role === "admin" && row.active === 1 && new Date(row.expiresAt).getTime() >= Date.now();
+  // Review-Fix: expires_at als SQLite-UTC ohne Zone parsen, nicht als Host-Lokalzeit.
+  const expiresAt = row ? parseSqliteIso(row.expiresAt) : null;
+  const stillValidAdmin =
+    row && row.role === "admin" && row.active === 1 && expiresAt != null && expiresAt.getTime() >= Date.now();
 
   const currentToken = store.get(SESSION_COOKIE)?.value;
   if (currentToken) db.prepare("DELETE FROM sessions WHERE token_hash = ?").run(hashToken(currentToken));
@@ -315,16 +323,21 @@ export async function listSessions(userId: number): Promise<SessionListEntry[]> 
   const currentHash = currentToken ? hashToken(currentToken) : null;
 
   // M35: nur noch gültige Sitzungen listen — abgelaufene sind für die Geräteliste
-  // unsichtbar und fallen dem Purge zu.
+  // unsichtbar und fallen dem Purge zu. Review-Fix: AND/OR korrekt klammern, damit
+  // die user_id-Filterung nicht durch das OR aufgeweicht wird; Legacy-"T"-Zeilen
+  // werden beim Vergleich normalisiert (datetime(replace(...,' ',' '))).
   const rows = db
     .prepare(
       `SELECT session_id as sessionId, device_name as deviceName, client as client,
               created_at as createdAt, expires_at as expiresAt, token_hash as tokenHash
        FROM sessions
-       WHERE user_id = ? AND expires_at >= datetime('now') OR (expires_at LIKE '%T%' AND datetime(replace(expires_at, 'T', ' ')) >= datetime('now')) AND user_id = ?
+       WHERE user_id = ? AND (
+         expires_at >= datetime('now')
+         OR (expires_at LIKE '%T%' AND datetime(replace(expires_at, 'T', ' ')) >= datetime('now'))
+       )
        ORDER BY created_at DESC`,
     )
-    .all(userId, userId) as SessionListRow[];
+    .all(userId) as SessionListRow[];
 
   return rows.map((r) => ({
     sessionId: r.sessionId,

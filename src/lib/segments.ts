@@ -404,14 +404,13 @@ export function recordWalkWithPoints(
     // we backfill walk_id on the tombstone.
     const freeRoamStartedAt = options.freeRoamStartedAt;
     if (freeRoamStartedAt != null) {
+      // Review-Fix: INSERT OR IGNORE — bei einem PK-Konflikt (paralleles Complete
+      // derselben Session) wirft better-sqlite3 sonst eine Exception und rollt die
+      // ganze Transaktion zurück (500), statt sauber `changes === 0` zu liefern.
       const claimed = db
-        .prepare("INSERT INTO free_roam_completed (user_id, started_at, walk_id) VALUES (?, ?, NULL)")
+        .prepare("INSERT OR IGNORE INTO free_roam_completed (user_id, started_at, walk_id) VALUES (?, ?, NULL)")
         .run(userId, freeRoamStartedAt);
       if (claimed.changes === 0) {
-        const existing = db
-          .prepare("SELECT walk_id FROM free_roam_completed WHERE user_id = ? AND started_at = ?")
-          .get(userId, freeRoamStartedAt) as { walk_id: number | null } | undefined;
-        void existing;
         return -1; // sentinel: session already spent
       }
     }

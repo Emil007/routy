@@ -19,6 +19,11 @@ export async function register() {
   const { userCount } = await import("./lib/session");
   const { getOrCreateSetupToken } = await import("./lib/setupToken");
 
+  // Review-Fix: vorhandene Alt-Sessions einmalig von ISO-„T“-Zeilen auf SQLite-UTC
+  // (Leerzeichen) normalisieren — passt zum M35-Fix und hält die Geräteliste sauber.
+  const { normalizeLegacySessionExpiries } = await import("./lib/session");
+  normalizeLegacySessionExpiries();
+
   if (userCount() > 0) return;
 
   const token = getOrCreateSetupToken();
