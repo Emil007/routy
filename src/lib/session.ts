@@ -5,9 +5,14 @@ import { db } from "./db";
 import { hashToken, newSessionToken } from "./auth";
 
 export const SESSION_COOKIE = "routy_session";
+/** M2-5/F11: short-lived browser-only session for the Android WebView. Its token
+ *  is NOT the API bearer — minted fresh, lives 15 min, and is revocable on its
+ *  own. This keeps the long-lived API secret out of the WebView cookie store. */
+export const SESSION_WEB_COOKIE = "routy_web";
 export const IMPERSONATOR_COOKIE = "routy_impersonator_token";
 const SESSION_TTL_DAYS = 30;
-export type SessionClient = "web" | "app";
+const WEB_SESSION_TTL_MIN = 15;
+export type SessionClient = "web" | "app" | "webview";
 
 export function sessionCookieOptions() {
   const secure =
@@ -35,6 +40,20 @@ export async function createSession(
   return token;
 }
 
+/** Creates a short-lived session whose token is meant to live in the Android
+ *  WebView's cookie jar (tagged `webview`, so the shell hides NavBar chrome) —
+ *  NOT the API bearer. See SESSION_WEB_COOKIE. */
+export async function createWebViewSession(userId: number): Promise<string> {
+  const token = newSessionToken();
+  const tokenHash = hashToken(token);
+  const sessionId = randomBytes(8).toString("hex");
+  const expiresAt = new Date(Date.now() + WEB_SESSION_TTL_MIN * 60_000).toISOString();
+  db.prepare(
+    "INSERT INTO sessions (token_hash, user_id, expires_at, session_id, client) VALUES (?, ?, ?, ?, 'webview')",
+  ).run(tokenHash, userId, expiresAt, sessionId);
+  return token;
+}
+
 /** Reads `Authorization: Bearer <token>` — how the native app authenticates instead of a cookie. */
 export async function getBearerToken(): Promise<string | null> {
   const store = await headers();
@@ -56,6 +75,13 @@ export async function destroyCurrentSession(): Promise<void> {
     db.prepare("DELETE FROM sessions WHERE token_hash = ?").run(hashToken(token));
   }
   store.delete(SESSION_COOKIE);
+
+  // M2-5: also revoke/clear the WebView browser session.
+  const webToken = store.get(SESSION_WEB_COOKIE)?.value;
+  if (webToken) {
+    db.prepare("DELETE FROM sessions WHERE token_hash = ?").run(hashToken(webToken));
+    store.delete(SESSION_WEB_COOKIE);
+  }
 
   // SEC-1: revoke stashed admin session and clear cookie so logout cannot leave a
   // restorable "return to admin" path for a later browser user.
@@ -116,7 +142,12 @@ interface SessionRow {
 
 export async function getCurrentUser(): Promise<SessionUser | null> {
   const store = await cookies();
-  const token = store.get(SESSION_COOKIE)?.value ?? (await getBearerToken());
+  // M2-5/F11: the Android WebView authenticates via its own short-lived cookie,
+  // never via the API bearer. The bearer is still read for native Kotlin API calls,
+  // and the main routy_session cookie for desktop browsers.
+  const cookieToken = store.get(SESSION_COOKIE)?.value;
+  const webViewToken = store.get(SESSION_WEB_COOKIE)?.value;
+  const token = cookieToken ?? webViewToken ?? (await getBearerToken());
   if (!token) return null;
 
   const tokenHash = hashToken(token);

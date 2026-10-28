@@ -24,8 +24,12 @@ export default async function SettingsAccountPage({
   const locale = await resolveLocale(user.locale);
   const flags = await searchParams;
   const pendingTotp = flags.totpSetup === "1" ? getUser(user.id) : null;
-  const totpQrCode = pendingTotp?.totpSecret
-    ? await totpQrCodeDataUrl(pendingTotp.totpSecret, user.username)
+  // M2-1/F07: the setup QR always comes from the PENDING secret, never the live
+  // one — and only while 2FA is still off (a cancelled setup must not regress it).
+  const pendingSecret =
+    !pendingTotp?.totpEnabled && pendingTotp?.totpPendingSecret ? pendingTotp.totpPendingSecret : null;
+  const totpQrCode = pendingSecret
+    ? await totpQrCodeDataUrl(pendingSecret, user.username)
     : null;
 
   return (
@@ -38,7 +42,7 @@ export default async function SettingsAccountPage({
         <AccountSecurityPanel
           locale={locale}
           user={{ id: user.id, role: user.role, totpEnabled: user.totpEnabled }}
-          pendingTotpSecret={pendingTotp?.totpSecret ?? null}
+          pendingTotpSecret={pendingSecret}
           totpQrCode={totpQrCode}
           flags={flags}
         />

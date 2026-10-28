@@ -227,6 +227,9 @@ export async function POST(request: Request) {
       maxValue: Number.POSITIVE_INFINITY,
       preserveMustVisitOrder,
       geometryOf,
+      // M1-9: house access stays out of the golden fallback search too — an
+      // out-and-back up the driveway must not be the only "golden" candidate.
+      ignoreSegmentIds: homeAccessCanonical,
     });
     if (open.routes.length > 0) {
       candidates = open.routes;

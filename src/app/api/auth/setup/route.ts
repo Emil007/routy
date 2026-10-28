@@ -9,16 +9,24 @@ import { verifySetupToken } from "@/lib/setupToken";
 const bodySchema = z.object({
   setupToken: z.string().trim().min(1),
   username: z.string().trim().min(1),
-  password: z.string().min(6),
+  password: z.string().min(6).max(200),
   displayName: z.string().trim().max(120).optional(),
   locale: z.enum(["de", "en"]).default("de"),
   deviceName: z.string().trim().max(120).optional(),
   captchaToken: z.string().trim().optional(),
 });
 
+// M2-4/F06: never let a huge password reach scryptSync on the first-admin path.
+const SETUP_BODY_LIMIT = 8 * 1024;
+
 /** First-user registration for native app — mirrors web setupFirstProfileAction. */
 export async function POST(request: Request) {
   if (userCount() > 0) return NextResponse.json({ error: "already_setup" }, { status: 409 });
+
+  const contentLength = Number(request.headers.get("content-length") ?? 0);
+  if (contentLength > SETUP_BODY_LIMIT) {
+    return NextResponse.json({ error: "body_too_large" }, { status: 413 });
+  }
 
   const lockout = checkLockout("setup");
   if (lockout.locked) {

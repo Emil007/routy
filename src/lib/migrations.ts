@@ -113,6 +113,12 @@ function migrateShareExpiry(db: Database.Database): void {
   );
 }
 
+function migratePendingTotp(db: Database.Database): void {
+  // M2-1/F07: a setup-in-progress secret must not replace the live totp_secret
+  // (or disable 2FA). Keep the pending secret in its own column until confirmed.
+  addColumnIfMissing(db, "users", "totp_pending_secret", "ALTER TABLE users ADD COLUMN totp_pending_secret TEXT");
+}
+
 export const MIGRATIONS: Migration[] = [
   { id: 1, name: "legacy_schema_hardening", up: noop },
   { id: 2, name: "per_user_home", up: noop },
@@ -126,6 +132,7 @@ export const MIGRATIONS: Migration[] = [
   { id: 10, name: "achievements_table", up: migrateAchievementsTable },
   { id: 11, name: "free_roam_completed_antireplay", up: migrateFreeRoamCompleted },
   { id: 12, name: "share_link_expiry", up: migrateShareExpiry },
+  { id: 13, name: "pending_totp_secret", up: migratePendingTotp },
 ];
 
 export function runAllMigrations(db: Database.Database): void {

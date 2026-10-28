@@ -420,6 +420,7 @@
     "totpEnabledMessage": "Two-factor authentication is now enabled.",
     "totpDisableButton": "Disable two-factor authentication",
     "totpDisableError": "Current password is wrong.",
+    "totpSetupError": "Current password is wrong — setup not started.",
     "totpDisabledMessage": "Two-factor authentication has been disabled.",
     "deleteAccountTitle": "Delete account",
     "deleteAccountSubtitle": "Account will be deactivated — only the admin can reactivate it.",

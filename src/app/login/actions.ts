@@ -26,6 +26,11 @@ function captchaToken(formData: FormData): string | null {
 export async function loginAction(formData: FormData) {
   const username = String(formData.get("username") || "").trim();
   const password = String(formData.get("password") || "");
+  // M2-4/F06: never hash a password beyond the schema cap (login/route.ts caps at
+  // 200 chars; the web form must match so scryptSync never sees a giant string).
+  if (password.length > 200) {
+    redirect("/login?error=1");
+  }
   const userKey = `login:${username}`;
   const ip = await getClientIp();
   const ipKey = `login-ip:${ip}`;
@@ -98,6 +103,10 @@ export async function setupFirstProfileAction(formData: FormData) {
   const locale = String(formData.get("locale") || "de") === "en" ? "en" : "de";
 
   if (!username || password.length < 6) {
+    recordFailure("setup");
+    redirect("/login?setupError=1");
+  }
+  if (password.length > 200) {
     recordFailure("setup");
     redirect("/login?setupError=1");
   }

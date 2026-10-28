@@ -51,14 +51,15 @@ export function clearAttempts(key: string): void {
 }
 
 /**
- * Best-effort client IP from X-Forwarded-For. The rightmost entry is the one
- * the immediate reverse proxy (Caddy or otherwise) actually observed, so a
- * client can't spoof it by sending their own X-Forwarded-For — anything they
- * add is pushed further left, behind the proxy's own append. Falls back to a
- * shared bucket with no reverse proxy in front at all (bare LAN access);
- * per-username lockout still covers that case on its own.
+ * Client IP for rate limiting. Only the operator can enable X-Forwarded-For
+ * trust (TRUST_PROXY=1); without it the header is ignored (a client could
+ * otherwise forge any IP and reset its own lockout bucket). The rightmost hop
+ * is the one the immediate reverse proxy observed, so with a trusted proxy a
+ * client's own additions are pushed left and harmless. Falls back to a shared
+ * bucket — per-username lockout still covers that case on its own.
  */
 export async function getClientIp(): Promise<string> {
+  if (process.env.TRUST_PROXY !== "1") return "unknown";
   const headerStore = await headers();
   const forwarded = headerStore.get("x-forwarded-for");
   if (!forwarded) return "unknown";

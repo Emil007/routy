@@ -6,7 +6,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const user = await requireUser();
   const locale = await resolveLocale(user.locale);
   const impersonating = await isImpersonating();
-  const embedded = user.client === "app";
+  const embedded = user.client === "app" || user.client === "webview";
 
   return (
     <div className="app-frame">

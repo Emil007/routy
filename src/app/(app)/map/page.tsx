@@ -29,7 +29,7 @@ export default async function MapPage({
     <MapShell
       locale={locale}
       bootstrap={bootstrap}
-      embedded={user.client === "app"}
+      embedded={user.client === "app" || user.client === "webview"}
       initialMode={startMode}
     />
   );

@@ -20,6 +20,8 @@ export interface UserRow {
   timezone: string;
   /** Set as soon as 2FA setup starts, kept even before totpEnabled flips on so the same QR code can be re-confirmed. */
   totpSecret: string | null;
+  /** Secret waiting for confirmation — NOT the live one; only shown while pending. */
+  totpPendingSecret: string | null;
   totpEnabled: boolean;
   homeNodeId: number | null;
 }
@@ -37,6 +39,7 @@ interface UserDbRow {
   theme: string;
   timezone: string;
   totp_secret: string | null;
+  totp_pending_secret: string | null;
   totp_enabled: number;
   home_node_id: number | null;
 }
@@ -55,6 +58,7 @@ function mapUser(row: UserDbRow): UserRow {
     theme: row.theme,
     timezone: row.timezone && row.timezone.trim() !== "" ? row.timezone : "Europe/Vienna",
     totpSecret: row.totp_secret,
+    totpPendingSecret: row.totp_pending_secret,
     totpEnabled: row.totp_enabled === 1,
     homeNodeId: row.home_node_id ?? null,
   };
@@ -193,16 +197,33 @@ function randomPlaceholderPassword(): string {
   return randomBytes(16).toString("hex");
 }
 
-/** Stores a freshly generated secret without turning 2FA on yet — that happens once the user proves they captured it. */
+/** M2-1/F07: stores a freshly generated PENDING secret WITHOUT touching
+ *  totp_secret or totp_enabled — the live factor stays active until the user
+ *  proves they captured the new one. */
 export function setPendingTotpSecret(userId: number, secret: string): void {
-  db.prepare("UPDATE users SET totp_secret = ?, totp_enabled = 0 WHERE id = ?").run(secret, userId);
+  db.prepare("UPDATE users SET totp_pending_secret = ? WHERE id = ?").run(secret, userId);
 }
 
-export function enableTotp(userId: number): void {
-  db.prepare("UPDATE users SET totp_enabled = 1 WHERE id = ?").run(userId);
+/** Promotes the pending secret to the live one and enables 2FA atomically. */
+export function enableTotp(userId: number): boolean {
+  const info = db
+    .prepare(
+      "UPDATE users SET totp_secret = totp_pending_secret, totp_pending_secret = NULL, totp_enabled = 1 WHERE id = ? AND totp_pending_secret IS NOT NULL",
+    )
+    .run(userId);
+  return info.changes > 0;
 }
 
 /** Also the account-recovery path for admins when a user loses their authenticator. */
 export function disableTotp(userId: number): void {
-  db.prepare("UPDATE users SET totp_secret = NULL, totp_enabled = 0 WHERE id = ?").run(userId);
+  db.prepare("UPDATE users SET totp_secret = NULL, totp_pending_secret = NULL, totp_enabled = 0 WHERE id = ?").run(userId);
+}
+
+/** Cancels a pending 2FA setup without touching the live factor. Returns false
+ *  (no-op) when 2FA is already enabled or nothing is pending. */
+export function cancelPendingTotp(userId: number): boolean {
+  const info = db
+    .prepare("UPDATE users SET totp_pending_secret = NULL WHERE id = ? AND totp_enabled = 0")
+    .run(userId);
+  return info.changes > 0;
 }

@@ -18,6 +18,7 @@ import { buildRouteDisplay } from "@/lib/routeDisplay";
 import { getGoldenMultiplierMap } from "@/lib/goldenSegments";
 import { computeRoutePointPreview, canonicalSegmentId, countGoldenHits, goldenHitCanonicalIds } from "@/lib/points";
 import { getHomeAccessSegmentIds } from "@/lib/homeAccess";
+import { checkGenerateRateLimit } from "@/lib/generateRateLimit";
 
 const bodySchema = z.object({ token: z.string().min(1) });
 
@@ -32,6 +33,15 @@ function withGoldenHits(
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
+  // M1-14: widen is as expensive as generate — share the same 20/min limiter.
+  const rate = checkGenerateRateLimit(user.id);
+  if (!rate.allowed) {
+    return NextResponse.json(
+      { error: "rate_limited", retryAfterSeconds: rate.retryAfterSeconds },
+      { status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds) } },
+    );
+  }
 
   const json = await request.json().catch(() => null);
   const parsed = bodySchema.safeParse(json);

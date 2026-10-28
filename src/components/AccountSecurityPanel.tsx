@@ -30,6 +30,7 @@ export function AccountSecurityPanel({
     totpEnabled?: string;
     totpDisabled?: string;
     totpDisableError?: string;
+    totpSetupError?: string;
   };
 }) {
   const {
@@ -40,6 +41,7 @@ export function AccountSecurityPanel({
     totpEnabled,
     totpDisabled,
     totpDisableError,
+    totpSetupError,
   } = flags;
 
   return (
@@ -85,7 +87,11 @@ export function AccountSecurityPanel({
               <button type="submit" form="confirmTotpForm" className="btn-primary btn-compact">
                 {t(locale, "settings.totpConfirmButton")}
               </button>
-              <form action={cancelEnableTotpAction}>
+              <form action={cancelEnableTotpAction} className="stack">
+                <div className="field">
+                  <label htmlFor="totpCancelPassword">{t(locale, "settings.currentPassword")}</label>
+                  <input type="password" id="totpCancelPassword" name="currentPassword" autoComplete="current-password" required />
+                </div>
                 <button type="submit" className="btn-secondary btn-compact">
                   {t(locale, "common.cancel")}
                 </button>
@@ -110,7 +116,12 @@ export function AccountSecurityPanel({
         ) : (
           <>
             {totpDisabled === "1" && <div className="alert alert-success">{t(locale, "settings.totpDisabledMessage")}</div>}
-            <form action={startEnableTotpAction}>
+            {totpSetupError === "1" && <div className="alert alert-error">{t(locale, "settings.totpSetupError")}</div>}
+            <form action={startEnableTotpAction} className="stack">
+              <div className="field">
+                <label htmlFor="totpStartPassword">{t(locale, "settings.currentPassword")}</label>
+                <input type="password" id="totpStartPassword" name="currentPassword" autoComplete="current-password" required />
+              </div>
               <button type="submit" className="btn-secondary btn-compact">
                 {t(locale, "settings.totpEnableButton")}
               </button>

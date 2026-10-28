@@ -13,6 +13,7 @@ import {
   setPendingTotpSecret,
   enableTotp,
   disableTotp,
+  cancelPendingTotp,
 } from "@/lib/users";
 import { generateTotpSecret, verifyTotpCode } from "@/lib/twoFactor";
 import { addAvoidSegment, removeAvoidSegment } from "@/lib/avoidList";
@@ -54,6 +55,11 @@ export async function changePasswordAction(formData: FormData) {
     redirect("/settings/account?passwordError=1");
   }
   const ok = changeOwnPassword(user.id, currentPassword, newPassword);
+  if (ok) {
+    // M2-2/F08: a password change must revoke every other session; the current
+    // (just-authenticated) one stays.
+    await destroyOtherSessions(user.id);
+  }
   redirect(ok ? "/settings/account?passwordSuccess=1" : "/settings/account?passwordError=1");
 }
 
@@ -63,9 +69,15 @@ export async function logoutEverywhereAction() {
   redirect("/settings/account?loggedOutEverywhere=1");
 }
 
-/** Generates (or regenerates) a pending secret and sends the user to the QR/confirm step — not enabled until confirmEnableTotpAction succeeds. */
-export async function startEnableTotpAction() {
+/** Generates (or regenerates) a pending secret and sends the user to the QR/confirm step. */
+export async function startEnableTotpAction(formData: FormData) {
   const user = await requireUser();
+  // M2-1/F07: starting a 2FA setup requires the current password — a stolen
+  // session alone must not be able to arm its own factor.
+  const currentPassword = String(formData.get("currentPassword") || "");
+  if (!verifyLogin(user.username, currentPassword)) {
+    redirect("/settings/account?totpSetupError=1");
+  }
   setPendingTotpSecret(user.id, generateTotpSecret());
   redirect("/settings/account?totpSetup=1");
 }
@@ -75,17 +87,28 @@ export async function confirmEnableTotpAction(formData: FormData) {
   const code = String(formData.get("totpCode") || "").trim();
   const current = getUser(user.id);
 
-  if (!current?.totpSecret || !verifyTotpCode(current.totpSecret, current.username, code)) {
+  // M2-1: verify against the PENDING secret (a cancelled setup has none).
+  if (!current?.totpPendingSecret || !verifyTotpCode(current.totpPendingSecret, current.username, code)) {
     redirect("/settings/account?totpSetup=1&totpError=1");
   }
 
-  enableTotp(user.id);
+  const enabled = enableTotp(user.id);
+  if (enabled) {
+    // M2-2: enabling 2FA revokes other sessions too.
+    await destroyOtherSessions(user.id);
+  }
   redirect("/settings/account?totpEnabled=1");
 }
 
-export async function cancelEnableTotpAction() {
+export async function cancelEnableTotpAction(formData: FormData) {
   const user = await requireUser();
-  disableTotp(user.id);
+  // M2-1/F07: cancel only clears the PENDING secret and only while 2FA is still
+  // off — the live factor is never touched, so this can't disable an active setup.
+  const currentPassword = String(formData.get("currentPassword") || "");
+  if (!verifyLogin(user.username, currentPassword)) {
+    redirect("/settings/account?totpDisableError=1");
+  }
+  cancelPendingTotp(user.id);
   redirect("/settings/account");
 }
 

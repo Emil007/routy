@@ -9,6 +9,7 @@ import { buildRouteDisplay } from "@/lib/routeDisplay";
 import { computeRoutePointPreview, canonicalSegmentId, GUIDE_POINTS_MULTIPLIER } from "@/lib/points";
 import { getUsageMap, listSegments } from "@/lib/segments";
 import { getGoldenMultiplierMap } from "@/lib/goldenSegments";
+import { checkGenerateRateLimit } from "@/lib/generateRateLimit";
 
 const bodySchema = z.object({
   orderedNodeIds: z.array(z.number().int().positive()).min(1).max(12),
@@ -18,6 +19,15 @@ const bodySchema = z.object({
 export async function POST(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
+
+  // M1-14: guide start runs a full route build — share the same 20/min limiter.
+  const rate = checkGenerateRateLimit(user.id);
+  if (!rate.allowed) {
+    return NextResponse.json(
+      { error: "rate_limited", retryAfterSeconds: rate.retryAfterSeconds },
+      { status: 429, headers: { "Retry-After": String(rate.retryAfterSeconds) } },
+    );
+  }
 
   const json = await request.json().catch(() => null);
   const parsed = bodySchema.safeParse(json);

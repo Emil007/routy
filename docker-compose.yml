@@ -63,6 +63,12 @@ services:
       # access Routy directly over plain HTTP (e.g. only inside your LAN).
       - COOKIE_SECURE=true
 
+      # Only trust X-Forwarded-For (client IP for login/rate-limit lockouts)
+      # when a reverse proxy definitely appends it (Caddy behind → set "1").
+      # Without this the header is ignored so clients can't forge their way
+      # out of a per-IP lockout bucket.
+      - TRUST_PROXY=1
+
       # Optional CAPTCHA on the login screen, on top of the always-on
       # rate-limiting. Off by default. To enable, uncomment CAPTCHA_PROVIDER
       # (one of "turnstile", "hcaptcha", "recaptcha") and fill in the site/

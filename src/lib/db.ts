@@ -22,6 +22,7 @@ CREATE TABLE IF NOT EXISTS users (
   theme TEXT NOT NULL DEFAULT 'auto',
   timezone TEXT NOT NULL DEFAULT 'Europe/Vienna',
   totp_secret TEXT,
+  totp_pending_secret TEXT,
   totp_enabled INTEGER NOT NULL DEFAULT 0,
   home_node_id INTEGER,
   taste_short_m REAL,

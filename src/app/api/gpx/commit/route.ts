@@ -41,6 +41,10 @@ const trackSchema = z.object({
 
 const bodySchema = z.object({ tracks: z.array(trackSchema).min(1).max(50) });
 
+// M2-4/F06: reject oversized request bodies before buffering/parsing them — the
+// point cap inside only counts AFTER the full JSON is in memory.
+const GPX_COMMIT_BODY_LIMIT = 12 * 1024 * 1024;
+
 type PreparedTrack = {
   track: z.infer<typeof trackSchema>;
   points: z.infer<typeof pointSchema>[];
@@ -57,6 +61,10 @@ export async function POST(request: Request) {
   const rate = checkApiRateLimit("gpx_commit", { userId, ip: await getClientIp() });
   if (!rate.allowed) return rateLimitResponse(rate.retryAfterSeconds);
 
+  const contentLength = Number(request.headers.get("content-length") ?? 0);
+  if (contentLength > GPX_COMMIT_BODY_LIMIT) {
+    return NextResponse.json({ error: "body_too_large" }, { status: 413 });
+  }
   const json = await request.json().catch(() => null);
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) {

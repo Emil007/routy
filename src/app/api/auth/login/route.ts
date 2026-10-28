@@ -8,18 +8,28 @@ import { verifyCaptcha } from "@/lib/captcha";
 
 const bodySchema = z.object({
   username: z.string().trim().min(1),
-  password: z.string().min(1),
+  password: z.string().min(1).max(200),
   deviceName: z.string().trim().max(120).optional(),
   totpCode: z.string().trim().optional(),
   captchaToken: z.string().trim().optional(),
 });
+
+// M2-4/F06: bound the request body BEFORE scryptSync runs — a 1 MB password must
+// never reach the (blocking, ~30 ms) hash. arbitrate with an explicit size cap.
+const LOGIN_BODY_LIMIT = 8 * 1024;
 
 /**
  * Token-based login for the native Android app (Bearer auth). Sessions are tagged
  * `client: "app"` so the admin WebView can hide NavBar chrome; native tabs do not load these pages.
  */
 export async function POST(request: Request) {
+  // Body-size guard before any parse/hash (F06).
+  const contentLength = Number(request.headers.get("content-length") ?? 0);
+  if (contentLength > LOGIN_BODY_LIMIT) {
+    return NextResponse.json({ error: "body_too_large" }, { status: 413 });
+  }
   const json = await request.json().catch(() => null);
+  if (json === null) return NextResponse.json({ error: "invalid_body" }, { status: 400 });
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) return NextResponse.json({ error: "invalid_body" }, { status: 400 });
 
@@ -28,6 +38,8 @@ export async function POST(request: Request) {
   const ip = await getClientIp();
   const ipLockoutKey = `login-ip:${ip}`;
 
+  // M2-4: lockout check MUST happen before any expensive work (already above),
+  // and getClientIp is safe now (TRUST_PROXY not propagated here — check below).
   const lockout = checkLockout(lockoutKey);
   const ipLockout = checkLockout(ipLockoutKey);
   if (lockout.locked || ipLockout.locked) {
