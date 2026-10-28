@@ -104,6 +104,15 @@ function migrateFreeRoamCompleted(db: Database.Database): void {
   `);
 }
 
+function migrateShareExpiry(db: Database.Database): void {
+  addColumnIfMissing(
+    db,
+    "favorite_route",
+    "share_expires_at",
+    "ALTER TABLE favorite_route ADD COLUMN share_expires_at TEXT",
+  );
+}
+
 export const MIGRATIONS: Migration[] = [
   { id: 1, name: "legacy_schema_hardening", up: noop },
   { id: 2, name: "per_user_home", up: noop },
@@ -116,6 +125,7 @@ export const MIGRATIONS: Migration[] = [
   { id: 9, name: "per_user_timezone", up: migratePerUserTimezone },
   { id: 10, name: "achievements_table", up: migrateAchievementsTable },
   { id: 11, name: "free_roam_completed_antireplay", up: migrateFreeRoamCompleted },
+  { id: 12, name: "share_link_expiry", up: migrateShareExpiry },
 ];
 
 export function runAllMigrations(db: Database.Database): void {

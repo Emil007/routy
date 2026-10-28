@@ -8,6 +8,10 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
+  const request = _request;
+  const json = await request.json().catch(() => null);
+  const replace = (json && typeof json === "object" && (json as { replace?: boolean }).replace === true) ?? false;
+
   const { id } = await params;
   const favoriteId = Number(id);
   if (!Number.isInteger(favoriteId)) return NextResponse.json({ error: "invalid_id" }, { status: 400 });
@@ -25,12 +29,17 @@ export async function POST(_request: Request, { params }: { params: Promise<{ id
   });
   if (stale) return NextResponse.json({ error: "favorite_stale" }, { status: 409 });
 
-  setActiveRoute(user.id, {
-    nodeChain: favorite.nodeChain,
-    segmentIds: favorite.segmentIds,
-    lengthM: favorite.lengthM,
-    durationMin: favorite.durationMin,
-  });
+  const claimed = setActiveRoute(
+    user.id,
+    {
+      nodeChain: favorite.nodeChain,
+      segmentIds: favorite.segmentIds,
+      lengthM: favorite.lengthM,
+      durationMin: favorite.durationMin,
+    },
+    { replace },
+  );
+  if (!claimed) return NextResponse.json({ error: "active_route_exists" }, { status: 409 });
 
   return NextResponse.json({ ok: true });
 }

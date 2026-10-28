@@ -131,14 +131,8 @@ export async function POST(request: Request) {
     segmentsById,
   );
 
-  const pointPreview = computeRoutePointPreview(
-    best.route.segmentIds,
-    best.route.lengthM,
-    usageMap,
-    goldenMap,
-    canonicalOf,
-    homeAccess,
-  );
+  // Q8: house access counts fully — no ignore set in the point preview.
+  const pointPreview = computeRoutePointPreview(best.route.segmentIds, best.route.lengthM, usageMap, goldenMap, canonicalOf);
   const goldenHitIds = goldenHitCanonicalIds(best.route.segmentIds, goldenMap, canonicalOf);
 
   return NextResponse.json({

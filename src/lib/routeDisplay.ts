@@ -3,6 +3,7 @@ import type { NodeRow } from "./nodes";
 import { getDisplayName, getNamePart, getSpeakName } from "./nameParts";
 import { guideLoopBack, guideNodeChain } from "./guideRoute";
 import type { ActiveRouteRow } from "./activeRoute";
+import type { LatLng } from "./geo";
 
 export interface RouteStation {
   nodeId: number;
@@ -43,7 +44,9 @@ export interface RouteDisplay {
    * a plain-text array (no baked-in "via" phrasing) so the client can localize it. */
   shortStationGroups: ShortStationGroup[];
   elevation: RouteElevation | null;
-  geometry: [number, number][];
+  /** M1-16: emitted as { lat, lng }[] — the same shape as SegmentRow.geometry, so
+   *  clients share one geometry codec between route display and segment rows. */
+  geometry: LatLng[];
 }
 
 /** Other canonical segments connecting the exact same two nodes (either direction), computed
@@ -182,7 +185,7 @@ export function buildRouteDisplay(
   let hasElevation = false;
   let gainM = 0;
   let lossM = 0;
-  const geometry: [number, number][] = [];
+  const geometry: LatLng[] = [];
 
   segmentIds.forEach((segId, idx) => {
     const seg = segmentsById.get(segId);
@@ -193,7 +196,7 @@ export function buildRouteDisplay(
       lossM += seg.elevation.lossM;
     }
     const pts = idx === 0 ? seg.geometry : seg.geometry.slice(1);
-    for (const p of pts) geometry.push([p.lat, p.lng]);
+    for (const p of pts) geometry.push({ lat: p.lat, lng: p.lng, ele: p.ele });
   });
 
   return {

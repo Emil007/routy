@@ -709,14 +709,9 @@ export function scoreRoutes(
       }
       return seen.size;
     })();
-    const preview = computeRoutePointPreview(
-      route.segmentIds,
-      route.lengthM,
-      usageMap,
-      goldenMap,
-      canonicalOf,
-      ignoreSegmentIds,
-    );
+    // Q8: home connectors count FULLY into the point preview — ignoreSegmentIds is
+    // only used for search-shape scoring above, never for the point total.
+    const preview = computeRoutePointPreview(route.segmentIds, route.lengthM, usageMap, goldenMap, canonicalOf);
     // Distinct physical home connectors on the route (L6): prefer routes that use ≤1,
     // i.e. leave and return on the same connector rather than out one / back another.
     const homeCanons = new Set<number>();

@@ -12,6 +12,7 @@ import { detectProposalsFromTrack } from "@/lib/discovery";
 import { db } from "@/lib/db";
 import { checkApiRateLimit, rateLimitResponse } from "@/lib/apiRateLimit";
 import { getClientIp } from "@/lib/loginRateLimit";
+import { effectiveWalkSpeedKmh } from "@/lib/settings";
 
 const pointSchema = z.object({ lat: z.number(), lng: z.number(), ele: z.number().optional() });
 
@@ -71,6 +72,7 @@ export async function POST(request: Request) {
   }
 
   const settings = getSettings();
+  const walkSpeedKmh = effectiveWalkSpeedKmh(user.walkSpeedKmh, settings);
   const prepared: PreparedTrack[] = [];
 
   for (const track of parsed.data.tracks) {
@@ -133,11 +135,10 @@ export async function POST(request: Request) {
           startNodeId,
           endNodeId,
           points,
-          lengthM: track.lengthM,
-          durationMin: track.durationMin,
           elevation,
           source: track.source,
           submittedBy: user.id,
+          walkSpeedKmh,
         });
         const created = getSegment(forwardId);
         logActivity(user.id, track.source === "drawn" ? "create" : "gpx_commit", "segment", forwardId, {
@@ -155,6 +156,9 @@ export async function POST(request: Request) {
     const message = err instanceof Error ? err.message : "commit_failed";
     if (message === "unknown_start_node") return NextResponse.json({ error: "unknown_start_node" }, { status: 400 });
     if (message === "unknown_end_node") return NextResponse.json({ error: "unknown_end_node" }, { status: 400 });
+    if (message === "start_node_distance_exceeds_band" || message === "end_node_distance_exceeds_band") {
+      return NextResponse.json({ error: message }, { status: 422 });
+    }
     throw err;
   }
 }

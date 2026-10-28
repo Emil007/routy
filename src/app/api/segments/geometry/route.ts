@@ -7,7 +7,14 @@ import { canEdit } from "@/lib/ownership";
 import { logActivity } from "@/lib/activityLog";
 
 const pointSchema = z.object({ lat: z.number(), lng: z.number(), ele: z.number().optional() });
-const bodySchema = z.object({ segmentId: z.number().int().positive(), points: z.array(pointSchema).min(2) });
+// M1-13/F05: unbounded geometry holds the SQLite write lock and is served to every
+// account — cap at 20k points (413) before touching anything.
+const MAX_GEOMETRY_POINTS = 20_000;
+const MAX_GEOMETRY_POINTS_MSG = `too_many_points (max ${MAX_GEOMETRY_POINTS})`;
+const bodySchema = z.object({
+  segmentId: z.number().int().positive(),
+  points: z.array(pointSchema).min(2).max(MAX_GEOMETRY_POINTS, MAX_GEOMETRY_POINTS_MSG),
+});
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();
@@ -16,6 +23,9 @@ export async function POST(request: Request) {
   const json = await request.json().catch(() => null);
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) return NextResponse.json({ error: "invalid_body" }, { status: 400 });
+  if (parsed.data.points.length > MAX_GEOMETRY_POINTS) {
+    return NextResponse.json({ error: "too_many_points" }, { status: 413 });
+  }
 
   const segment = getSegment(parsed.data.segmentId);
   if (!segment || segment.deletedAt) return NextResponse.json({ error: "not_found" }, { status: 404 });

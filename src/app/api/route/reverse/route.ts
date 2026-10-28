@@ -46,14 +46,8 @@ export async function POST(request: Request) {
   const canonicalOf = new Map(listSegments().map((s) => [s.id, canonicalSegmentId(s)]));
   const usageMap = getUsageMap(user.id);
   const homeAccess = getHomeAccessSegmentIds(user.id);
-  const pointPreview = computeRoutePointPreview(
-    reversed.segmentIds,
-    reversed.lengthM,
-    usageMap,
-    goldenMap,
-    canonicalOf,
-    homeAccess,
-  );
+  // Q8: house access counts fully — no ignore set in the point preview.
+  const pointPreview = computeRoutePointPreview(reversed.segmentIds, reversed.lengthM, usageMap, goldenMap, canonicalOf);
   const goldenHitIds = goldenHitCanonicalIds(reversed.segmentIds, goldenMap, canonicalOf);
 
   return NextResponse.json({

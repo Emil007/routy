@@ -5,7 +5,10 @@ import { deleteRouteSession, assertRouteSessionOwner } from "@/lib/routeSessions
 import { setActiveRoute } from "@/lib/activeRoute";
 import { GUIDE_POINTS_MULTIPLIER } from "@/lib/points";
 
-const bodySchema = z.object({ token: z.string().min(1) });
+const bodySchema = z.object({
+  token: z.string().min(1),
+  replace: z.boolean().optional().default(false),
+});
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();
@@ -24,14 +27,21 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "not_guide_session" }, { status: 400 });
   }
 
-  setActiveRoute(user.id, {
-    nodeChain: session.current.nodeChain,
-    segmentIds: session.current.segmentIds,
-    lengthM: session.current.lengthM,
-    durationMin: session.current.durationMin,
-    walkMode: "guide",
-    guideNodeIds: session.guideNodeIds ?? session.mustVisitNodeIds,
-  });
+  const claimed = setActiveRoute(
+    user.id,
+    {
+      nodeChain: session.current.nodeChain,
+      segmentIds: session.current.segmentIds,
+      lengthM: session.current.lengthM,
+      durationMin: session.current.durationMin,
+      walkMode: "guide",
+      guideNodeIds: session.guideNodeIds ?? session.mustVisitNodeIds,
+    },
+    { replace: parsed.data.replace },
+  );
+  if (!claimed) {
+    return NextResponse.json({ error: "active_route_exists" }, { status: 409 });
+  }
   deleteRouteSession(parsed.data.token);
 
   return NextResponse.json({ success: true, guideMode: true, pointsMultiplier: GUIDE_POINTS_MULTIPLIER });

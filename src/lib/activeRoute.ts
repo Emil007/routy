@@ -55,18 +55,26 @@ export function setActiveRoute(
     walkMode?: WalkMode;
     guideNodeIds?: number[] | null;
   },
-): void {
+  opts: { replace?: boolean; nickname?: string | null } = {},
+): boolean {
   const walkMode = route.walkMode ?? "route";
   const guideNodeIds = route.guideNodeIds ?? null;
+  if (!opts.replace) {
+    // F05/M1-3: a second accept must NOT silently replace an existing active walk.
+    // The caller responds 409 `active_route_exists`; the UI offers replace.
+    const existing = db.prepare("SELECT 1 FROM active_route WHERE user_id = ?").get(userId);
+    if (existing) return false;
+  }
+  const nickname = opts.replace ? (opts.nickname !== undefined ? opts.nickname : null) : null;
   db.prepare(
     `INSERT INTO active_route (user_id, node_chain, segment_ids, length_m, duration_min, nickname, walk_mode, guide_node_ids)
-     VALUES (?, ?, ?, ?, ?, NULL, ?, ?)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
      ON CONFLICT(user_id) DO UPDATE SET
        node_chain = excluded.node_chain,
        segment_ids = excluded.segment_ids,
        length_m = excluded.length_m,
        duration_min = excluded.duration_min,
-       nickname = NULL,
+       nickname = excluded.nickname,
        walk_mode = excluded.walk_mode,
        guide_node_ids = excluded.guide_node_ids,
        accepted_at = datetime('now')`,
@@ -76,9 +84,11 @@ export function setActiveRoute(
     JSON.stringify(route.segmentIds),
     route.lengthM,
     route.durationMin,
+    nickname,
     walkMode,
     guideNodeIds ? JSON.stringify(guideNodeIds) : null,
   );
+  return true;
 }
 
 /** Names the currently active route (e.g. "Sonntagsrunde mit Oma") — purely a label,

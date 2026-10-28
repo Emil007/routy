@@ -27,6 +27,7 @@ import { getHomeAccessSegmentIds } from "@/lib/homeAccess";
 import { lengthBandForUser } from "@/lib/lengthTaste";
 import { routeQualityFromScored } from "@/lib/routeQuality";
 import { closedNodeIds } from "@/lib/nodeOpeningHours";
+import { getUserTimezone } from "@/lib/timezoneServer";
 
 const bodySchema = z.object({
   startNodeId: z.number().int().positive().optional(),
@@ -300,19 +301,16 @@ export async function POST(request: Request) {
     segmentsById,
   );
 
-  const pointPreview = computeRoutePointPreview(
-    best.route.segmentIds,
-    best.route.lengthM,
-    usageMap,
-    goldenMap,
-    canonicalOf,
-    homeAccess,
-  );
+  // Q8: house access counts fully — no ignore set in the point preview.
+  const pointPreview = computeRoutePointPreview(best.route.segmentIds, best.route.lengthM, usageMap, goldenMap, canonicalOf);
   const goldenHitIds = goldenHitCanonicalIds(best.route.segmentIds, goldenMap, canonicalOf);
   const routeQuality = routeQualityFromScored(best);
 
   const allNodes = listNodes();
-  const closedSet = new Set(closedNodeIds(allNodes));
+  // M1-11: "closed" is judged in the USER's timezone, not the host's — a node that
+  // closes at 22:00 local must not appear closed at 23:00 Vienna just because the
+  // server runs in UTC.
+  const closedSet = new Set(closedNodeIds(allNodes, new Date(), getUserTimezone(user.id)));
   const touchedNodes = new Set([...best.route.nodeChain, ...mustVisitOrder]);
   for (const segId of requiredSegmentIds) {
     const seg = segmentsById.get(segId);

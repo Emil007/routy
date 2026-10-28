@@ -203,15 +203,49 @@ export interface NewSegmentInput {
   startNodeId: number;
   endNodeId: number;
   points: LatLng[];
-  lengthM: number;
-  durationMin: number;
+  /** Client-supplied; IGNORED for the stored length since deep-review #1 — the
+   *  geometry is the source of truth. Kept for call-sites that still pass it. */
+  lengthM?: number;
+  /** Client-supplied; IGNORED — estimated from the computed length and walk speed. */
+  durationMin?: number;
   elevation: ElevationStats | null;
+  /** Walk speed used to estimate duration. When omitted, the user's configured
+   *  / default speed is used via estimateMinutes's default. */
+  walkSpeedKmh?: number;
   source: "gpx" | "drawn";
   submittedBy: number;
 }
 
+/** F01/M1-1: a committed segment's endpoints must be near the chosen nodes —
+ *  otherwise `lengthM` from a far-away geometry silently rewrites the network. */
+export const SEGMENT_ENDPOINT_BAND_M = 50;
+
+/**
+ * Server-side length for a segment geometry — always recomputed from the points
+ * (deep-review #1): a client-supplied lengthM is never trusted for what is
+ * stored in the shared network or used to credit distance.
+ */
+export function segmentLengthFromPoints(points: LatLng[]): number {
+  return Math.round(pathLengthMeters(points));
+}
+
 /** Inserts a segment and its automatic reverse-direction counterpart in one transaction. */
 export function createSegmentWithReverse(input: NewSegmentInput): { forwardId: number; reverseId: number } {
+  const lengthM = segmentLengthFromPoints(input.points);
+  if (input.points.length >= 2) {
+    const startNode = getNode(input.startNodeId);
+    const endNode = getNode(input.endNodeId);
+    if (startNode && haversineMeters(input.points[0], { lat: startNode.lat, lng: startNode.lng }) > SEGMENT_ENDPOINT_BAND_M) {
+      throw new Error("start_node_distance_exceeds_band");
+    }
+    const last = input.points[input.points.length - 1]!;
+    if (endNode && haversineMeters(last, { lat: endNode.lat, lng: endNode.lng }) > SEGMENT_ENDPOINT_BAND_M) {
+      throw new Error("end_node_distance_exceeds_band");
+    }
+  }
+  const inputWalkSpeed = input.walkSpeedKmh ?? 5;
+  const durationMin = estimateMinutes(lengthM, inputWalkSpeed);
+  const elevation = input.elevation;
   const tx = db.transaction(() => {
     const forward = db
       .prepare(
@@ -223,24 +257,24 @@ export function createSegmentWithReverse(input: NewSegmentInput): { forwardId: n
         input.startNodeId,
         input.endNodeId,
         JSON.stringify(input.points),
-        input.lengthM,
-        input.durationMin,
-        input.elevation?.gainM ?? null,
-        input.elevation?.lossM ?? null,
-        input.elevation?.minM ?? null,
-        input.elevation?.maxM ?? null,
+        lengthM,
+        durationMin,
+        elevation?.gainM ?? null,
+        elevation?.lossM ?? null,
+        elevation?.minM ?? null,
+        elevation?.maxM ?? null,
         input.source,
         input.submittedBy,
       );
     const forwardId = Number(forward.lastInsertRowid);
 
     const reversePts = reversePoints(input.points);
-    const reverseElevation: ElevationStats | null = input.elevation
+    const reverseElevation: ElevationStats | null = elevation
       ? {
-          gainM: input.elevation.lossM,
-          lossM: input.elevation.gainM,
-          minM: input.elevation.minM,
-          maxM: input.elevation.maxM,
+          gainM: elevation.lossM,
+          lossM: elevation.gainM,
+          minM: elevation.minM,
+          maxM: elevation.maxM,
         }
       : null;
 
@@ -254,8 +288,8 @@ export function createSegmentWithReverse(input: NewSegmentInput): { forwardId: n
         input.endNodeId,
         input.startNodeId,
         JSON.stringify(reversePts),
-        input.lengthM,
-        input.durationMin,
+        lengthM,
+        durationMin,
         reverseElevation?.gainM ?? null,
         reverseElevation?.lossM ?? null,
         reverseElevation?.minM ?? null,
@@ -296,6 +330,28 @@ export function getDailyUsageMap(userId: number): Map<number, number> {
     for (const id of ids) map.set(id, (map.get(id) ?? 0) + 1);
   }
   return map;
+}
+
+/**
+ * Server-side real length (metres) of a route given its directed segment ids.
+ * Returns null when any id is unknown or soft-deleted (F01/F02): the caller
+ * must NOT fall back to a client-supplied length for point crediting. Each
+ * physical (canonical) path counts once; both directed rows of a pair are
+ * accepted and resolve to the same canonical length.
+ */
+export function lengthFromSegmentIds(segmentIds: number[]): number | null {
+  if (segmentIds.length === 0) return 0;
+  const seenCanonical = new Set<number>();
+  let total = 0;
+  for (const id of segmentIds) {
+    const row = db.prepare("SELECT * FROM segments WHERE id = ?").get(id) as SegmentDbRow | undefined;
+    if (!row || row.deleted_at !== null) return null;
+    const canonical = row.reverse_of !== null ? Math.min(row.id, row.reverse_of) : row.id;
+    if (seenCanonical.has(canonical)) continue;
+    seenCanonical.add(canonical);
+    total += row.length_m;
+  }
+  return total;
 }
 
 export function recordWalk(
@@ -342,6 +398,26 @@ export function recordWalkWithPoints(
       if (deleted.changes === 0) return null;
     }
 
+    // M1-7 anti-replay (decision K refined): claim the session FIRST by inserting
+    // the tombstone with walk_id NULL. If a concurrent request already claimed
+    // this (user_id, started_at), the PK rejects our insert (changes === 0) and
+    // we abort the transaction — the caller returns the already-credited walk
+    // instead of booking a second one. When we win, the walk insert follows and
+    // we backfill walk_id on the tombstone.
+    const freeRoamStartedAt = options.freeRoamStartedAt;
+    if (freeRoamStartedAt != null) {
+      const claimed = db
+        .prepare("INSERT INTO free_roam_completed (user_id, started_at, walk_id) VALUES (?, ?, NULL)")
+        .run(userId, freeRoamStartedAt);
+      if (claimed.changes === 0) {
+        const existing = db
+          .prepare("SELECT walk_id FROM free_roam_completed WHERE user_id = ? AND started_at = ?")
+          .get(userId, freeRoamStartedAt) as { walk_id: number | null } | undefined;
+        void existing;
+        return -1; // sentinel: session already spent
+      }
+    }
+
     const info = points
       ? db
           .prepare(
@@ -375,13 +451,14 @@ export function recordWalkWithPoints(
 
     const walkId = Number(info.lastInsertRowid);
 
-    // Anti-replay tombstone for stateless free-roam sessions (decision K): written
-    // in the SAME transaction as the walk so a lost response / client retry can
-    // never double-credit — the tombstone and the walk row commit atomically.
-    if (options.freeRoamStartedAt != null) {
-      db.prepare(
-        "INSERT OR IGNORE INTO free_roam_completed (user_id, started_at, walk_id) VALUES (?, ?, ?)",
-      ).run(userId, options.freeRoamStartedAt, walkId);
+    // Backfill walk_id on the tombstone we claimed above (decision K: the
+    // already-credited walk id rides along with the marker).
+    if (freeRoamStartedAt != null) {
+      db.prepare("UPDATE free_roam_completed SET walk_id = ? WHERE user_id = ? AND started_at = ?").run(
+        walkId,
+        userId,
+        freeRoamStartedAt,
+      );
     }
 
     const bump = db.prepare(
@@ -537,16 +614,32 @@ export function updateSegmentGeometry(
 }
 
 /** Updates segment duration from GPS when the segment has no prior GPS-derived timing. */
-export function applyGpsHopDurationIfMissing(segmentId: number, durationMin: number): void {
+export function applyGpsHopDurationIfMissing(
+  segmentId: number,
+  durationMin: number,
+  opts: { walkUserId?: number | null; walkerIsAdmin?: boolean } = {},
+): void {
   if (durationMin <= 0) return;
   const canonical = resolveCanonical(segmentId);
   if (!canonical || canonical.reverseOf === null) return;
+  // F04: only the segment owner (submitted_by) or an admin may write timing that
+  // other profiles' routes depend on; a stranger's fast/slow pass must not
+  // re-time the shared network.
+  if (opts.walkUserId != null && canonical.submittedBy != null && !opts.walkerIsAdmin) {
+    if (canonical.submittedBy !== opts.walkUserId) return;
+  }
   const row = db.prepare("SELECT duration_from_gps FROM segments WHERE id = ?").get(canonical.id) as
     | { duration_from_gps: number }
     | undefined;
   if (row?.duration_from_gps) return;
   const reverse = getSegment(canonical.reverseOf);
   if (!reverse) return;
+  // F04: plausibility band — clip to walking speeds so a vehicle/fast hop or a
+  // standstill doesn't retime the edge. No faster than 12 km/h, no slower than
+  // 0.5 km/h over the (canonical) length.
+  const lengthM = canonical.lengthM;
+  const speedKmh = lengthM > 0 && durationMin > 0 ? (lengthM / 1000) / (durationMin / 60) : 0;
+  if (speedKmh < 0.5 || speedKmh > 12) return;
   const rounded = Math.round(durationMin);
   db.prepare("UPDATE segments SET duration_min = ?, duration_from_gps = 1 WHERE id = ?").run(rounded, canonical.id);
   db.prepare("UPDATE segments SET duration_min = ?, duration_from_gps = 1 WHERE id = ?").run(rounded, reverse.id);
@@ -660,21 +753,19 @@ export function splitSegment(
       startNodeId: canonical.startNodeId,
       endNodeId: midNode.id,
       points: geomA,
-      lengthM: Math.round(lengthA),
-      durationMin: estimateMinutes(lengthA, walkSpeedKmh),
       elevation: elevationStats(geomA),
       source: canonical.source,
       submittedBy,
+      walkSpeedKmh,
     });
     createSegmentWithReverse({
       startNodeId: midNode.id,
       endNodeId: canonical.endNodeId,
       points: geomB,
-      lengthM: Math.round(lengthB),
-      durationMin: estimateMinutes(lengthB, walkSpeedKmh),
       elevation: elevationStats(geomB),
       source: canonical.source,
       submittedBy,
+      walkSpeedKmh,
     });
     deleteSegment(canonical.id);
   });

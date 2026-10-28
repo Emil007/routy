@@ -3,10 +3,14 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { createFavorite } from "@/lib/favorites";
 
+// M1-13/F05/F02: bound the favorite's stored arrays; the length stored on the
+// server comes from the segment table (createFavorite ignores client lengthM for
+// storage but the API still validates a sane shape).
+const MAX_FAVORITE_IDS = 500;
 const bodySchema = z.object({
   name: z.string().trim().min(1).max(255),
-  nodeChain: z.array(z.number().int()).min(2),
-  segmentIds: z.array(z.number().int()).min(1),
+  nodeChain: z.array(z.number().int()).min(2).max(MAX_FAVORITE_IDS),
+  segmentIds: z.array(z.number().int()).min(1).max(MAX_FAVORITE_IDS),
   lengthM: z.number().int().nonnegative(),
   durationMin: z.number().int().nonnegative(),
 });

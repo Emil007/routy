@@ -300,7 +300,9 @@ export function RouteGenerator({
     if (!result) return [];
     // §2.2/§6: Die Routenlinie nutzt die Akzent-Farbe des Themes (mapAccentHex) statt
     // hart dunkelgrün — Dark-Theme bekommt die helle Variante (#6fc08c).
-    const lines: MapLine[] = [{ id: "route", points: result.route.geometry, color: accentHex }];
+    // M1-16: RouteDisplay.geometry arrives as { lat, lng }[] — MapLine wants [lat, lng].
+    const points = result.route.geometry.map((p) => [p.lat, p.lng] as [number, number]);
+    const lines: MapLine[] = [{ id: "route", points, color: accentHex }];
     const hitIds = new Set(
       result.goldenHitIds ?? result.route.segmentIds.filter((id) => goldenSet.has(id)),
     );

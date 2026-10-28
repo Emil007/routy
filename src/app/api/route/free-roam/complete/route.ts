@@ -24,9 +24,16 @@ import { logActivity } from "@/lib/activityLog";
 import { checkApiRateLimit } from "@/lib/apiRateLimit";
 import { detectProposalsFromTrack } from "@/lib/discovery";
 import { persistHopTimingsFromWalk } from "@/lib/trackGeometry";
-import { pathLengthMeters } from "@/lib/geo";
+import { pathLengthMeters, haversineMeters } from "@/lib/geo";
 import { persistAchievements } from "@/lib/achievements";
 import { type Locale } from "@/lib/i18n";
+
+// Q10 (decided 2026-10-28): free-roam bounds.
+export const FREE_ROAM_MAX_TOTAL_M = 80_000;
+export const FREE_ROAM_MAX_DURATION_MIN = 18 * 60;
+export const FREE_ROAM_MAX_HOP_M = 500;
+export const FREE_ROAM_MAX_HOP_SPEED_KMH = 20;
+export const FREE_ROAM_MIN_TRACK_M = 50;
 
 const trackPointSchema = z.object({
   lat: z.number(),
@@ -44,7 +51,9 @@ const bodySchema = z.object({
   // Kept for backwards compatibility with older clients, but IGNORED: length is
   // recomputed server-side from trackPoints (deep-review #1, spoof guard).
   lengthM: z.number().int().nonnegative().optional(),
-  durationMin: z.number().int().nonnegative().max(24 * 60 * 7),
+  // Kept for backwards compatibility with older clients, but IGNORED (M1-6/Q10):
+  // duration is derived from the session startedAt, not the client-supplied value.
+  durationMin: z.number().int().nonnegative().max(24 * 60 * 7).optional(),
   nickname: z.string().trim().max(120).optional().nullable(),
 });
 
@@ -63,7 +72,7 @@ export async function POST(request: Request) {
   const json = await request.json().catch(() => null);
   const parsed = bodySchema.safeParse(json);
   if (!parsed.success) return NextResponse.json({ error: "invalid_body", issues: parsed.error.issues }, { status: 400 });
-  const { token, trackPoints, durationMin, nickname } = parsed.data;
+  const { token, trackPoints, nickname } = parsed.data;
 
   const access = assertFreeRoamOwner(token, user.id);
   if (access === "missing") return NextResponse.json({ error: "session_expired" }, { status: 410 });
@@ -92,11 +101,41 @@ export async function POST(request: Request) {
   // lengthM = arbitrary points even at the 0.5 multiplier). Recompute the walked
   // distance from the submitted trackPoints, so it can't be inflated.
   const lengthM = Math.round(pathLengthMeters(trackPoints));
+
+  // Q10 validation (M1-6): coordinate sanity, hop speed caps, total distance and
+  // duration caps before anything is booked. Only after they pass we look at
+  // minimum distance.
+  for (const p of trackPoints) {
+    if (p.lat < -90 || p.lat > 90 || p.lng < -180 || p.lng > 180) {
+      return NextResponse.json({ error: "invalid_coordinates" }, { status: 400 });
+    }
+  }
+  for (let i = 1; i < trackPoints.length; i++) {
+    const a = trackPoints[i - 1]!;
+    const b = trackPoints[i]!;
+    const hopM = haversineMeters(a, b);
+    const dtHours = (() => {
+      const ta = a.time ? Date.parse(a.time) : NaN;
+      const tb = b.time ? Date.parse(b.time) : NaN;
+      if (Number.isNaN(ta) || Number.isNaN(tb)) return 1 / 60; // no timestamps → worst case
+      return Math.max(0, (tb - ta) / 3_600_000) + 1 / 60;
+    })();
+    const hopCapM = Math.max(FREE_ROAM_MAX_HOP_M, FREE_ROAM_MAX_HOP_SPEED_KMH * 1000 * dtHours);
+    if (hopM > hopCapM) {
+      return NextResponse.json({ error: "hop_too_far" }, { status: 422 });
+    }
+  }
+  if (lengthM > FREE_ROAM_MAX_TOTAL_M) {
+    return NextResponse.json({ error: "track_too_long" }, { status: 422 });
+  }
+  const elapsedMin = Math.max(1, Math.floor((Date.now() - access.startedAt) / 60000));
+  if (elapsedMin > FREE_ROAM_MAX_DURATION_MIN) {
+    return NextResponse.json({ error: "session_too_long" }, { status: 422 });
+  }
   // Guard against a degenerate track that matches nothing and yields a ~0 m
   // "walk": refuse instead of paying points for an empty track. (Free-roam is
   // walk-anywhere, so no minimum network coverage — only minimum distance.)
-  const MIN_FREE_ROAM_TRACK_M = 50;
-  if (lengthM < MIN_FREE_ROAM_TRACK_M) {
+  if (lengthM < FREE_ROAM_MIN_TRACK_M) {
     return NextResponse.json({ error: "track_too_short" }, { status: 422 });
   }
 
@@ -112,12 +151,15 @@ export async function POST(request: Request) {
   const goldenHits = countGoldenHits(segmentIds, goldenMap, canonicalOf);
   const celebrationTier = celebrationTierForWalk(goldenHits, streakForMult, pointsEarned);
 
+  // M1-6/Q10: real duration from the session start, not whatever the client sent.
+  const walkDurationMin = Math.max(1, Math.floor((Date.now() - access.startedAt) / 60000));
+
   const walkId = recordWalkWithPoints(
     user.id,
     nodeChain,
     segmentIds,
     lengthM,
-    durationMin,
+    walkDurationMin,
     nickname ?? null,
     {
       pointsEarned,
@@ -132,6 +174,17 @@ export async function POST(request: Request) {
     // Walk row + anti-replay tombstone commit in ONE transaction (decision K).
     { claimActiveRoute: false, freeRoamStartedAt: access.startedAt },
   );
+  // M1-7 refined: -1 means a concurrent request already claimed this session and
+  // committed a walk; return the existing credit instead of a 500.
+  if (walkId === -1) {
+    const existing = completedWalkIdFor(access);
+    return NextResponse.json({
+      success: true,
+      walkId: existing ?? 0,
+      freeRoam: true,
+      alreadyCredited: true,
+    });
+  }
   if (walkId == null) return NextResponse.json({ error: "insert_failed" }, { status: 500 });
 
   // Persist the full GPS track so the admin track-geometry page can review it.
@@ -144,7 +197,7 @@ export async function POST(request: Request) {
       `INSERT INTO walk_track (walk_id, points_json) VALUES (?, ?)
        ON CONFLICT(walk_id) DO UPDATE SET points_json = excluded.points_json`,
     ).run(walkId, pointsJson);
-    persistHopTimingsFromWalk(walkId);
+    persistHopTimingsFromWalk(walkId, { walkUserId: user.id, walkerIsAdmin: user.role === "admin" });
     // Feed the recorded ground into proposal detection (new junctions).
     detectProposalsFromTrack(trackPoints as { lat: number; lng: number }[], user.id);
   }
@@ -155,7 +208,7 @@ export async function POST(request: Request) {
     freeRoam: true,
     nickname,
     lengthM,
-    durationMin,
+    durationMin: walkDurationMin,
     pointsEarned,
   });
 

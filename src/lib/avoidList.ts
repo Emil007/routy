@@ -59,9 +59,19 @@ export function addAvoidSegment(
 ): boolean {
   const segment = getSegment(segmentId);
   if (!segment) return false;
+  // M1-12/F35: store expiry in SQLite's own format (UTC, space separator) so
+  // `expires_at > datetime('now')` comparisons are sane — an ISO `…T…Z` string
+  // compares wrong against `datetime('now')` (T > space), keeping avoids up to
+  // ~24 h past their deadline.
+  // M1-12/F35: store expiry in SQLite's own format (UTC, space separator) so
+  // `expires_at > datetime('now')` comparisons are sane — an ISO `…T…Z` string
+  // compares wrong against `datetime('now')` (T > space), keeping avoids up to
+  // ~24 h past their deadline. Evaluate the SQL so the stored value is the real
+  // datetime string, not an expression literal.
+  const days = options?.days ?? null;
   const expiresAt =
-    options?.days && options.days > 0
-      ? new Date(Date.now() + options.days * 86400000).toISOString()
+    days && days > 0
+      ? (db.prepare(`SELECT datetime('now', '+${Math.floor(days)} days') AS v`).get() as { v: string }).v
       : null;
   const reason = options?.reason?.trim() || null;
   const upsert = db.prepare(

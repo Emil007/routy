@@ -521,7 +521,10 @@ export function removeWalkRecording(walkId: number): { ok: true } | { error: str
 }
 
 /** When a walk uploads GPS with timestamps, persist per-hop durations on segments that lack them. */
-export function persistHopTimingsFromWalk(walkId: number): void {
+export function persistHopTimingsFromWalk(
+  walkId: number,
+  opts: { walkUserId?: number | null; walkerIsAdmin?: boolean } = {},
+): void {
   const walkRow = db
     .prepare("SELECT node_chain, segment_ids, track_json FROM walk_log WHERE id = ?")
     .get(walkId) as { node_chain: string; segment_ids: string; track_json: string | null } | undefined;
@@ -537,7 +540,7 @@ export function persistHopTimingsFromWalk(walkId: number): void {
   for (const [segId, points] of slices) {
     const duration = durationMinFromTrackPoints(points as TrackPoint[]);
     if (duration == null) continue;
-    applyGpsHopDurationIfMissing(segId, duration);
+    applyGpsHopDurationIfMissing(segId, duration, opts);
   }
 }
 

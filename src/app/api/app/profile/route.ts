@@ -2,14 +2,15 @@ import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/session";
 import { isLocale } from "@/lib/i18n";
 import { isTheme } from "@/lib/theme";
-import { getUser, updateUserLocale, updateUserTheme, updateUserWalkSpeed } from "@/lib/users";
+import { isTimezone } from "@/lib/timezone";
+import { getUser, updateUserLocale, updateUserTheme, updateUserWalkSpeed, updateUserTimezone } from "@/lib/users";
 
 /** PATCH profile fields the native app settings screen edits (locale, theme, walk speed). */
 export async function PATCH(request: Request) {
   const user = await getCurrentUser();
   if (!user) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  let body: { locale?: string; theme?: string; walkSpeedKmh?: number | null };
+  let body: { locale?: string; theme?: string; walkSpeedKmh?: number | null; timezone?: string };
   try {
     body = await request.json();
   } catch {
@@ -34,6 +35,15 @@ export async function PATCH(request: Request) {
     updateUserWalkSpeed(user.id, v);
   }
 
+  // M1-15/F44: timezone is on the user object (login/bootstrap already carry it,
+  // but the app-settings PATCH must accept and return it, or Android's decode of
+  // the response fails on an unknown field it can't map).
+  if (body.timezone !== undefined) {
+    const zone = body.timezone;
+    if (!isTimezone(zone)) return NextResponse.json({ error: "invalid_timezone" }, { status: 400 });
+    updateUserTimezone(user.id, zone);
+  }
+
   const updated = getUser(user.id);
   if (!updated) return NextResponse.json({ error: "not_found" }, { status: 404 });
 
@@ -47,6 +57,7 @@ export async function PATCH(request: Request) {
       role: updated.role,
       active: updated.active,
       theme: updated.theme,
+      timezone: updated.timezone,
       totpEnabled: updated.totpEnabled,
       homeNodeId: updated.homeNodeId,
       client: user.client ?? "web",

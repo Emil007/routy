@@ -177,17 +177,13 @@ export function computeRoutePointPreview(
   usageMap: Map<number, number>,
   goldenMap: Map<number, number>,
   canonicalOf: Map<number, number>,
-  ignoreSegmentIds: Set<number> = new Set(),
 ): PointPreviewBreakdown {
-  const scoredIds = segmentIds.filter((id) => !ignoreSegmentIds.has(id));
-  const scoredLengthM =
-    ignoreSegmentIds.size === 0
-      ? lengthM
-      : (() => {
-          // Approximate length for ignored connectors using share of segment count.
-          if (segmentIds.length === 0) return lengthM;
-          return Math.round((lengthM * scoredIds.length) / segmentIds.length);
-        })();
+  // Q8 (decided 2026-10-28): house-access connectors count FULLY into game points.
+  // The gelaufene Meter are scored without any deduction, so the preview always
+  // equals the booked amount. The route SEARCH still excludes them (that happens
+  // in routing via ignoreSegmentIds) — this function no longer takes a set.
+  const scoredIds = segmentIds;
+  const scoredLengthM = lengthM;
   const canonicalUsage = toCanonicalUsageMap(usageMap, canonicalOf);
   const base = Math.round(scoredLengthM / 100) + 50;
   let golden = 0;

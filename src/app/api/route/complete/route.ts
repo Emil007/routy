@@ -3,7 +3,6 @@ import { z } from "zod";
 import { getCurrentUser } from "@/lib/session";
 import { getActiveRoute } from "@/lib/activeRoute";
 import { db } from "@/lib/db";
-import { getHomeAccessSegmentIds } from "@/lib/homeAccess";
 import {
   computeWalkPointsEarned,
   streakMultiplier,
@@ -14,7 +13,7 @@ import {
   streakForPointsMultiplier,
   GUIDE_POINTS_MULTIPLIER,
 } from "@/lib/points";
-import { recordWalkWithPoints, getUsageMap, listSegments } from "@/lib/segments";
+import { recordWalkWithPoints, getUsageMap, listSegments, lengthFromSegmentIds } from "@/lib/segments";
 import { getStreakStats } from "@/lib/stats";
 import { logActivity } from "@/lib/activityLog";
 import { getGoldenMultiplierMap } from "@/lib/goldenSegments";
@@ -68,28 +67,42 @@ export async function POST(request: Request) {
   const usageMap = getUsageMap(user.id);
   const goldenMap = getGoldenMultiplierMap();
   const canonicalOf = new Map(listSegments().map((s) => [s.id, canonicalSegmentId(s)]));
-  // Preview == booking: ignore home-access connectors exactly like generate does,
-  // so the points shown at generate time match the points booked at complete time.
-  const homeAccess = getHomeAccessSegmentIds(user.id);
-  const breakdown = computeRoutePointPreview(active.segmentIds, active.lengthM, usageMap, goldenMap, canonicalOf, homeAccess);
   const guideMode = active.walkMode === "guide";
-  const pointsEarned = computeWalkPointsEarned(breakdown, multiplier, guideMode);
   const goldenHits = countGoldenHits(active.segmentIds, goldenMap, canonicalOf);
-  const celebrationTier = celebrationTierForWalk(goldenHits, streakForMult, pointsEarned);
+
+  // F02/M1-2: points must come from the REAL segment lengths, not a length any
+  // client supplied (directly or via active_route.length_m). Recompute from the
+  // segment table before crediting; if any id is stale, refuse instead of
+  // paying points on a broken route.
+  const realLength = lengthFromSegmentIds(active.segmentIds);
+  if (realLength === null) {
+    return NextResponse.json({ error: "route_stale" }, { status: 409 });
+  }
+  const breakdownReal = computeRoutePointPreview(active.segmentIds, realLength, usageMap, goldenMap, canonicalOf);
+  const pointsEarnedReal = computeWalkPointsEarned(breakdownReal, multiplier, guideMode);
+  const celebrationTier = celebrationTierForWalk(goldenHits, streakForMult, pointsEarnedReal);
+
+  // M1-4: duration is the actual walk duration. Use the body value when present
+  // and in-schema (0…7 days int); otherwise elapsed minutes since accepted_at,
+  // floored at 1. Never the planned route duration as fact.
+  const durationMin =
+    parsed.data?.durationMin != null
+      ? Math.round(parsed.data.durationMin)
+      : Math.max(1, Math.floor((Date.now() - Date.parse(active.acceptedAt)) / 60000));
 
   const walkId = recordWalkWithPoints(
     user.id,
     active.nodeChain,
     active.segmentIds,
-    active.lengthM,
-    active.durationMin,
+    realLength,
+    durationMin,
     active.nickname,
     {
-      pointsEarned,
-      pointsBase: breakdown.base,
-      pointsGolden: breakdown.golden,
-      pointsExploration: breakdown.exploration,
-      pointsDiversity: breakdown.diversity,
+      pointsEarned: pointsEarnedReal,
+      pointsBase: breakdownReal.base,
+      pointsGolden: breakdownReal.golden,
+      pointsExploration: breakdownReal.exploration,
+      pointsDiversity: breakdownReal.diversity,
       streakMultiplier: multiplier,
       celebrationTier,
       goldenHits,
@@ -101,38 +114,50 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "no_active_route" }, { status: 404 });
   }
 
-  if (trackPoints && trackPoints.length > 0) {
-    const pointsJson = JSON.stringify(trackPoints);
-    // Single source of truth: walk_track.points_json. walk_log.track_json stays
-    // as a legacy column (old rows, schema compatibility) but is no longer
-    // written — every reader prefers walk_track and falls back cleanly. This
-    // removes ~50% of the DB size from track duplication.
-    db.prepare(
-      `INSERT INTO walk_track (walk_id, points_json) VALUES (?, ?)
-       ON CONFLICT(walk_id) DO UPDATE SET points_json = excluded.points_json`,
-    ).run(walkId, pointsJson);
-    persistHopTimingsFromWalk(walkId);
+  // M1-4: once the walk_log row is committed, the walk is booked — everything
+  // after is best-effort bookkeeping and must never surface a 500 that makes
+  // clients retry and double-book.
+  try {
+    if (trackPoints && trackPoints.length > 0) {
+      const pointsJson = JSON.stringify(trackPoints);
+      // Single source of truth: walk_track.points_json. walk_log.track_json stays
+      // as a legacy column (old rows, schema compatibility) but is no longer
+      // written — every reader prefers walk_track and falls back cleanly.
+      db.prepare(
+        `INSERT INTO walk_track (walk_id, points_json) VALUES (?, ?)
+         ON CONFLICT(walk_id) DO UPDATE SET points_json = excluded.points_json`,
+      ).run(walkId, pointsJson);
+      // F04: only the owning walker or an admin may retime another profile's
+      // segment; the speed band is enforced inside applyGpsHopDurationIfMissing.
+      persistHopTimingsFromWalk(walkId, { walkUserId: user.id, walkerIsAdmin: user.role === "admin" });
+    }
+  } catch (err) {
+    console.error("track/hop persistence failed (walk already booked):", err);
   }
 
   logActivity(user.id, "walk_complete", "walk", walkId, {
     nickname: active.nickname,
-    lengthM: active.lengthM,
-    durationMin: active.durationMin,
-    pointsEarned,
+    lengthM: realLength,
+    durationMin,
+    pointsEarned: pointsEarnedReal,
   });
 
-  // Decision E: persist earned achievements so weekWarrior/collector can't regress.
-  persistAchievements(user.id, user.locale as Locale);
+  try {
+    // Decision E: persist earned achievements so weekWarrior/collector can't regress.
+    persistAchievements(user.id, user.locale as Locale);
+  } catch (err) {
+    console.error("persistAchievements failed (walk already credited):", err);
+  }
 
   const streak = getStreakStats(user.id);
 
   return NextResponse.json({
     success: true,
     walkId,
-    pointsEarned,
+    pointsEarned: pointsEarnedReal,
     streakMultiplier: multiplier,
     currentStreak: streak.currentStreak,
-    pointBreakdown: breakdown,
+    pointBreakdown: breakdownReal,
     goldenHits,
     celebrationTier,
     guideMode,

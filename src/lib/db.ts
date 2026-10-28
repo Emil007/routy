@@ -189,6 +189,7 @@ CREATE TABLE IF NOT EXISTS favorite_route (
   length_m INTEGER NOT NULL,
   duration_min INTEGER NOT NULL,
   share_token TEXT,
+  share_expires_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

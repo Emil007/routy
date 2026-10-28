@@ -4,7 +4,11 @@ import { getCurrentUser } from "@/lib/session";
 import { deleteRouteSession, assertRouteSessionOwner } from "@/lib/routeSessions";
 import { setActiveRoute } from "@/lib/activeRoute";
 
-const bodySchema = z.object({ token: z.string().min(1) });
+const bodySchema = z.object({
+  token: z.string().min(1),
+  /** Replaces an existing active route; guarded by a 409 unless the client confirms. */
+  replace: z.boolean().optional().default(false),
+});
 
 export async function POST(request: Request) {
   const user = await getCurrentUser();
@@ -22,14 +26,21 @@ export async function POST(request: Request) {
   // Accepting doesn't record the walk yet — it becomes this profile's active
   // route (persisted, visible on any device that profile signs in on) until
   // explicitly confirmed as walked or discarded.
-  setActiveRoute(user.id, {
-    nodeChain: session.current.nodeChain,
-    segmentIds: session.current.segmentIds,
-    lengthM: session.current.lengthM,
-    durationMin: session.current.durationMin,
-    walkMode: session.walkMode ?? "route",
-    guideNodeIds: session.guideNodeIds ?? null,
-  });
+  const claimed = setActiveRoute(
+    user.id,
+    {
+      nodeChain: session.current.nodeChain,
+      segmentIds: session.current.segmentIds,
+      lengthM: session.current.lengthM,
+      durationMin: session.current.durationMin,
+      walkMode: session.walkMode ?? "route",
+      guideNodeIds: session.guideNodeIds ?? null,
+    },
+    { replace: parsed.data.replace },
+  );
+  if (!claimed) {
+    return NextResponse.json({ error: "active_route_exists" }, { status: 409 });
+  }
   deleteRouteSession(parsed.data.token);
 
   return NextResponse.json({ success: true });
