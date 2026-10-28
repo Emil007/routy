@@ -81,9 +81,6 @@ export function MapShell({
   embedded: boolean;
   initialMode: "explore" | "plan" | "go" | "record";
 }) {
-  const [ready, setReady] = useState(false);
-  useEffect(() => setReady(true), []);
-
   return (
     <MapShellProvider initialMode={initialMode}>
       <ShellInner locale={locale} bootstrap={bootstrap} embedded={embedded} />

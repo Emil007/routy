@@ -87,7 +87,9 @@ export function FreeRoamCard({
   // läuft. Beim Wechsel in einen anderen Modus über den Dock bestätigt der Nutzer,
   // dann stoppt der registrierte Handler über stopRoaming (Watch aus + Reset).
   const stopRoamingRef = useRef(stopRoaming);
-  stopRoamingRef.current = stopRoaming;
+  useEffect(() => {
+    stopRoamingRef.current = stopRoaming;
+  }, [stopRoaming]);
   useEffect(() => {
     setLive("freeRoam", phase === "roaming");
   }, [phase, setLive]);

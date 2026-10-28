@@ -70,7 +70,9 @@ export function RecordSheet({
   // mehr (§J4 Web-Regel) — der Wechsel aus CONFIRM braucht keine Bestätigung. Der
   // registrierte Stopp läuft über stop(): Watch aus, Punkte bleiben im CONFIRM erhalten.
   const stopFnRef = useRef(stop);
-  stopFnRef.current = stop;
+  useEffect(() => {
+    stopFnRef.current = stop;
+  }, [stop]);
   useEffect(() => {
     setLive("record", phase === "recording" || phase === "paused");
   }, [phase, setLive]);

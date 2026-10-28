@@ -401,6 +401,18 @@ export function RouteGenerator({
     ? result.token || result.route.nodeChain.join("-")
     : `plan-${startNodeId}-${endNodeId}-${mustVisitNodeIds.join(",")}-${requiredSegmentIds.join(",")}`;
 
+  function handleMarkerClick(id: number | string) {
+    if (mode !== "suggesting" || result) return;
+    setSelectedSegmentId(null);
+    setSelectedNodeId(Number(id));
+  }
+
+  function handleLineClick(id: number | string) {
+    if (mode !== "suggesting" || result) return;
+    setSelectedNodeId(null);
+    setSelectedSegmentId(Number(id));
+  }
+
   // §4.5/M6-1: Layer nach oben melden — MapCanvas zeichnet die eine Karte, RouteGenerator
   // liefert nur das Overlay (Route/Plan-Marker). NUR wenn diese Section sichtbar ist
   // (plan/go); Cleanup räumt die Layer, damit hidden/reocrd/explore nicht das Overlay
@@ -976,18 +988,6 @@ export function RouteGenerator({
     if (res.ok) {
       setDeletedFavoriteIds((prev) => new Set(prev).add(id));
     }
-  }
-
-  function handleMarkerClick(id: number | string) {
-    if (mode !== "suggesting" || result) return;
-    setSelectedSegmentId(null);
-    setSelectedNodeId(Number(id));
-  }
-
-  function handleLineClick(id: number | string) {
-    if (mode !== "suggesting" || result) return;
-    setSelectedNodeId(null);
-    setSelectedSegmentId(Number(id));
   }
 
   const summaryParts: string[] = [];
