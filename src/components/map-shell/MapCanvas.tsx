@@ -6,6 +6,7 @@ import { MapViewLazy } from "@/components/MapViewLazy";
 import { NodePopup } from "@/components/NodePopup";
 import { SegmentPopup } from "@/components/SegmentPopup";
 import type { MapLine, MapMarker } from "@/components/MapView";
+import { mapAccentHex } from "@/lib/mapAccent";
 import { useMapPreferences } from "@/lib/useMapPreferences";
 import { useMapShell } from "./MapShellContext";
 import type { AtlasBootstrap } from "@/lib/atlasTypes";
@@ -20,6 +21,12 @@ import { isLocked } from "@/lib/segmentLock";
 export function MapCanvas({ locale, bootstrap }: { locale: Locale; bootstrap: AtlasBootstrap }) {
   const mapPrefs = useMapPreferences();
   const { mode, layers, setEditSegmentId, setTool } = useMapShell();
+  // §6: Akzent aus dem Theme (hell #2e6b49 / dunkel #6fc08c / kontrast/dog/cat) —
+  // eine Quelle für Netz und Route, Parität mit Android.
+  const accentHex = mapAccentHex(
+    typeof document !== "undefined" ? document.documentElement.dataset.theme : undefined,
+    typeof window !== "undefined" && window.matchMedia?.(`(prefers-color-scheme: dark)`).matches,
+  );
 
   const writerActive = (layers?.lines?.length ?? 0) > 0 || (layers?.markers?.length ?? 0) > 0;
   const explore = mode === "explore" && !writerActive;
@@ -52,9 +59,10 @@ export function MapCanvas({ locale, bootstrap }: { locale: Locale; bootstrap: At
           id: s.id,
           points: s.geometry.map((p): [number, number] => [p.lat, p.lng]),
           // Kräftige, immer erkennbare Wege-Farben (User-Feedback 0.57): kein
-          // blasses Hellgrau mehr hinter aktiven Schreiben — das Netz bleibt
-          // sichtbar, nur etwas dünner als im freien Erkunden.
-          color: disconnected ? "#c53030" : golden ? "#c99a2e" : writerActive ? "#5a7d6c" : undefined,
+          // blasses, erfundenes Grau (#5a7d6c war ein Paritätsbruch — kein Token).
+          // Schreiber-aktiv: Netz dünn im AKZENT (Android-Modell: beides Akzent,
+          // nur die Route kommt dicker). Erkunden: volle Dicke.
+          color: disconnected ? "#c53030" : golden ? "#c99a2e" : writerActive ? accentHex : undefined,
           weight: writerActive ? 2.5 : golden || disconnected ? 6 : 4,
           dashed: golden || isLocked(s) || disconnected,
           popup:
@@ -80,7 +88,7 @@ export function MapCanvas({ locale, bootstrap }: { locale: Locale; bootstrap: At
         };
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [bootstrap.segments, locale, nodesById, goldenSet, disconnectedSet, explore, writerActive],
+    [bootstrap.segments, locale, nodesById, goldenSet, disconnectedSet, explore, writerActive, accentHex],
   );
 
   const baseMarkers: MapMarker[] = useMemo(

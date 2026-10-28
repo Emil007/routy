@@ -309,12 +309,13 @@ export function RouteGenerator({
 
   const routeMapLines = useMemo(() => {
     if (!result) return [];
-    // §2.2/§6 + 0.57: Die Route muss im Plan/Go-Modus KLAR vom Hintergrund-Netz
-    // abheben. Das Netz nutzt jetzt die Akzentfarbe — die Route bekommt ein
-    // kräftiges, kontrastreiches Blau mit dicker Linie (in jedem Theme sichtbar).
+    // §2.2/§6 + 0.57: Route KLAR sichtbar (User-Feedback „seh nichts mehr") — dick
+    // und im AKZENT-Grün (hell #2e6b49 / dunkel #6fc08c) = Parität mit Android,
+    // wo die Routenlinie exakt denselben Akzent nutzt. Kein Blau (nicht in der
+    // Token-Tabelle §6 → wäre ein Paritätsbruch).
     // M1-16: RouteDisplay.geometry arrives as { lat, lng }[] — MapLine wants [lat, lng].
     const points = result.route.geometry.map((p) => [p.lat, p.lng] as [number, number]);
-    const lines: MapLine[] = [{ id: "route", points, color: "#2563eb", weight: 7 }];
+    const lines: MapLine[] = [{ id: "route", points, color: accentHex, weight: 7 }];
     const hitIds = new Set(
       result.goldenHitIds ?? result.route.segmentIds.filter((id) => goldenSet.has(id)),
     );
