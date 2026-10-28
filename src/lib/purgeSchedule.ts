@@ -3,7 +3,7 @@ import { log } from "./logger";
 import { sweepExpiredRouteSessions } from "./routeSessions";
 import { purgeExpiredConditions } from "./segmentConditions";
 import { purgeExpiredFreeRoamCompletions } from "./freeRoam";
-import { runPendingGeometryAnalysis, purgeTrashedWalkAnalyses } from "./trackGeometry";
+import { runPendingGeometryAnalysis, purgeTrashedWalkAnalyses, autoTrashStaleWalkAnalyses } from "./trackGeometry";
 
 const TRASH_RETENTION_DAYS = 30;
 const ACTIVITY_LOG_RETENTION_DAYS = 180;
@@ -67,6 +67,14 @@ function purgeFreeRoamCompletionsJob(): void {
   }
 }
 
+/** 0.57: ungenutzte Walk-Analysen nach 30d automatisch in den Papierkorb. */
+function autoTrashStaleAnalysesJob(): void {
+  const moved = autoTrashStaleWalkAnalyses();
+  if (moved > 0) {
+    log.info("auto-trashed stale walk analyses", { moved });
+  }
+}
+
 /** 0.57: trashed Walk-Aufnahmen nach 30d + 30d Papierkorb endgültig löschen. */
 function purgeTrashedWalkAnalysesJob(): void {
   const removed = purgeTrashedWalkAnalyses();
@@ -88,6 +96,7 @@ function runDailyPurge(): void {
   purgeOldActivityLog();
   purgeOldCrashReports();
   purgeFreeRoamCompletionsJob();
+  autoTrashStaleAnalysesJob();
   purgeTrashedWalkAnalysesJob();
   purgeExpiredSessions();
   purgeExpiredRouteSessions();

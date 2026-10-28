@@ -506,6 +506,24 @@ export function trashWalkAnalysis(walkId: number): { ok: true } | { error: strin
   return { ok: true };
 }
 
+/**
+ * 0.57: Automatik — abgeschlossene Analysen, die 30 Tage ungenutzt sind (nie
+ * reviewt), wandern in den Papierkorb. Dort bleiben sie weitere 30 Tage und
+ * werden dann von purgeTrashedWalkAnalyses endgültig gelöscht (30d + 30d).
+ * Nur "done" wird getrasht: 'pending' bleibt dem Startup-Retry überlassen.
+ */
+export function autoTrashStaleWalkAnalyses(days = 30): number {
+  const res = db
+    .prepare(
+      `UPDATE walk_geometry_analysis
+       SET status = 'trashed', trashed_at = datetime('now')
+       WHERE status = 'done'
+         AND COALESCE(analyzed_at, created_at) < datetime('now', ?)`,
+    )
+    .run(`-${days} days`);
+  return res.changes;
+}
+
 /** Manuelles Löschen: Aufnahme komplett entfernen (ohne dass alle Segmente geprüft wurden). */
 export function deleteWalkAnalysis(walkId: number): { ok: true } | { error: string } {
   const walk = db.prepare("SELECT id FROM walk_log WHERE id = ?").get(walkId) as { id: number } | undefined;
