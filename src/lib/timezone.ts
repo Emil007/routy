@@ -1,6 +1,26 @@
 /** Default IANA zone for all users (per-user override lives in users.timezone). */
 export const DEFAULT_TIMEZONE = "Europe/Vienna";
 
+/**
+ * SQLite `datetime('now')` / `strftime` store UTC wall-clock WITHOUT a zone
+ * marker and with a space separator (e.g. "2026-10-28 00:00:05"). Feeding that
+ * straight into `new Date(...)` makes JS parse it as HOST-local time, which
+ * shifts the calendar day (and hour) by the host offset — visible as wrong
+ * daily-usage counts around midnight for any user whose timezone is not the
+ * host's. Normalize: append "Z" (and fix the separator) so zone-less timestamps
+ * are read as the UTC they actually are.
+ */
+function parseSqliteIso(isoTs: string): Date | null {
+  const trimmed = isoTs.trim();
+  if (!trimmed) return null;
+  if (/[zZ]$|[+-]\d{2}:\d{2}$/.test(trimmed)) {
+    const d = new Date(trimmed);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const d = new Date(trimmed.replace(" ", "T") + "Z");
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
 /** Curated IANA zones — enough for a household, avoids dumping 400 entries into the select. */
 export const TIMEZONES = [
   "Europe/Vienna",
@@ -27,8 +47,8 @@ export function isTimezone(value: string | null | undefined): value is Timezone 
 /** Local calendar date (YYYY-MM-DD) for an ISO timestamp, in the given IANA zone. */
 export function toLocalDateKey(isoTs: string | null | undefined, tz: string): string {
   if (!isoTs) return "";
-  const d = new Date(isoTs);
-  if (Number.isNaN(d.getTime())) return "";
+  const d = parseSqliteIso(isoTs);
+  if (!d) return "";
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: tz,
     year: "numeric",
@@ -47,8 +67,8 @@ export function currentLocalDateKey(tz: string): string {
 /** Local hour (0–23) in the given zone for an ISO timestamp; -1 if unparseable. */
 export function toLocalHour(isoTs: string | null | undefined, tz: string): number {
   if (!isoTs) return -1;
-  const d = new Date(isoTs);
-  if (Number.isNaN(d.getTime())) return -1;
+  const d = parseSqliteIso(isoTs);
+  if (!d) return -1;
   const parts = new Intl.DateTimeFormat("en-US", { timeZone: tz, hour: "2-digit", hour12: false }).formatToParts(d);
   const raw = Number(parts.find((p) => p.type === "hour")?.value);
   if (Number.isNaN(raw)) return -1;

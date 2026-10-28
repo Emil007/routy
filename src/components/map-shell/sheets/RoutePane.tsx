@@ -37,14 +37,13 @@ function networkLinesFromBootstrap(bootstrap: AtlasBootstrap): MapLine[] {
  */
 export function RoutePane({ locale, bootstrap }: { locale: Locale; bootstrap: AtlasBootstrap }) {
   const { mode, setMode, registerLayers, setLive, registerLiveStop, pendingChange } = useMapShell();
-  const [phase, setPhase] = useState<"suggesting" | "active">(
-    bootstrap.activeRoute ? "active" : "suggesting",
-  );
+  const [phase, setPhase] = useState<"suggesting" | "active">("suggesting");
   // Lokaler Spiegel des „Auswählen"-Zustands (“adopted”) aus dem RouteGenerator:
-  // nach Auswählen ist die Route lokal übernommen, aber noch nicht serverseitig
-  // gestartet — deshalb wie aktive Route behandeln (Frei-Wechsel verlangt
-  // Bestätigung, Go bleibt sichtbar), ohne schon phase auf active zu setzen.
-  const [adopted, setAdopted] = useState(false);
+  // nach Auswählen/Bootstrap/Favoriten-Load ist die Route lokal übernommen, aber
+  // noch nicht serverseitig gestartet — deshalb wie aktive Route behandeln
+  // (Frei-Wechsel verlangt Bestätigung, Go bleibt sichtbar), ohne schon phase auf
+  // active zu setzen (kein sofortiger GO-Dock-Sprung/Tracking).
+  const [adopted, setAdopted] = useState(Boolean(bootstrap.activeRoute));
   const generatorRef = useRef<RouteGeneratorHandle>(null);
   const hasActiveRoute = Boolean(bootstrap.activeRoute);
   const networkLines = useMemo(() => networkLinesFromBootstrap(bootstrap), [bootstrap.segmentGeometries]);

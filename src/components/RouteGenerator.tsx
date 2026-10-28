@@ -140,12 +140,14 @@ export function RouteGenerator({
   const [selectedNodeId, setSelectedNodeId] = useState<number | null>(null);
   const [selectedSegmentId, setSelectedSegmentId] = useState<number | null>(null);
 
-  const [mode, setMode] = useState<"suggesting" | "active">(initialActiveRoute ? "active" : "suggesting");
-  // Parität mit Android: „Auswählen" übernimmt die Route nur lokal (kein Server-
-  // accept, Token bleibt). Erst „Go" ruft /api/route/accept und startet das
+  const [mode, setMode] = useState<"suggesting" | "active">("suggesting");
+  // Parität mit Android: „Auswählen“ übernimmt die Route nur lokal (kein Server-
+  // accept, Token bleibt). Erst „Go“ ruft /api/route/accept und startet das
   // Tracking — der Dock wechselt nicht vorher auf Gehen/Frei. Der Wert wird via
   // onAdoptedChange an RoutePane gemeldet (routeActive/Frei-Bestätigung).
-  const [adopted, setAdoptedState] = useState(false);
+  // initialActiveRoute (am Account gespeicherte Route beim Öffnen) landet wie ein
+  // Favorit auf der Zwischenseite (adopted): gezeichnet, Go+Ansage, noch kein Start.
+  const [adopted, setAdoptedState] = useState(Boolean(initialActiveRoute));
   const setAdopted = useCallback(
     (next: boolean) => {
       setAdoptedState(next);
@@ -678,20 +680,25 @@ export function RouteGenerator({
   async function handleAccept() {
     if (!result) return;
     setStatus("loading");
-    const res = await callApi("/api/route/accept", { token: result.token });
-    if (res.ok) {
-      setMode("active");
-      setAdopted(false);
-      onPhaseChange?.("active");
-      setStatus("idle");
-      clearMessage();
-      setNickname("");
-      announcedStationIndexRef.current = 0;
-      waitingToLeaveIndexRef.current = null;
-    } else {
-      setStatus("idle");
-      flashMessage(t(locale, "route.sessionExpired"), true);
+    // Favorit: wurde schon bei /favorites/{id}/accept serverseitig als aktive
+    // Route gespeichert (kein generate-Token) → kein /api/route/accept nötig.
+    // Generierte Route: erst hier wird sie über den Token serverseitig aktiv.
+    if (result.token) {
+      const res = await callApi("/api/route/accept", { token: result.token });
+      if (!res.ok) {
+        setStatus("idle");
+        flashMessage(t(locale, "route.sessionExpired"), true);
+        return;
+      }
     }
+    setMode("active");
+    setAdopted(false);
+    onPhaseChange?.("active");
+    setStatus("idle");
+    clearMessage();
+    setNickname("");
+    announcedStationIndexRef.current = 0;
+    waitingToLeaveIndexRef.current = null;
   }
 
   // Android-Parität: „Auswählen" übernimmt die Route nur lokal (Token bleibt),
@@ -700,6 +707,29 @@ export function RouteGenerator({
   function handleSelect() {
     if (!result) return;
     setAdopted(true);
+    clearMessage();
+  }
+
+  // Verwerfen von der Zwischenseite (adopted): Bei einer generierten Route war
+  // noch nichts Server-aktiv → nur lokal zurücksetzen. Bei einem Favoriten ist
+  // die Route schon am Account aktiv (/favorites/{id}/accept) → serverseitig
+  // discard, sonst hängt sie als aktive Route am Profil (/api/route/discard).
+  async function handleDiscardAdopted() {
+    if (!result) return;
+    setStatus("loading");
+    if (!result.token) {
+      await callApi("/api/route/discard");
+      setResult(null);
+      setMode("suggesting");
+      setAdopted(false);
+      onPhaseChange?.("suggesting");
+      setStatus("idle");
+      clearMessage();
+      return;
+    }
+    // Generierte Route: lokal entadopt, Token-Session bleibt unverbraucht.
+    setAdopted(false);
+    setStatus("idle");
     clearMessage();
   }
 
@@ -805,15 +835,13 @@ export function RouteGenerator({
     setFavoritesOpen(false);
     const res = await callApi(`/api/favorites/${favorite.id}/accept`);
     if (res.ok) {
-      // Ausnahme zu Android-Generierung: Ein Favorit wird serverseitig direkt
-      // als aktive Route übernommen (/accept liefert sie schon als aktiv) — ein
-      // zusätzlicher lokaler Auswähl-Schritt wäre hier künstlich. Der GO-Sprung
-      // passiert beim Favoriten also bewusst sofort (kein Generier-Token, das
-      // sonst vorzeitig verbraucht würde).
+      // Parität mit Android/altem System: Der Favorit wird serverseitig als
+      // aktive Route am Account gespeichert (/accept tut das), aber der Client
+      // bleibt auf der Zwischenseite (wie beim frischen Auswählen): Route ist
+      // gezeichnet, man wählt die Ansage und drückt erst „Go“ zum Starten.
+      // Kein sofortiger mode=active/Go-Sprung mehr.
       setResult({ token: "", route: favorite.display });
-      setMode("active");
-      setAdopted(false);
-      onPhaseChange?.("active");
+      setAdopted(true);
       setStatus("idle");
       clearMessage();
       setNickname("");
@@ -870,20 +898,30 @@ export function RouteGenerator({
       {mode === "suggesting" ? (
         adopted ? (
           <>
-            <button type="button" className="btn-primary btn-compact" onClick={handleAccept} disabled={status === "loading"}>
-              {t(locale, "route.goButton")}
-            </button>
-            <button
-              type="button"
-              className="btn-danger btn-compact"
-              onClick={() => {
-                setAdopted(false);
-                clearMessage();
-              }}
-              disabled={status === "loading"}
-            >
-              {t(locale, "route.discardButton")}
-            </button>
+            <div className="btn-row" style={{ gap: "0.65rem", flexWrap: "wrap" }}>
+              <label className="checkbox" style={{ fontSize: "0.82rem" }} title={t(locale, "route.voiceHint")}>
+                <input
+                  type="checkbox"
+                  checked={voiceEnabled}
+                  disabled={!followEnabled}
+                  onChange={(e) => setVoiceChecked(e.target.checked)}
+                />
+                {t(locale, "route.voiceCheck")}
+              </label>
+            </div>
+            <div className="btn-row" style={{ gap: "0.4rem", flexWrap: "wrap" }}>
+              <button type="button" className="btn-primary btn-compact" onClick={handleAccept} disabled={status === "loading"}>
+                {t(locale, "route.goButton")}
+              </button>
+              <button
+                type="button"
+                className="btn-danger btn-compact"
+                onClick={handleDiscardAdopted}
+                disabled={status === "loading"}
+              >
+                {t(locale, "route.discardButton")}
+              </button>
+            </div>
           </>
         ) : (
           <>
