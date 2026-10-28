@@ -65,14 +65,15 @@ export function RoutePane({ locale, bootstrap }: { locale: Locale; bootstrap: At
       ? "hidden"
       : section;
 
-  // §7.2: aktive Route als Live-Session melden + Stopp-Handler registrieren.
-  // phase/adopted sind die maßgebliche Quelle (client-seitige Annahme/Discard),
-  // nicht nur der Server-Bootstrap — so greift der Guard auch direkt nach Annehmen.
+  // §7.2/M3-3: NUR eine wirklich LAUFENDE Route (phase === "active") ist eine
+  // Live-Session. Eine nur übernommene (adopted) Route blockiert den Dock-Wechsel
+  // NICHT — sie verwirft nichts und fragt nichts (M3). Der Stopp-Handler ruft
+  // stopLive() im Generator, der die adopted-vs-active-Zweige entscheidet.
   useEffect(() => {
-    setLive("activeRoute", phase === "active" || adopted);
+    setLive("activeRoute", phase === "active");
   }, [phase, adopted, setLive]);
   useEffect(() => {
-    registerLiveStop("activeRoute", () => generatorRef.current?.discardActive({ skipConfirm: true }));
+    registerLiveStop("activeRoute", () => generatorRef.current?.stopLive());
     return () => registerLiveStop("activeRoute", null);
   }, [registerLiveStop]);
 

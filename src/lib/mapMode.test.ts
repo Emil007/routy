@@ -9,9 +9,12 @@ describe("initialMode", () => {
     expect(initialMode({ requested: "explore", hasActiveRoute: false, freeRoamActive: false, recordingLive: true })).toBe("record");
   });
 
-  it("returns go when a route is active or free-roam is running", () => {
-    expect(initialMode({ requested: "explore", hasActiveRoute: true, freeRoamActive: false, recordingLive: false })).toBe("go");
+  it("returns go when free-roam is running", () => {
     expect(initialMode({ requested: null, hasActiveRoute: false, freeRoamActive: true, recordingLive: false })).toBe("go");
+  });
+
+  it("M3: active route opens the Route chip (plan), not free go", () => {
+    expect(initialMode({ requested: null, hasActiveRoute: true, freeRoamActive: false, recordingLive: false })).toBe("plan");
   });
 
   it("prefers a requested mode over the plan default", () => {
@@ -23,8 +26,10 @@ describe("initialMode", () => {
     expect(initialMode({ requested: null, hasActiveRoute: false, freeRoamActive: false, recordingLive: false })).toBe("plan");
   });
 
-  it("active route beats the query", () => {
-    expect(initialMode({ requested: "plan", hasActiveRoute: true, freeRoamActive: false, recordingLive: false })).toBe("go");
+  it("M3: active route falls back to plan by default; explicit explore still opens explore", () => {
+    expect(initialMode({ requested: "plan", hasActiveRoute: true, freeRoamActive: false, recordingLive: false })).toBe("plan");
+    expect(initialMode({ requested: "explore", hasActiveRoute: true, freeRoamActive: false, recordingLive: false })).toBe("explore");
+    expect(initialMode({ requested: "explore", hasActiveRoute: false, freeRoamActive: false, recordingLive: false })).toBe("explore");
   });
 });
 

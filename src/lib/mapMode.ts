@@ -21,8 +21,11 @@ export function initialMode(opts: {
   recordingLive: boolean;
 }): AtlasMode {
   if (opts.recordingLive) return "record";
-  if (opts.freeRoamActive || opts.hasActiveRoute) return "go";
-  // Parität mit Android: Default ist Route (plan), nicht Erkunden.
+  if (opts.freeRoamActive) return "go";
+  // M3-1: eine am Account gespeicherte Route öffnet den Route-Chip mit der
+  // Zwischenseite (plan) — NICHT frei go. Erst Go (trackEnabled) kippt auf go.
+  // Ein expliziter Request (z.B. explore) übersteuert; Default ist Route (plan).
+  if (opts.hasActiveRoute && opts.requested !== null) return opts.requested;
   return opts.requested ?? "plan";
 }
 

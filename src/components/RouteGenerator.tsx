@@ -63,6 +63,9 @@ const PRESET_HINT_KEYS: Record<LengthPreset, string> = {
 export interface RouteGeneratorHandle {
   /** Aktive Route über den bestehenden Discard-Pfad beenden (Watch aus). */
   discardActive: (opts?: { skipConfirm?: boolean }) => Promise<void>;
+  /** M3-3: Dock-Stop — laufende Route löschen, auf der Zwischenseite (adopted) nur
+   *  lokal de-adoptieren (Vorschlag + Token bleiben, Q1). */
+  stopLive: () => Promise<void>;
 }
 
 export function RouteGenerator({
@@ -225,13 +228,16 @@ export function RouteGenerator({
    * Berechnung gewechselt werden soll (Parität mit der App).
    */
   function setNodeAsEnd(nodeId: number) {
-    clearNodeRole(nodeId);
     const existing = endNodeId;
     if (existing !== "" && existing !== nodeId) {
+      // M3-5: beim Wechsel-Vorschlag noch KEINE Rolle räumen — solange der Dialog
+      // offen ist, bleiben Start und Muss-besucht des Knotens stehen. Erst der
+      // Bestätigen-Button räumt; Abbrechen behält alles.
       setPendingDestinationReplace(nodeId);
       setSelectedNodeId(null);
       return;
     }
+    clearNodeRole(nodeId);
     setEndNodeId(nodeId);
     setIsLoop(false);
     setSelectedNodeId(null);
@@ -240,6 +246,7 @@ export function RouteGenerator({
   function confirmReplaceDestination() {
     const nodeId = pendingDestinationReplace;
     if (nodeId === null) return;
+    clearNodeRole(nodeId);
     setEndNodeId(nodeId);
     setIsLoop(false);
     setPendingDestinationReplace(null);
@@ -679,8 +686,13 @@ export function RouteGenerator({
     setRepositionCandidates(nearby.map((n) => n.id));
   }
 
+  const acceptInFlight = useRef(false);
   async function handleAccept() {
     if (!result) return;
+    // M3-4: double-click guard — a second Go while the first accept is running
+    // must not start two sessions.
+    if (acceptInFlight.current) return;
+    acceptInFlight.current = true;
     setStatus("loading");
     // Favorit: wurde schon bei /favorites/{id}/accept serverseitig als aktive
     // Route gespeichert (kein generate-Token) → kein /api/route/accept nötig.
@@ -688,7 +700,50 @@ export function RouteGenerator({
     if (result.token) {
       const res = await callApi("/api/route/accept", { token: result.token });
       if (!res.ok) {
+        acceptInFlight.current = false;
         setStatus("idle");
+        const body = (await res.json().catch(() => null)) as { error?: string } | null;
+        if (res.status === 409) {
+          // M3-4: another device/tab already has an active route — offer replace.
+          if (
+            window.confirm(t(locale, "route.activeRouteExists"))
+          ) {
+            const retry = await callApi("/api/route/accept", { token: result.token, replace: true });
+            if (retry.ok) {
+              acceptInFlight.current = false;
+              setMode("active");
+              setAdopted(false);
+              onPhaseChange?.("active");
+              setStatus("idle");
+              clearMessage();
+              setNickname("");
+              announcedStationIndexRef.current = 0;
+              waitingToLeaveIndexRef.current = null;
+              return;
+            }
+            acceptInFlight.current = false;
+            setStatus("idle");
+            flashMessage(t(locale, "common.error"), true);
+            return;
+          }
+          acceptInFlight.current = false;
+          setStatus("idle");
+          return;
+        }
+        if (res.status === 410 && body?.error === "session_expired") {
+          // M3-4: 410 after an earlier 200 in this session means the session was
+          // already consumed (e.g. another Go already started). Go into the walk.
+          setMode("active");
+          setAdopted(false);
+          onPhaseChange?.("active");
+          acceptInFlight.current = false;
+          setStatus("idle");
+          clearMessage();
+          setNickname("");
+          announcedStationIndexRef.current = 0;
+          waitingToLeaveIndexRef.current = null;
+          return;
+        }
         flashMessage(t(locale, "route.sessionExpired"), true);
         return;
       }
@@ -696,6 +751,7 @@ export function RouteGenerator({
     setMode("active");
     setAdopted(false);
     onPhaseChange?.("active");
+    acceptInFlight.current = false;
     setStatus("idle");
     clearMessage();
     setNickname("");
@@ -821,6 +877,26 @@ export function RouteGenerator({
     if (typeof window !== "undefined" && "speechSynthesis" in window) window.speechSynthesis.cancel();
   }
 
+  // M3-3/Q1: Der Dock-Stop auf der Zwischenseite (adopted, Mode suggesting) darf
+  // bei einer generierten Route KEINE Discard-API rufen — der Token bleibt
+  // unverbraucht und der Vorschlag steht weiter. Nur lokal de-adoptieren. Bei
+  // einer echten Live-Route (phase active) ist das der normale Discard.
+  async function stopLive() {
+    if (mode === "active" || !result) {
+      await handleDiscardActive({ skipConfirm: true });
+      return;
+    }
+    // Zwischenseite: adopted + Token → nur lokal zurücksetzen (Q1).
+    if (result.token) {
+      setAdopted(false);
+      clearMessage();
+      return;
+    }
+    // Zwischenseite + leerer Token (Favorit/Share/Bootstrap hängen am Account):
+    // serverseitig verwerfen, sonst bleibt die Route am Profil aktiv.
+    await handleDiscardAdopted();
+  }
+
   // §7.2/H1: Discard-Handle für die Hülle — der durch MapDock bestätigte Moduswechsel
   // beendet die aktive Route über diesen Handle (skipConfirm, denn der Bestätigungs-
   // Dialog kam schon im Dock). Watch wird dabei über den bestehenden Pfad gestoppt (H2).
@@ -828,6 +904,7 @@ export function RouteGenerator({
     ref,
     () => ({
       discardActive: (opts?: { skipConfirm?: boolean }) => handleDiscardActive(opts),
+      stopLive: () => stopLive(),
     }),
     [handleDiscardActive],
   );
@@ -990,10 +1067,13 @@ export function RouteGenerator({
     </div>
   ) : null;
 
-  // §4.5: section steuert, was gerendert wird (hidden → nichts, go ohne aktive Route →
-  // nichts, plan → nur der suggesting-Zweig). Die eine Karte liegt immer in MapCanvas.
+  // M3-2/F18: Der „go"-Chip ist NICHT mehr leer, wenn eine Route nur übernommen
+  // (adopted) und noch nicht gestartet ist — die Zwischenseite (Ansage + Go +
+  // Verwerfen) wird dort gerendert statt null. Frei (Free Roam) erscheint nur,
+  // wenn keine Route übernommen wurde und nichts aktiv ist. Nach Complete/Discard
+  // sind adopted=false und phase=suggesting → Free Roam kommt zurück.
   if (section === "hidden") return null;
-  if (section === "go" && mode !== "active") return null;
+  if (section === "go" && mode !== "active" && !adopted) return null;
 
   return (
     <div className="route-shell">
@@ -1165,7 +1245,7 @@ export function RouteGenerator({
                 title={t(locale, "route.generateHint")}
                 aria-label={t(locale, "route.generateHint")}
               >
-                {status === "loading" ? "…" : "↑"}
+                {status === "loading" ? "…" : t(locale, "route.generateLabel")}
               </button>
             </div>
             {favoritesOpen && (

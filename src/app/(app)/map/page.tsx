@@ -14,13 +14,13 @@ export default async function MapPage({
 
   const bootstrap = await loadAtlasBootstrap({ requestedMode: mode ?? null, deleteError: deleteError ?? null });
 
-  // §J3: Aktive Route → Gehen (Startmodus go). Sonst: Query plan/go/explore/record
-  // wie gewünscht, Default plan (Route) — Parität mit Android, das mit Route startet.
+  // M3-1: Eine aktive Route öffnet den ROUTE-Chip mit der Zwischenseite (Route
+  // gezeichnet, Go zum Starten) — NICHT frei „go". Frei ist erst Free Roam.
   let startMode: "explore" | "plan" | "go" | "record";
   const requested =
     mode === "explore" || mode === "plan" || mode === "go" || mode === "record" ? mode : null;
   if (bootstrap.activeRoute) {
-    startMode = requested === "record" || requested === "explore" ? requested : "go";
+    startMode = requested === "record" || requested === "explore" ? requested : "plan";
   } else {
     startMode = requested === "explore" || requested === "go" || requested === "record" ? requested : "plan";
   }
