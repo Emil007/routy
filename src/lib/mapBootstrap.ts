@@ -3,6 +3,7 @@ import { requireUser } from "@/lib/session";
 import { resolveLocale } from "@/lib/locale";
 import { listNodes, getUserHomeNode, listDeletedNodes } from "@/lib/nodes";
 import { listSegments, isCanonicalSegment, listDeletedSegments, getUsageMap } from "@/lib/segments";
+import { toCanonicalUsageMap } from "@/lib/points";
 import { listAllUsers } from "@/lib/users";
 import { getSettings, effectiveWalkSpeedKmh } from "@/lib/settings";
 import { listActiveConditions } from "@/lib/segmentConditions";
@@ -27,6 +28,10 @@ export async function loadAtlasBootstrap(opts: { requestedMode: string | null; d
   const canonicalSegments = segments.filter(isCanonicalSegment);
   const canonicalSegmentIds = canonicalSegments.map((s) => s.id);
   const usage = getUsageMap(user.id);
+  // M49 (F38): die ANZEIGE-Map faltet beide Richtungen auf die kanonische ID — wer
+  // den Weg in Gegenrichtung gegangen ist, sieht auf Chip/Sortierung die gleiche Zahl.
+  const canonicalOf = new Map(segments.map((s) => [s.id, s.reverseOf !== null ? Math.min(s.id, s.reverseOf) : s.id]));
+  const displayUsage = toCanonicalUsageMap(usage, canonicalOf);
   const userNames = new Map(listAllUsers().map((u) => [u.id, u.displayName]));
   const settings = getSettings();
   const walkSpeedKmh = effectiveWalkSpeedKmh(user.walkSpeedKmh, settings);
@@ -88,6 +93,9 @@ export async function loadAtlasBootstrap(opts: { requestedMode: string | null; d
     segments: canonicalSegments,
     canonicalSegmentIds,
     usage: Object.fromEntries(usage),
+    // M49: Anzeige-Map (kanonisch gefaltet) separat — die gerichtete ‚usage‘ könnte
+    // woanders noch gebraucht werden, die UI nutzt nur displayUsage.
+    usageCanonical: Object.fromEntries(displayUsage),
     userNames: Object.fromEntries(userNames),
     segmentConditions: listActiveConditions().map((c) => ({
       id: c.id,

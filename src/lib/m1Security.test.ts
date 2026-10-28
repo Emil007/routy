@@ -83,7 +83,7 @@ describe("M1 — segment length is server-computed", () => {
     ).toThrow(/band/);
   });
 
-  it("lengthFromSegmentIds sums canonical lengths and rejects stale ids", () => {
+  it("lengthFromSegmentIds sums every directed pass and rejects stale ids (M28)", () => {
     const n1 = createNode("l1", points[0], false, null);
     const n2 = createNode("l2", points[points.length - 1], false, null);
     const { forwardId, reverseId } = createSegmentWithReverse({
@@ -94,9 +94,12 @@ describe("M1 — segment length is server-computed", () => {
       source: "drawn",
       submittedBy: ensureUser("m1_len"),
     });
-    // forward + reverse = same physical path → counted once.
+    // M28 (F40): jede gerichtete Begehung zählt — ein Hin-und-zurück-Track führt
+    // die Kante in beide Richtungen, also zählt sie doppelt (echte gelaufene Länge).
     const total = lengthFromSegmentIds([forwardId, reverseId]);
-    expect(total).toBe(segmentLengthFromPoints(points));
+    expect(total).toBe(segmentLengthFromPoints(points) * 2);
+    // Ein einzelner Durchlauf zählt einmal.
+    expect(lengthFromSegmentIds([forwardId])).toBe(segmentLengthFromPoints(points));
     // Unknown id → null (route is stale, don't trust a client length).
     expect(lengthFromSegmentIds([999_999])).toBeNull();
   });

@@ -17,6 +17,7 @@ import { recordWalkWithPoints, getUsageMap, listSegments, lengthFromSegmentIds }
 import { getStreakStats } from "@/lib/stats";
 import { logActivity } from "@/lib/activityLog";
 import { getGoldenMultiplierMap } from "@/lib/goldenSegments";
+import { parseSqliteIso } from "@/lib/timezone";
 import { checkApiRateLimit } from "@/lib/apiRateLimit";
 import { persistHopTimingsFromWalk, enqueueWalkGeometryAnalysis } from "@/lib/trackGeometry";
 import { persistAchievements } from "@/lib/achievements";
@@ -85,10 +86,14 @@ export async function POST(request: Request) {
   // M1-4: duration is the actual walk duration. Use the body value when present
   // and in-schema (0…7 days int); otherwise elapsed minutes since accepted_at,
   // floored at 1. Never the planned route duration as fact.
+  // M29: accepted_at ist SQLite-UTC ohne Zone — als UTC parsen, nicht als Host-Lokalzeit.
   const durationMin =
     parsed.data?.durationMin != null
       ? Math.round(parsed.data.durationMin)
-      : Math.max(1, Math.floor((Date.now() - Date.parse(active.acceptedAt)) / 60000));
+      : Math.max(
+          1,
+          Math.floor((Date.now() - (parseSqliteIso(active.acceptedAt)?.getTime() ?? NaN)) / 60000) || 1,
+        );
 
   const walkId = recordWalkWithPoints(
     user.id,

@@ -55,14 +55,21 @@ export function BottomSheet({ locale, children }: { locale: Locale; children: Re
     return () => window.removeEventListener("keydown", onKey);
   }, [profileOpen, setProfileOpen, stage, setStage]);
 
-  const hidden = openStage === "hidden" || openStage === "peek" || profileOpen;
+  const hidden = openStage === "hidden" || openStage === "peek";
+  // M44 (F33/F47): profileOpen versteckt das Sheet NICHT mehr — der Inhalt bleibt
+  // sichtbar, das Profil schwebt darüber. Bei peek (oder hidden) sind die versteckten
+  // Buttons zusätzlich inert (kein Tab-Ziel mehr).
+  const inertContent = openStage === "hidden" || openStage === "peek";
 
   return (
     <>
       <section
+        ref={useRef<HTMLElement>(null)}
         className={`sheet ${isDesktop ? "sheet-panel" : "sheet-bottom"} ${hidden ? "sheet-peeked" : ""}`}
         style={hidden ? undefined : isDesktop ? undefined : { height }}
         aria-hidden={hidden}
+        // @ts-expect-error React 19 supports inert
+        inert={inertContent ? "" : undefined}
       >
         {children}
       </section>

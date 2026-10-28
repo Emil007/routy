@@ -174,9 +174,24 @@ export async function POST(request: Request) {
     // Walk row + anti-replay tombstone commit in ONE transaction (decision K).
     { claimActiveRoute: false, freeRoamStartedAt: access.startedAt },
   );
-  // M1-7 refined: -1 means a concurrent request already claimed this session and
-  // committed a walk; return the existing credit instead of a 500.
+  // M31: -1 means a concurrent request already claimed this session and committed
+  // a walk; return the existing credit instead of a 500. If that walk has no GPS
+  // track yet, pull it from THIS request (the retry carries the payload).
   if (walkId === -1) {
+    try {
+      const existingId = completedWalkIdFor(access);
+      if (existingId != null && trackPoints.length > 0) {
+        const hasTrack = db.prepare("SELECT 1 FROM walk_track WHERE walk_id = ?").get(existingId);
+        if (!hasTrack) {
+          db.prepare("INSERT INTO walk_track (walk_id, points_json) VALUES (?, ?)").run(
+            existingId,
+            JSON.stringify(trackPoints),
+          );
+        }
+      }
+    } catch (err) {
+      console.error("alreadyCredited track backfill failed:", err);
+    }
     const existing = completedWalkIdFor(access);
     return NextResponse.json({
       success: true,
@@ -188,20 +203,27 @@ export async function POST(request: Request) {
   if (walkId == null) return NextResponse.json({ error: "insert_failed" }, { status: 500 });
 
   // Persist the full GPS track so the admin track-geometry page can review it.
-  if (trackPoints.length > 0) {
-    const pointsJson = JSON.stringify(trackPoints);
-    // Single source of truth: walk_track.points_json (mirrors route/complete).
-    // walk_log.track_json is a legacy column no longer written — all readers
-    // prefer walk_track and fall back cleanly.
-    db.prepare(
-      `INSERT INTO walk_track (walk_id, points_json) VALUES (?, ?)
-       ON CONFLICT(walk_id) DO UPDATE SET points_json = excluded.points_json`,
-    ).run(walkId, pointsJson);
-    persistHopTimingsFromWalk(walkId, { walkUserId: user.id, walkerIsAdmin: user.role === "admin" });
-    // 0.57: GPS-Aufnahme sofort zur persistenten Segment-Analyse anmelden.
-    enqueueWalkGeometryAnalysis(walkId);
-    // Feed the recorded ground into proposal detection (new junctions).
-    detectProposalsFromTrack(trackPoints as { lat: number; lng: number }[], user.id);
+  // M31: after the walk_log row is committed the walk is booked — every track/
+  // hop/analysis step is best-effort and must never surface a 500 that makes
+  // clients retry and double-book (mirrors /api/route/complete).
+  try {
+    if (trackPoints.length > 0) {
+      const pointsJson = JSON.stringify(trackPoints);
+      // Single source of truth: walk_track.points_json (mirrors route/complete).
+      // walk_log.track_json is a legacy column no longer written — all readers
+      // prefer walk_track and fall back cleanly.
+      db.prepare(
+        `INSERT INTO walk_track (walk_id, points_json) VALUES (?, ?)
+         ON CONFLICT(walk_id) DO UPDATE SET points_json = excluded.points_json`,
+      ).run(walkId, pointsJson);
+      persistHopTimingsFromWalk(walkId, { walkUserId: user.id, walkerIsAdmin: user.role === "admin" });
+      // 0.57: GPS-Aufnahme sofort zur persistenten Segment-Analyse anmelden.
+      enqueueWalkGeometryAnalysis(walkId);
+      // Feed the recorded ground into proposal detection (new junctions).
+      detectProposalsFromTrack(trackPoints as { lat: number; lng: number }[], user.id);
+    }
+  } catch (err) {
+    console.error("track/hop persistence failed (walk already booked, free roam):", err);
   }
 
   // Stateless sessions (decision K): the token IS the session state; no map to

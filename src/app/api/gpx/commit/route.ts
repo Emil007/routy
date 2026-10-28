@@ -24,9 +24,11 @@ const endpointSchema = z.union([
   }),
 ]);
 
+// M3: elevation ist nullish — ein älterer Client ohne Feld kommt durch, genauso
+// wie JSON-null; der Server rechnet die Höhe nach, wenn das Feld null/fehlt.
 const elevationSchema = z
   .object({ gainM: z.number(), lossM: z.number(), minM: z.number(), maxM: z.number() })
-  .nullable();
+  .nullish();
 
 const trackSchema = z.object({
   points: z.array(pointSchema).min(2).max(20_000),
@@ -48,7 +50,8 @@ const GPX_COMMIT_BODY_LIMIT = 12 * 1024 * 1024;
 type PreparedTrack = {
   track: z.infer<typeof trackSchema>;
   points: z.infer<typeof pointSchema>[];
-  elevation: z.infer<typeof elevationSchema>;
+  // M3: nullish erlaubt undefined vom Client — intern auf `T | null` normalisieren.
+  elevation: NonNullable<z.infer<typeof elevationSchema>> | null;
   startPoint: LatLng;
   endPoint: LatLng;
 };
@@ -101,7 +104,8 @@ export async function POST(request: Request) {
     prepared.push({
       track,
       points,
-      elevation,
+      // M3: nullish erlaubt undefined vom Client — für den internen Typ auf null normalisieren.
+      elevation: elevation ?? null,
       startPoint,
       endPoint,
     });

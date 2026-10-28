@@ -229,6 +229,8 @@
     "freeRoamDone": "Free roam finished — track saved.",
     "freeRoamDonePoints": "Free roam finished — {points} points earned.",
     "freeRoamRateLimited": "Too fast — try again in {seconds} seconds.",
+    "freeRoamTooShort": "Not enough walked — record at least 50 m.",
+    "freeRoamHopTooFar": "GPS jump too large (timestamps missing) — walk more steadily or restart.",
     "freeRoamStopConfirm": "Really end free roam? The current track won't be saved as a walk.",
     "freeRoamVia": "via {via}",
     "selectButton": "Select",

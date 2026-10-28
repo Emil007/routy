@@ -72,13 +72,17 @@ function FitBounds({
   // die Kamera bewegen. Jede spätere Datenänderung ohne neuen fitKey (Zeichnen,
   // Menü-Wechsel, GPS-Updates) lässt die Kamera unberührt (User-Feedback 0.57:
   // „beim Start alle Wege sehen, sonst Zoom/Pan nie anfassen“).
-  const didInitialFitRef = useRef(false);
+    const didInitialFitRef = useRef(false);
   const lastFitKeyRef = useRef<string | number | undefined>(undefined);
   useEffect(() => {
     const points: [number, number][] = [
       ...markers.map((m): [number, number] => [m.lat, m.lng]),
       ...lines.flatMap((l) => l.points),
     ];
+    // M43: ein leerer Erst-Fit zählt NICHT als erledigt — die Kamera holt nach,
+    // sobald Punkte da sind (fitKey bleibt leer). markers/lines stehen in den
+    // Dependencies, damit nachladende Geometrie den Effect erneut auslöst; die
+    // Guards unten (isInitial/isExplicit) halten die Kamera nach dem Initial-Fit ruhig.
     if (points.length === 0) return;
     const isInitial = !didInitialFitRef.current;
     const isExplicit = fitKey !== undefined && lastFitKeyRef.current !== fitKey;
@@ -94,8 +98,8 @@ function FitBounds({
       paddingBottomRight: [fitPadding.right, fitPadding.bottom],
       maxZoom: 16,
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fitKey]);
+    // markers/lines bewusst in den Dependencies (M43) — die Guards halten die Kamera.
+  }, [fitKey, markers, lines, fitPadding]);
   return null;
 }
 

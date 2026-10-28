@@ -38,6 +38,8 @@ export interface AtlasBootstrap {
   segments: SegmentRow[];
   canonicalSegmentIds: number[];
   usage: Record<number, number>;
+  /** M49: per-canonical-segment usage for display (both directions folded) — `usage` stays directed. */
+  usageCanonical: Record<number, number>;
   userNames: Record<number, string>;
   segmentConditions: { id: number; segmentId: number; reason: string; expiresAt: string }[];
   personalAvoidSegmentIds: number[];

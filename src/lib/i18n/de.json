@@ -229,6 +229,8 @@
     "freeRoamDone": "Free Roam abgeschlossen — Track gespeichert.",
     "freeRoamDonePoints": "Free Roam abgeschlossen — {points} Punkte erhalten.",
     "freeRoamRateLimited": "Zu schnell — versuch es in {seconds} Sekunden erneut.",
+    "freeRoamTooShort": "Zu wenig gelaufen — mindestens 50 m aufzeichnen.",
+    "freeRoamHopTooFar": "GPS-Sprung zu groß (Zeitpunkte fehlen) — ruhiger Gehen oder neu starten.",
     "freeRoamStopConfirm": "Free Roam wirklich beenden? Der bisherige Track wird nicht als Runde gespeichert.",
     "freeRoamVia": "über {via}",
     "selectButton": "Auswählen",

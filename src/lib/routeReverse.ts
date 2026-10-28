@@ -7,6 +7,7 @@ export function reverseRouteResult(
   route: RouteResult,
   pairOf: Map<number, number>,
   segmentsById: Map<number, SegmentRow>,
+  oneWayReverseBlocked: (pairId: number) => boolean = () => false,
 ): RouteResult | null {
   if (route.nodeChain.length < 2 || route.segmentIds.length === 0) return null;
 
@@ -15,6 +16,9 @@ export function reverseRouteResult(
   for (const id of route.segmentIds) {
     const pair = pairOf.get(id);
     if (pair !== undefined && segmentsById.has(pair)) {
+      // M30: eine Einbahn-Gegenrichtung ist nicht begehbar — die ganze Umkehr
+      // ablehnen (cannot_reverse), kein stilles Kürzen der Route.
+      if (oneWayReverseBlocked(pair)) return null;
       reversedSegmentIds.push(pair);
       continue;
     }

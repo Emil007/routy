@@ -346,7 +346,7 @@ export function RouteGenerator({
       lines.push({
         id: segmentId,
         points,
-        color: isDisconnected ? "#e05a45" : isExcluded ? "#e05a45" : isRequired ? "#2b6cb0" : isGolden ? "#c99a2e" : accentHex,
+        color: isDisconnected ? "#c53030" : isExcluded ? "#c53030" : isRequired ? "#2b6cb0" : isGolden ? "#c99a2e" : accentHex,
         weight: isRequired || isGolden || isDisconnected ? 6 : 4,
         dashed: isExcluded || isGolden || isDisconnected,
       });
@@ -358,7 +358,7 @@ export function RouteGenerator({
     if (mode !== "suggesting" || result) return [];
     return nodes.map((n) => {
       let badge: string | undefined;
-      let color = "#2e6b49";
+      let color = accentHex; // M41: Knoten-Default im Akzent (Theme hell/dunkel), Home bleibt #a5711c
       if (n.id === startNodeId) {
         badge = t(locale, "route.badgeStart");
         color = "#a5711c";
@@ -401,7 +401,9 @@ export function RouteGenerator({
 
   const mapFitKey = result
     ? result.token || result.route.nodeChain.join("-")
-    : `plan-${startNodeId}-${endNodeId}-${mustVisitNodeIds.join(",")}-${requiredSegmentIds.join(",")}`;
+    // M42: nur EIN NEUES Routen-Ergebnis fit — Start/Ziel/Muss-Knoten ändern die
+    // Kamera nicht mehr (vorher rahmte jeder Planungs-Klick das ganze Netz).
+    : undefined;
 
   function handleMarkerClick(id: number | string) {
     if (mode !== "suggesting" || result) return;
@@ -417,13 +419,13 @@ export function RouteGenerator({
 
   // §4.5/M6-1: Layer nach oben melden — MapCanvas zeichnet die eine Karte, RouteGenerator
   // liefert nur das Overlay (Route/Plan-Marker). NUR wenn diese Section sichtbar ist
-  // (plan/go); Cleanup räumt die Layer, damit hidden/reocrd/explore nicht das Overlay
+  // (plan/go); der Cleanup räumt die Layer, damit hidden/reocrd/explore nicht das Overlay
   // einer unsichtbaren Route zeichnet.
+  // M47: der versteckte Planer schreibt NIE null über ein fremdes Overlay (Zeichen-Linie)
+  // — ein router.refresh() während des Zeichnens lässt die Linie stehen.
   useEffect(() => {
-    if (!onLayersChange || (section !== "plan" && section !== "go")) {
-      onLayersChange?.(null);
-      return;
-    }
+    if (!onLayersChange) return;
+    if (section !== "plan" && section !== "go") return;
     onLayersChange({
       markers: mapMarkers,
       lines: mapLines,
@@ -770,17 +772,26 @@ export function RouteGenerator({
           return;
         }
         if (res.status === 410 && body?.error === "session_expired") {
-          // M3-4: 410 after an earlier 200 in this session means the session was
-          // already consumed (e.g. another Go already started). Go into the walk.
-          setMode("active");
-          setAdopted(false);
-          onPhaseChange?.("active");
+          // M33 (F39): 410 heißt „Token nicht mehr in der Map“, NICHT automatisch
+          // „Tour läuft schon“ (kam auch nach Prozess-Neustart / sweeps). Erst wenn
+          // der Server eine aktive Route liefert, in den Walk wechseln — sonst in
+          // der Planung bleiben, Token verwerfen, Meldung zeigen.
+          const stateRes = await callApi("/api/route/state", {}).catch(() => null);
+          const hasActive =
+            stateRes?.ok === true && ((await stateRes.json().catch(() => null)) as { activeRoute?: unknown } | null)?.activeRoute != null;
           acceptInFlight.current = false;
           setStatus("idle");
-          clearMessage();
-          setNickname("");
-          announcedStationIndexRef.current = 0;
-          waitingToLeaveIndexRef.current = null;
+          if (hasActive) {
+            setMode("active");
+            setAdopted(false);
+            onPhaseChange?.("active");
+            clearMessage();
+            setNickname("");
+            announcedStationIndexRef.current = 0;
+            waitingToLeaveIndexRef.current = null;
+          } else {
+            flashMessage(t(locale, "route.sessionExpired"), true);
+          }
           return;
         }
         flashMessage(t(locale, "route.sessionExpired"), true);

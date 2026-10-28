@@ -40,12 +40,15 @@ export function RecordSheet({
   networkLines,
   mergeRadiusM,
   walkSpeedKmh,
+  homeNodeId,
 }: {
   locale: Locale;
   nodes: NodeRow[];
   networkLines: MapLine[];
   mergeRadiusM: number;
   walkSpeedKmh: number;
+  /** M38: per-account home node — home markers use this, not the legacy nodes.is_home flag. */
+  homeNodeId: number | null;
 }) {
   const router = useRouter();
   const { mode, setMode, registerLayers, setLive, registerLiveStop } = useMapShell();
@@ -90,8 +93,15 @@ export function RecordSheet({
   const lengthM = useMemo(() => Math.round(pathLengthMeters(points)), [points]);
 
   const nodeMarkers: MapMarker[] = useMemo(
-    () => nodes.map((n) => ({ id: n.id, lat: n.lat, lng: n.lng, label: n.name || `#${n.id}`, color: n.isHome ? "#a5711c" : "#2e6b49" })),
-    [nodes],
+    () =>
+      nodes.map((n) => ({
+        id: n.id,
+        lat: n.lat,
+        lng: n.lng,
+        label: n.name || `#${n.id}`,
+        color: n.id === homeNodeId ? "#a5711c" : "#2e6b49",
+      })),
+    [nodes, homeNodeId],
   );
   const trackLine: MapLine[] = useMemo(
     () => (points.length > 1 ? [{ id: "track", points: points.map((p): [number, number] => [p.lat, p.lng]), color: "#9a3b29", weight: 4 }] : []),

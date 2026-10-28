@@ -38,8 +38,9 @@ export function ProfileMenu({
         aria-label={t(locale, "shell.profile")}
         aria-expanded={profileOpen}
         onClick={() => {
+          // M44 (F33): Schließen setzt die Stufe NICHT auf peek zurück — das Sheet
+          // behält half/full. Nur öffnen schließt ggf. eine offene Stufe nicht.
           setProfileOpen(!profileOpen);
-          if (profileOpen) setStage("peek");
         }}
       >
         <span>{displayName.charAt(0).toUpperCase()}</span>

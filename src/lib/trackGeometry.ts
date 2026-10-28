@@ -261,6 +261,35 @@ function isOutlierSuggestion(
   return { isOutlier, avgOfficial, avgFirst };
 }
 
+// M20: erste nicht verworfene Aufnahme pro kanonischem Segment (siehe
+// segment_first_recording-Tabelle). Lies die eine Zeile — kein Lauf über alle Walks.
+function firstRecordingGeometryFor(canonicalSegmentId: number): LatLng[] | null {
+  const row = db
+    .prepare("SELECT points_json FROM segment_first_recording WHERE canonical_segment_id = ?")
+    .get(canonicalSegmentId) as { points_json: string } | undefined;
+  if (!row) return null;
+  return parseTrack(row.points_json);
+}
+
+// M20: beim Analysieren die erste Aufnahme für ein Segment festhalten (nur wenn
+// keine Zeile existiert und der Vorschlag nicht verworfen wird).
+function recordFirstRecordingIfAbsent(
+  canonicalSegmentId: number,
+  walkId: number,
+  points: LatLng[],
+  resolution: SuggestionResolution,
+): void {
+  if (resolution !== "pending") return;
+  if (!points || points.length < 2) return;
+  const exists = db
+    .prepare("SELECT 1 FROM segment_first_recording WHERE canonical_segment_id = ?")
+    .get(canonicalSegmentId);
+  if (exists) return;
+  db.prepare(
+    "INSERT INTO segment_first_recording (canonical_segment_id, walk_id, points_json) VALUES (?, ?, ?)",
+  ).run(canonicalSegmentId, walkId, JSON.stringify(points));
+}
+
 /** Backup current canonical geometry before replacing it. */
 /** Backup current canonical geometry before replacing it. */
 export function backupSegmentGeometry(segmentId: number, reason: string): void {
@@ -310,16 +339,26 @@ export function enqueueWalkGeometryAnalysis(walkId: number): void {
     `INSERT INTO walk_geometry_analysis (walk_id, status, attempts) VALUES (?, 'pending', 0)
      ON CONFLICT(walk_id) DO UPDATE SET status = 'pending', attempts = 0, trashed_at = NULL`,
   ).run(walkId);
+  // M19 (Frage 12): direkt nach dem Enqueue rechnen (better-sqlite3 ist synchron) —
+  // eine frische Aufnahme wartet so nicht bis zum nächsten Prozessstart. Fehlschlag
+  // lässt status=pending, der Startup-Drain holt es nach.
+  if (analysisRow(walkId)?.status === "pending") {
+    analyzeWalkGeometry(walkId);
+  }
 }
 
 /** Alle Walks mit erreichter Analyse berechnen (einmalig je Walk). Idempotent. */
 export function runPendingGeometryAnalysis(limit = 200): { analyzed: number; failed: number } {
+  // M19: nur Walks MIT Track nehmen — leere Altwalks ohne GPS würden sonst das
+  // Limit auffressen (jeder O(hne) GPS liefert leere Vorschläge und verbucht done).
   const pending = db
     .prepare(
       `SELECT w.id
        FROM walk_log w
        LEFT JOIN walk_geometry_analysis a ON a.walk_id = w.id
-       WHERE a.walk_id IS NULL OR a.status = 'pending'
+       LEFT JOIN walk_track wt ON wt.walk_id = w.id
+       WHERE (a.walk_id IS NULL OR a.status = 'pending')
+         AND (w.track_json IS NOT NULL OR wt.walk_id IS NOT NULL)
        ORDER BY w.accepted_at ASC
        LIMIT ?`,
     )
@@ -342,11 +381,15 @@ export function runPendingGeometryAnalysis(limit = 200): { analyzed: number; fai
 export function analyzeWalkGeometry(walkId: number): SegmentTrackSuggestion[] | null {
   try {
     const suggestions = computeWalkGeoSuggestions(walkId);
+    // M19: done NUR bei status='pending' schreiben — ein zwischenzeitlicher Papierkorb
+    // (anderer Prozess) wird nicht überschrieben, und ein zweiter Prozess kann die
+    // Zeile so gefahrlos sehen (Frage 12).
     db.prepare(
       `INSERT INTO walk_geometry_analysis (walk_id, status, attempts, suggestions_json, analyzed_at)
        VALUES (?, 'done', 0, ?, datetime('now'))
        ON CONFLICT(walk_id) DO UPDATE SET status = 'done', suggestions_json = excluded.suggestions_json,
-         analyzed_at = excluded.analyzed_at`,
+         analyzed_at = excluded.analyzed_at
+       WHERE walk_geometry_analysis.status = 'pending'`,
     ).run(walkId, JSON.stringify(suggestions));
     return suggestions;
   } catch (err) {
@@ -412,16 +455,18 @@ function computeWalkGeoSuggestions(walkId: number): SegmentTrackSuggestion[] {
 
     const officialSeg = getSegment(canonId) ?? segment;
     const official = officialSeg.geometry;
-    // Für die Distanz gegen die ERSTE Aufnahme reicht die bisherige Aufnahme aus
-    // dieser Walk-Analyse (only that walk) — willkürlich, aber konsistent für die
-    // Admin-Entscheidung. (Die alte „alle Walks“-Basis war der O(n²)-Hänger.)
-    const firstRecordingGeometry = null;
-    const { isOutlier, avgOfficial } = isOutlierSuggestion(trimmed, official, null);
+    // M20: erste nicht verworfene Aufnahme dieses Segments (persistiert) als
+    // Vergleichsbasis — Aufnahmen weit von der Linie aber nah bei der ersten
+    // Aufnahme sind keine Outlier mehr, und der Schalter hat echte Punkte.
+    const firstRecordingGeometry = firstRecordingGeometryFor(canonId);
+    const { isOutlier, avgOfficial, avgFirst } = isOutlierSuggestion(trimmed, official, firstRecordingGeometry);
 
     const dismissal = getDismissal(walkId, canonId);
     let resolution: SuggestionResolution = "pending";
     if (dismissal?.resolution === "accepted") resolution = "accepted";
     else if (dismissal) resolution = "discarded";
+
+    recordFirstRecordingIfAbsent(canonId, walkId, trimmed, resolution);
 
     suggestions.push({
       walkId,
@@ -433,7 +478,7 @@ function computeWalkGeoSuggestions(walkId: number): SegmentTrackSuggestion[] {
       recordedAt: walkRow.accepted_at,
       isOutlier,
       avgDistanceToOfficialM: Math.round(avgOfficial),
-      avgDistanceToFirstRecordingM: null,
+      avgDistanceToFirstRecordingM: avgFirst != null ? Math.round(avgFirst) : null,
       resolution,
     });
   }
@@ -478,7 +523,7 @@ export function listWalkAnalyses(): WalkAnalysisRow[] {
     const a = analysisRow(walk.id);
     const status: WalkAnalysisStatus | "unanalyzed" =
       !a ? "unanalyzed" : a.status === "trashed" ? "trashed" : a.status === "done" ? "done" : "pending";
-    const suggestions = status === "done" ? walkSuggestionsFromJson(a?.suggestions_json) : [];
+    const suggestions = status === "done" ? walkSuggestionsLive(walk.id, a?.suggestions_json) : [];
     const pendingCount = suggestions.filter((s) => s.resolution === "pending" && !s.isOutlier).length;
     const resolvedCount = suggestions.filter((s) => s.resolution !== "pending").length;
     out.push({ walk, analysisStatus: status, pendingCount, resolvedCount });
@@ -495,14 +540,34 @@ function walkSuggestionsFromJson(json: string | null | undefined): SegmentTrackS
   }
 }
 
+// M21 (F28): dieselbe Dismissal-Überlagerung wie getWalkTrackSuggestions — die
+// Zähler „offen / erledigt“ spiegeln live die track_geometry_dismissals, nicht den
+// Analyse-Snapshot.
+function walkSuggestionsLive(walkId: number, json: string | null | undefined): SegmentTrackSuggestion[] {
+  return walkSuggestionsFromJson(json).map((s) => {
+    const dismissal = getDismissal(walkId, s.canonicalSegmentId);
+    let resolution: SuggestionResolution = "pending";
+    if (dismissal?.resolution === "accepted") resolution = "accepted";
+    else if (dismissal) resolution = "discarded";
+    return { ...s, resolution };
+  });
+}
+
 /** Papierkorb: Aufnahme + Analyse inaktivieren (review abgeschlossen/zurückgelegt). */
 export function trashWalkAnalysis(walkId: number): { ok: true } | { error: string } {
-  const row = analysisRow(walkId);
-  if (!row) return { error: "not_found" };
-  const trashedAt = new Date().toISOString();
+  const walk = db.prepare("SELECT id FROM walk_log WHERE id = ?").get(walkId) as { id: number } | undefined;
+  if (!walk) return { error: "not_found" };
+  // M19: fehlende Analysezeile anlegen (Altaufszeichnung) — damit das 30d-Purge
+  // den GPS-Track später mitlöschen kann. Mit SQLite-datetime, nicht toISOString.
+  if (!analysisRow(walkId)) {
+    db.prepare(
+      `INSERT INTO walk_geometry_analysis (walk_id, status, trashed_at) VALUES (?, 'trashed', datetime('now'))`,
+    ).run(walkId);
+    return { ok: true };
+  }
   db.prepare(
-    "UPDATE walk_geometry_analysis SET status = 'trashed', trashed_at = ? WHERE walk_id = ?",
-  ).run(trashedAt, walkId);
+    "UPDATE walk_geometry_analysis SET status = 'trashed', trashed_at = datetime('now') WHERE walk_id = ?",
+  ).run(walkId);
   return { ok: true };
 }
 
@@ -540,33 +605,28 @@ export function deleteWalkAnalysis(walkId: number): { ok: true } | { error: stri
 
 /** Papierkorb aufräumen: trashed-Aufnahmen nach 30d + nochmal 30d Papierkorb löschen. */
 export function purgeTrashedWalkAnalyses(): number {
-  const info = db
+  // M18: zuerst die Walk-IDs der abgelaufenen trashed-Zeilen lesen, DANN Track / Dismissals /
+  // track_json / Analyse löschen — die alte WHERE-Klausel fand nach dem DELETE nichts mehr
+  // und ließ den GPS-Track liegen (F03).
+  const stale = db
     .prepare(
-      `DELETE FROM walk_geometry_analysis
+      `SELECT walk_id FROM walk_geometry_analysis
        WHERE status = 'trashed' AND trashed_at IS NOT NULL
          AND trashed_at < datetime('now', '-30 days')`,
     )
-    .run();
-  // Auch die eigentlichen Aufnahmen sind dann weg.
-  let removedRecs = 0;
-  if (info.changes > 0) {
-    const walks = db
-      .prepare(
-        `SELECT w.id FROM walk_log w
-         INNER JOIN walk_geometry_analysis a ON a.walk_id = w.id
-         WHERE a.status = 'trashed' AND a.trashed_at IS NOT NULL
-           AND a.trashed_at < datetime('now', '-30 days')`,
-      )
-      .all() as { id: number }[];
-    for (const { id } of walks) {
-      db.prepare("DELETE FROM walk_track WHERE walk_id = ?").run(id);
-      db.prepare("DELETE FROM track_geometry_dismissals WHERE walk_id = ?").run(id);
-      db.prepare("UPDATE walk_log SET track_json = NULL WHERE id = ?").run(id);
-      db.prepare("DELETE FROM walk_geometry_analysis WHERE walk_id = ?").run(id);
+    .all() as { walk_id: number }[];
+  if (stale.length === 0) return 0;
+
+  const tx = db.transaction(() => {
+    for (const { walk_id } of stale) {
+      db.prepare("DELETE FROM walk_track WHERE walk_id = ?").run(walk_id);
+      db.prepare("DELETE FROM track_geometry_dismissals WHERE walk_id = ?").run(walk_id);
+      db.prepare("UPDATE walk_log SET track_json = NULL WHERE id = ?").run(walk_id);
+      db.prepare("DELETE FROM walk_geometry_analysis WHERE walk_id = ?").run(walk_id);
     }
-    removedRecs = walks.length;
-  }
-  return info.changes + removedRecs;
+  });
+  tx();
+  return stale.length;
 }
 
 

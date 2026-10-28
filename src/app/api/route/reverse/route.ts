@@ -28,7 +28,16 @@ export async function POST(request: Request) {
 
   const { graph, pairOf, nodesById, segmentsById } = loadGraphContext();
   void graph;
-  const reversed = reverseRouteResult(session.current, pairOf, segmentsById);
+  // M30: wenn die Gegenrichtung einer Kante eine Einbahn ist, ist sie nicht
+  // begehbar — die ganze Umkehr wird abgelehnt (cannot_reverse), nie still gekürzt.
+  const oneWayBlockedReverse = new Set(
+    listSegments()
+      .filter((s) => s.oneWay && s.reverseOf != null)
+      .map((s) => s.reverseOf as number),
+  );
+  const reversed = reverseRouteResult(session.current, pairOf, segmentsById, (pairId) =>
+    oneWayBlockedReverse.has(pairId),
+  );
   if (!reversed) return NextResponse.json({ error: "cannot_reverse" }, { status: 400 });
 
   updateRouteSession(token, { current: reversed });

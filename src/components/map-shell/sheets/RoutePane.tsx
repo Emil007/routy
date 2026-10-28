@@ -131,7 +131,9 @@ export function RoutePane({ locale, bootstrap }: { locale: Locale; bootstrap: At
       {/* Freies Gehen: nur im Go-Modus ohne aktive Route, über der Karte. */}
       {!routeActive && mode === "go" && (
         <div className="free-roam-hosted">
-          <FreeRoamCard locale={locale} nodes={bootstrap.nodes} networkLines={networkLines} hosted />
+          {/* M26: FreeRoamCard meldet Strich + Marker an die eine Karte (nur während
+              roaming — im Idle räumt nichts das Routen-Overlay). */}
+          <FreeRoamCard locale={locale} nodes={bootstrap.nodes} networkLines={networkLines} hosted onLayersChange={registerLayers} />
         </div>
       )}
     </div>

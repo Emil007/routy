@@ -47,9 +47,10 @@ export async function POST(request: Request) {
   const seedReachable = effectiveStart != null ? reachableNeighbours(effectiveStart) : [];
   const locale = (user.locale ?? "de") as Locale;
   const startNode = effectiveStart != null ? listNodes().find((n) => n.id === effectiveStart) : null;
-  // 0.57: auch der Start wird sofort lokalisiert angesagt („Angekommen bei …").
+  // M24: auch der Start wird lokalisiert angesagt — bei leerer Nachbarliste liefert
+  // freeRoamAnnouncementText den „Allein“-Satz (Sackgasse), statt stumm zu bleiben.
   const announcement =
-    effectiveStart != null && seedReachable.length > 0
+    effectiveStart != null
       ? freeRoamAnnouncementText(locale, startNode?.name ?? null, seedReachable)
       : null;
 

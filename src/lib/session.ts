@@ -33,11 +33,26 @@ export async function createSession(
   const token = newSessionToken();
   const tokenHash = hashToken(token);
   const sessionId = randomBytes(8).toString("hex");
-  const expiresAt = new Date(Date.now() + SESSION_TTL_DAYS * 86400000).toISOString();
+  // M35: expires_at als SQLite-datetime (UTC, Leerzeichen) statt toISOString — der
+  // Purge vergleicht mit `datetime('now')` (Leerzeichen); ein „T“ verfehlte den
+  // Cutoff um bis zu einen Tag (F44).
+  const expiresAt = new Date(Date.now() + SESSION_TTL_DAYS * 86400000)
+    .toISOString()
+    .replace("T", " ")
+    .replace(/\.\d{3}Z$/, "");
   db.prepare(
     "INSERT INTO sessions (token_hash, user_id, expires_at, session_id, device_name, client) VALUES (?, ?, ?, ?, ?, ?)",
   ).run(tokenHash, userId, expiresAt, sessionId, opts?.deviceName ?? null, opts?.client ?? "web");
   return token;
+}
+
+/** M35: einmalige Normalisierung alter ISO-Zeilen („T“ → Leerzeichen), damit der
+ *  Purge und die Geräteliste ALT-Daten genauso treffen wie Neuschreibungen. */
+export function normalizeLegacySessionExpiries(): number {
+  const res = db
+    .prepare("UPDATE sessions SET expires_at = datetime(replace(expires_at, 'T', ' ')) WHERE expires_at LIKE '%T%'")
+    .run();
+  return res.changes;
 }
 
 /** Creates a short-lived session whose token is meant to live in the Android
@@ -47,7 +62,11 @@ export async function createWebViewSession(userId: number): Promise<string> {
   const token = newSessionToken();
   const tokenHash = hashToken(token);
   const sessionId = randomBytes(8).toString("hex");
-  const expiresAt = new Date(Date.now() + WEB_SESSION_TTL_MIN * 60_000).toISOString();
+  // M35: SQLite-datetime (Leerzeichen), nicht ISO. 15-Minuten-WebView-Session.
+  const expiresAt = new Date(Date.now() + WEB_SESSION_TTL_MIN * 60_000)
+    .toISOString()
+    .replace("T", " ")
+    .replace(/\.\d{3}Z$/, "");
   db.prepare(
     "INSERT INTO sessions (token_hash, user_id, expires_at, session_id, client) VALUES (?, ?, ?, ?, 'webview')",
   ).run(tokenHash, userId, expiresAt, sessionId);
@@ -95,11 +114,18 @@ export async function destroyCurrentSession(): Promise<void> {
 /** Signs out every other device/browser signed into this account, keeping the current session alive. */
 export async function destroyOtherSessions(userId: number): Promise<number> {
   const store = await cookies();
-  const token = store.get(SESSION_COOKIE)?.value ?? (await getBearerToken());
+  // M34 (F42): dieselbe Cookie-Reihenfolge wie getCurrentUser — routy_session,
+  // dann routy_web, dann Bearer. Im Android-WebView ist routy_web die aktuelle
+  // Sitzung; ohne eines der drei wird NICHT pauschal `token_hash != ""` gelöscht.
+  const token =
+    store.get(SESSION_COOKIE)?.value ??
+    store.get(SESSION_WEB_COOKIE)?.value ??
+    (await getBearerToken());
   const currentHash = token ? hashToken(token) : null;
+  if (currentHash == null) return 0;
   const result = db
     .prepare("DELETE FROM sessions WHERE user_id = ? AND token_hash != ?")
-    .run(userId, currentHash ?? "");
+    .run(userId, currentHash);
   return result.changes;
 }
 
@@ -281,16 +307,24 @@ interface SessionListRow {
 /** Every active session/device for a user — Settings' "sign out everywhere" list, extended with device metadata. */
 export async function listSessions(userId: number): Promise<SessionListEntry[]> {
   const store = await cookies();
-  const currentToken = store.get(SESSION_COOKIE)?.value ?? (await getBearerToken());
+  // M34: aktuelle Session = dieselbe Cookie-Reihenfolge wie getCurrentUser.
+  const currentToken =
+    store.get(SESSION_COOKIE)?.value ??
+    store.get(SESSION_WEB_COOKIE)?.value ??
+    (await getBearerToken());
   const currentHash = currentToken ? hashToken(currentToken) : null;
 
+  // M35: nur noch gültige Sitzungen listen — abgelaufene sind für die Geräteliste
+  // unsichtbar und fallen dem Purge zu.
   const rows = db
     .prepare(
       `SELECT session_id as sessionId, device_name as deviceName, client as client,
               created_at as createdAt, expires_at as expiresAt, token_hash as tokenHash
-       FROM sessions WHERE user_id = ? ORDER BY created_at DESC`,
+       FROM sessions
+       WHERE user_id = ? AND expires_at >= datetime('now') OR (expires_at LIKE '%T%' AND datetime(replace(expires_at, 'T', ' ')) >= datetime('now')) AND user_id = ?
+       ORDER BY created_at DESC`,
     )
-    .all(userId) as SessionListRow[];
+    .all(userId, userId) as SessionListRow[];
 
   return rows.map((r) => ({
     sessionId: r.sessionId,

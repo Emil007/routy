@@ -335,20 +335,18 @@ export function getDailyUsageMap(userId: number): Map<number, number> {
 /**
  * Server-side real length (metres) of a route given its directed segment ids.
  * Returns null when any id is unknown or soft-deleted (F01/F02): the caller
- * must NOT fall back to a client-supplied length for point crediting. Each
- * physical (canonical) path counts once; both directed rows of a pair are
- * accepted and resolve to the same canonical length.
+ * must NOT fall back to a client-supplied length for point crediting. M28: every
+ * directed id counts — a dead-end that walked a segment forward AND backward has
+ * two different directed ids, both are real walked length (before, dedupe to the
+ * canonical hid the second pass and under-billed out-and-backs). Unknown/soft-
+ * deleted ids still yield null (route_stale).
  */
 export function lengthFromSegmentIds(segmentIds: number[]): number | null {
   if (segmentIds.length === 0) return 0;
-  const seenCanonical = new Set<number>();
   let total = 0;
   for (const id of segmentIds) {
     const row = db.prepare("SELECT * FROM segments WHERE id = ?").get(id) as SegmentDbRow | undefined;
     if (!row || row.deleted_at !== null) return null;
-    const canonical = row.reverse_of !== null ? Math.min(row.id, row.reverse_of) : row.id;
-    if (seenCanonical.has(canonical)) continue;
-    seenCanonical.add(canonical);
     total += row.length_m;
   }
   return total;

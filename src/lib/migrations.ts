@@ -138,6 +138,19 @@ function migrateWalkGeometryAnalysis(db: Database.Database): void {
   `);
 }
 
+function migrateSegmentFirstRecording(db: Database.Database): void {
+  // M20 (Frage 4): erste nicht verworfene Aufnahme pro kanonischem Segment — damit
+  // Outlier-Erkennung eine Vergleichs-Geometrie hat, ohne bei jedem Öffnen über alle
+  // Walks zu laufen. points_json: LatLng-Array der ersten Aufnahme für dieses Segment.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS segment_first_recording (
+      canonical_segment_id INTEGER PRIMARY KEY REFERENCES segments(id) ON DELETE CASCADE,
+      walk_id INTEGER NOT NULL REFERENCES walk_log(id) ON DELETE CASCADE,
+      points_json TEXT NOT NULL
+    );
+  `);
+}
+
 export const MIGRATIONS: Migration[] = [
   { id: 1, name: "legacy_schema_hardening", up: noop },
   { id: 2, name: "per_user_home", up: noop },
@@ -153,6 +166,7 @@ export const MIGRATIONS: Migration[] = [
   { id: 12, name: "share_link_expiry", up: migrateShareExpiry },
   { id: 13, name: "pending_totp_secret", up: migratePendingTotp },
   { id: 14, name: "walk_geometry_analysis", up: migrateWalkGeometryAnalysis },
+  { id: 15, name: "segment_first_recording", up: migrateSegmentFirstRecording },
 ];
 
 export function runAllMigrations(db: Database.Database): void {

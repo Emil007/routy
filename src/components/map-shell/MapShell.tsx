@@ -63,6 +63,7 @@ function ShellInner({
             networkLines={networkLines}
             mergeRadiusM={bootstrap.mergeRadiusM}
             walkSpeedKmh={bootstrap.walkSpeedKmh}
+            homeNodeId={bootstrap.homeNodeId}
           />
         </div>
       </BottomSheet>

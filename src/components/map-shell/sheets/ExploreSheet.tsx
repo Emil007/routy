@@ -149,6 +149,7 @@ export function ExploreSheet({ locale, bootstrap }: { locale: Locale; bootstrap:
             networkLines={networkLines}
             mergeRadiusM={bootstrap.mergeRadiusM}
             walkSpeedKmh={bootstrap.walkSpeedKmh}
+            homeNodeId={bootstrap.homeNodeId}
             hosted
             onLayersChange={registerLayers}
           />

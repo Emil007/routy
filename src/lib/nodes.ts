@@ -185,10 +185,13 @@ export function setNodeOpeningHours(
 /** Also soft-deletes every currently-active segment touching this node, mirroring the FK cascade a hard delete would do. */
 export function deleteNode(id: number): void {
   const tx = db.transaction(() => {
-    db.prepare("UPDATE nodes SET active = 0, deleted_at = datetime('now') WHERE id = ?").run(id);
+    // M50 (F46): EIN Zeitstempel für Knoten UND Wege — zwei getrennte datetime('now')
+    // konnten an einer Sekundengrenze abweichen, sodass restoreNode die Wege im Papierkorb ließ.
+    const now = (db.prepare("SELECT datetime('now') AS ts").get() as { ts: string }).ts;
+    db.prepare("UPDATE nodes SET active = 0, deleted_at = ? WHERE id = ?").run(now, id);
     db.prepare(
-      "UPDATE segments SET active = 0, deleted_at = datetime('now') WHERE (start_node_id = ? OR end_node_id = ?) AND active = 1",
-    ).run(id, id);
+      "UPDATE segments SET active = 0, deleted_at = ? WHERE (start_node_id = ? OR end_node_id = ?) AND active = 1",
+    ).run(now, id, id);
   });
   tx();
 }

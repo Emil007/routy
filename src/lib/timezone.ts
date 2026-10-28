@@ -10,7 +10,7 @@ export const DEFAULT_TIMEZONE = "Europe/Vienna";
  * host's. Normalize: append "Z" (and fix the separator) so zone-less timestamps
  * are read as the UTC they actually are.
  */
-function parseSqliteIso(isoTs: string): Date | null {
+export function parseSqliteIso(isoTs: string): Date | null {
   const trimmed = isoTs.trim();
   if (!trimmed) return null;
   if (/[zZ]$|[+-]\d{2}:\d{2}$/.test(trimmed)) {

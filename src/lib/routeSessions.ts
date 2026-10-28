@@ -74,7 +74,14 @@ export function createRouteSession(
 }
 
 export function getRouteSession(token: string): RouteSessionState | null {
-  return store.get(token) ?? null;
+  // M32 (F43): die Zwei-Stunden-Frist gilt auch beim Lesen — abgelaufene Tokens
+  // werden verworfen, statt bis zum nächsten sweep weiter funktionsfähig zu sein.
+  const session = store.get(token) ?? null;
+  if (session && Date.now() - session.createdAt > SESSION_TTL_MS) {
+    store.delete(token);
+    return null;
+  }
+  return session;
 }
 
 export function assertRouteSessionOwner(token: string, userId: number): RouteSessionState | "missing" | "forbidden" {

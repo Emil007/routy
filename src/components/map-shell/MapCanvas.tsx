@@ -13,6 +13,20 @@ import type { AtlasBootstrap } from "@/lib/atlasTypes";
 import { canEdit } from "@/lib/ownership";
 import { isLocked } from "@/lib/segmentLock";
 
+/** M48 (F37): aktive Wege an einem Knoten, jeder physische Weg einmal — für die Löschbestätigung. */
+function incidentSegmentCount(bootstrap: AtlasBootstrap, nodeId: number): number {
+  const seen = new Set<number>();
+  let count = 0;
+  for (const s of bootstrap.segments) {
+    if (s.startNodeId !== nodeId && s.endNodeId !== nodeId) continue;
+    const canon = s.reverseOf !== null ? Math.min(s.id, s.reverseOf) : s.id;
+    if (seen.has(canon)) continue;
+    seen.add(canon);
+    count++;
+  }
+  return count;
+}
+
 /**
  * Die eine Karte der Hülle (§7.4). Basisnetz gehört hierher: prominent + mit Popups
  * im Erkunden, dünn sobald ein Overlay-Schreiber (Plan/Go/Record/Werkzeug) eine
@@ -74,7 +88,7 @@ export function MapCanvas({ locale, bootstrap }: { locale: Locale; bootstrap: At
                 endName={nodesById.get(s.endNodeId)?.name || `#${s.endNodeId}`}
                 canEditSegment={canEdit(currentUser, s.submittedBy)}
                 creatorName={creatorName(s.submittedBy)}
-                usageCount={bootstrap.usage[s.id] ?? 0}
+                usageCount={bootstrap.usageCanonical[s.id] ?? 0}
                 activeConditions={conditionsBySegment.get(s.id)}
                 personalAvoided={bootstrap.personalAvoidSegmentIds.includes(s.id)}
                 onEditShape={() => {
@@ -98,7 +112,7 @@ export function MapCanvas({ locale, bootstrap }: { locale: Locale; bootstrap: At
         lat: n.lat,
         lng: n.lng,
         label: n.name || t(locale, "map.unnamedNode"),
-        color: n.id === bootstrap.homeNodeId ? "#a5711c" : "#2e6b49",
+        color: n.id === bootstrap.homeNodeId ? "#a5711c" : accentHex,
         popup:
           explore && !writerActive ? (
             <NodePopup
@@ -107,7 +121,9 @@ export function MapCanvas({ locale, bootstrap }: { locale: Locale; bootstrap: At
               isUserHome={n.id === bootstrap.homeNodeId}
               canEditNode={canEdit(currentUser, n.createdBy)}
               creatorName={creatorName(n.createdBy)}
-              segmentCount={bootstrap.usage[n.id] ?? 0}
+              // M48: Löschfrage zählt die WEGE am Knoten (aktive Segmente, einmal
+              // pro physischem Weg) — nicht die Walk-Nutzung der Usage-Map.
+              segmentCount={incidentSegmentCount(bootstrap, n.id)}
               moveModeActive={false}
               onToggleMove={() => {}}
             />

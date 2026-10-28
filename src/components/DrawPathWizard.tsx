@@ -37,6 +37,7 @@ export function DrawPathWizard({
   networkLines,
   mergeRadiusM,
   walkSpeedKmh,
+  homeNodeId,
   initialView,
   onViewChange,
   hosted = false,
@@ -47,6 +48,8 @@ export function DrawPathWizard({
   networkLines: MapLine[];
   mergeRadiusM: number;
   walkSpeedKmh: number;
+  /** M38: per-account home node — home markers use this, not the legacy nodes.is_home flag. */
+  homeNodeId: number | null;
   initialView?: MapViewState;
   onViewChange?: (view: MapViewState) => void;
   /** Host-betrieb (§4.5): keine eigene Karte, nur Layer nach oben. */
@@ -66,8 +69,15 @@ export function DrawPathWizard({
   const lengthM = useMemo(() => Math.round(pathLengthMeters(points)), [points]);
 
   const nodeMarkers: MapMarker[] = useMemo(
-    () => nodes.map((n) => ({ id: n.id, lat: n.lat, lng: n.lng, label: n.name || `#${n.id}`, color: n.isHome ? "#a5711c" : "#2e6b49" })),
-    [nodes],
+    () =>
+      nodes.map((n) => ({
+        id: n.id,
+        lat: n.lat,
+        lng: n.lng,
+        label: n.name || `#${n.id}`,
+        color: n.id === homeNodeId ? "#a5711c" : "#2e6b49",
+      })),
+    [nodes, homeNodeId],
   );
   const nodeCircles: MapCircle[] = useMemo(
     () => nodes.map((n) => ({ id: n.id, lat: n.lat, lng: n.lng, radiusM: mergeRadiusM })),

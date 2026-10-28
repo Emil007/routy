@@ -38,11 +38,16 @@ interface SuggestionRow {
 type OverlayMode = "official" | "suggestion" | "both" | "first";
 
 function pickNextPending(list: SuggestionRow[], afterSegmentId: number | null): number | null {
+  // M21 (F27): nach einem Übernehmen liegt die erledigte Id nicht mehr in der
+  // Pending-Liste — das nächste Segment ist das mit der GRÖSSTEN Id, die after
+  // überschreitet, sonst das erste. (Das alte findIndex fand −1 und sprang immer
+  // auf pending[0], d. h. zurück zum Anfang.)
   const pending = list.filter((s) => s.resolution === "pending" && !s.isOutlier);
   if (pending.length === 0) return null;
-  if (afterSegmentId == null) return pending[0].segmentId;
-  const idx = pending.findIndex((s) => s.segmentId === afterSegmentId);
-  if (idx >= 0 && idx + 1 < pending.length) return pending[idx + 1].segmentId;
+  if (afterSegmentId != null) {
+    const next = pending.find((s) => s.segmentId > afterSegmentId);
+    if (next) return next.segmentId;
+  }
   return pending[0]?.segmentId ?? null;
 }
 
