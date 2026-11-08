@@ -1,18 +1,46 @@
 # Routy
 
-Self-hosted route planner for dog walks (and any other walks you care to log). Everyone in the household adds paths they know — drawn on a map, imported from GPX, or recorded live with GPS. Routy suggests routes from that shared network, favoring ground you have not walked lately and clean loops over awkward out-and-backs.
+> Der selbst-hostenbare Routenplaner für Hundespaziergänge — und für jede andere Runde, die du aufzeichnen möchtest.
 
-Built as a hobby project by a sysadmin, not a product team. It works well for our household; it is not professionally audited. Read the code before you trust it with anything important.
+**Routy** baut eine geteilte Karte der Wege, die dein Haushalt kennt: zeichnen, GPX importieren oder per GPS aufzeichnen. Aus diesem gemeinsamen Wegnetz schlägt Routy täglich Routen vor — bevorzugt Strecken, die du lange nicht gelaufen bist, und saubere Runden statt unbequemer Hin- und Rückwege.
 
-This repository is the **server** (web UI + API + database). There is also a companion **[Android app](https://github.com/Emil007/routy-android)** — same login, same path network, but native map, GPS recording while you walk, and offline cache. Use the browser alone or pair it with the app; the app cannot run without this server.
+<details open>
+<summary><b>So sieht Routy aus</b></summary>
 
-**Server** (this repo) · **0.56s** · [`Emil007/routy`](https://github.com/Emil007/routy)
-**Android app** · **0.56a** · [`Emil007/routy-android`](https://github.com/Emil007/routy-android)
-*(Aligned release batch: same number, `s` / `a` suffix by repo — tags `v0.56s` / `v0.56a`.)*
+| Routenplanung (Web) | Geteiltes Wegnetz (Web) |
+|-|-|
+| ![Routenplanung](docs/screenshots/web-route.png) | ![Wegnetz-Karte](docs/screenshots/web-map.png) |
+
+| Login | Statistiken & Spiel-Hub | Einstellungen |
+|-|-|-|
+| ![Login](docs/screenshots/web-login.png) | ![Spiel-Hub](docs/screenshots/web-stats.png) | ![Einstellungen](docs/screenshots/web-settings.png) |
+
+</details>
 
 ---
 
-## Get it running
+## Was Routy kann
+
+- **Wegnetz aufbauen** — Wege per Klick zeichnen, GPX importieren oder unterwegs mit GPS aufnehmen. Kreuzungen rasten automatisch aneinander ein; Namen können Bausteine wiederverwenden (mit OSM-Vorschlägen). Wege bearbeiten, teilen, umbenennen, sperren und in den Papierkorb legen.
+- **Routen planen** — Startpunkt (und optional Wegpunkte, Pflicht-/Verbotswege) wählen. Voreinstellungen **Kurz / Normal / Lang / Überraschung** schlagen eine Route in deiner Wunschlänge vor, bewertet nach Runden-Qualität, Abwechslung und einer **Punkte-Vorschau** (tägliche goldene Wege boosten die Punktzahl).
+- **Losgehen** — Route als aktive Wanderung übernehmen, optional mit Spitzname, Live-Standort und Sprachansagen. Nach Abschluss gibt es Punkte (Vorschau-Bonus × Streak), golden-Hit-Celebration und geloggte Statistiken — Streaks, Errungenschaften und ein Haushalts-Ranking schließen sich an.
+- **Wege einschränken** — zeitlich begrenzt meiden (selbst) oder sperren (Eigentümer/Admin; andere stellen Sperr-Vorschläge). Weiche Abzüge und Sperren fließen ins Routing ein.
+- **Konten & Rechte** — erster Benutzer ist Admin (Benutzer, Vorgaben, Backups, Aktivitätslog). Wege gehören ihrem Ersteller; nur Eigentümer/Admin darf fremde Wege bearbeiten. DE/EN-UI, mehrere Themes und Routing-Parameter in den Admin-Einstellungen.
+
+**Clients**
+
+| | Browser (PWA) | [Android-App](https://github.com/Emil007/routy-android) |
+|---|---|---|
+| Route, Karte, Statistiken | Vollständige Web-UI + Spiel-Hub | Nativ (MapLibre-Karte, Offline-Cache) + Spiel-Hub |
+| GPS-Aufnahme | Nur Vordergrund (Browser-Limit) | Nativer Vordergrund-Dienst |
+| Admin | Web (kompaktes ⋮-Menü) | WebView-Tab (gleiche UI) |
+| Kontosicherheit (Passwort, 2FA) | Einstellungen `#account` | Authentifiziertes WebView-Sheet in der App |
+
+Kartenkacheln und Höhen-/Namensabfragen kommen aus öffentlichen OSM-bezogenen Diensten (ohne API-Schlüssel). Siehe Kompositions-Kommentare, wenn du eine Outbound-Allowlist brauchst.
+
+---
+
+## Loslegen (Docker)
 
 ```bash
 git clone https://github.com/Emil007/routy.git
@@ -21,96 +49,81 @@ docker compose pull
 docker compose up -d
 ```
 
-Open the site (port **3000** by default). On first start, grab the one-time **setup token** from the logs:
+Öffne die Seite (Port **3000**). Beim ersten Start holst du das **einmalige Setup-Token** aus den Logs:
 
 ```bash
 docker compose logs -f
 ```
 
-Use it on the login page to create the first account (that account becomes admin). No `.env` file required — tune via `docker-compose.yml` if needed.
+Damit legst du das erste Konto an (das wird Admin). Keine `.env` nötig — alles über `docker-compose.yml` steuerbar.
 
 | | |
 |---|---|
-| Data | SQLite under `./data` (bind-mounted) |
-| Update | `docker compose pull && docker compose up -d` |
-| Health | `GET /api/health` (version, DB, counts, backup time) |
-| Restore | [RESTORE_FROM_BACKUP.md](RESTORE_FROM_BACKUP.md) |
+| Daten | SQLite unter `./data` (bind-mounted) |
+| Aktualisieren | `docker compose pull && docker compose up -d` |
+| Health | `GET /api/health` (Version, DB, Zähler, Backup-Zeit) |
+| Wiederherstellen | [RESTORE_FROM_BACKUP.md](RESTORE_FROM_BACKUP.md) |
 
-Put a reverse proxy with HTTPS in front for production. `COOKIE_SECURE=true` is the default; set `false` only for plain HTTP on a LAN.
+Für Produktion einen Reverse-Proxy mit HTTPS davor setzen. `COOKIE_SECURE=true` ist Standard; nur für reines HTTP im LAN auf `false` setzen.
 
-### Backups (worth doing)
+### Backups (lohnt sich)
 
-- **Manual:** admin page → download a DB snapshot any time.
-- **Automatic:** daily copy in `./data/backups/`, 14-day retention. Local only — copy the folder elsewhere if you want off-site protection.
-- Deleted nodes and paths sit in **trash** for 30 days before purge.
+- **Manuell:** Admin-Seite → jederzeit DB-Snapshot herunterladen.
+- **Automatisch:** tägliche Kopie in `./data/backups/`, 14 Tage Aufbewahrung. Nur lokal — für Off-Site-Schutz woanders hinkopieren.
+- Gelöschte Knoten/Wege liegen **30 Tage im Papierkorb**, bevor sie endgültig gelöscht werden.
 
-### Optional extras
+### Optionale Extras
 
-- **HTTPS:** uncomment the Caddy service in `docker-compose.yml`, set `DOMAIN`, open 80/443.
-- **CAPTCHA** on login/setup: `CAPTCHA_PROVIDER` + site/secret keys in compose.
-- **2FA (TOTP):** per user in Settings; admin can reset a lockout.
+- **HTTPS:** Caddy-Dienst in `docker-compose.yml` einkommentieren, `DOMAIN` setzen, Ports 80/443 öffnen.
+- **CAPTCHA** auf Login/Setup: `CAPTCHA_PROVIDER` + Site/Secret-Keys in Compose.
+- **2FA (TOTP):** pro Benutzer in den Einstellungen; Admin kann eine Sperre zurücksetzen.
 
-Login and setup are rate-limited out of the box. Container runs read-only root, dropped capabilities, memory/CPU limits — see compose file for details.
-
----
-
-## What you can do
-
-**Build the network** — Draw paths, import GPX, or record a track on the map. Junctions snap together; names can reuse linked parts (with OSM hints). Edit, split, rename, lock a path temporarily, or soft-delete into trash. Map layers: street / hiking / satellite, plus optional Waymarked Trails overlay.
-
-**Plan a walk** — Pick a start (and optional waypoints / required or excluded paths). Short / Normal / Long / Surprise presets suggest a route in your length band (personal taste after 3 rated walks, else network defaults), scoring for loops, variety, and a **point preview** (daily golden paths boost the score). **Favorites:** save only after a completed walk; on the generate screen a compact **Favorites** button opens Load + Delete.
-
-**Walk it** — Accept a route as your active walk; optional nickname, live location, and voice cues on the web. Complete the walk to earn points (preview bonuses × streak), celebrate golden hits, and log stats; streaks, achievements, and household leaderboards follow from there.
-
-**Restrict paths** — From the map, restrict a path for yourself (timed avoid) or everyone (owner/admin lock; others create a lock proposal for approval). Soft penalties and locks feed into routing.
-
-**Accounts** — First user is admin (users, impersonation, backups, activity log). Paths belong to their creator; only the owner or admin can edit. DE/EN UI, several themes, tunable routing parameters in Settings (admin network card at the bottom).
-
-**Clients**
-
-| | Browser (PWA) | [Android app](https://github.com/Emil007/routy-android) |
-|---|---|---|
-| Route, map, stats | Full web UI + game hub | Native (MapLibre map, offline cache) + game hub |
-| GPS recording | Foreground only (browser limits) | Native foreground service |
-| Admin | Web (compact ⋮ user actions) | WebView tab (same UI) |
-| Account security (password, 2FA) | Settings `#account` | Authenticated in-app WebView sheet |
-
-Map tiles and elevation/name lookups use public OSM-related services (no API keys). See compose comments if you need outbound allowlists.
-
-### Android app
-
-Install from [routy-android](https://github.com/Emil007/routy-android) (GitHub Actions APK or a release tag). Point it at this server's URL after `docker compose up`. No extra server config beyond HTTPS and a reachable `/api/health`.
+Login und Setup sind standardmäßig rate-limited. Der Container läuft read-only als Root mit gedroppten Capabilities und Memory/CPU-Limits — Details in der Compose-Datei.
 
 ---
 
-## Develop locally
+## Demo-Daten (für Ausprobieren & Entwicklung)
 
-Node 20+, SQLite file at `./data/routy.db`:
+`scripts/seed-demo/seed.js` erzeugt eine **fiktive, wiederverwendbare Demo-Datenbank** — keine echten Standorte, sondern ein realistisches Spazier-Netz mit Londoner Straßennamen (Camden / Hampstead / Highgate), 14 Walk-Logs, Favoriten und goldenen Wegen. Perfekt zum Ausprobieren des Spiel-Hubs ohne echte GPS-Daten.
+
+```bash
+node scripts/seed-demo/seed.js
+# → schreibt scripts/seed-demo/data/demo.db
+DATABASE_PATH=scripts/seed-demo/data/demo.db npm run dev
+```
+
+**Login:** `demo` / `demo1234` (Benutzer "demo" ist Admin). Eine fertige DB liegt unter `scripts/seed-demo/data/demo.db` und kann direkt verwendet werden.
+
+---
+
+## Lokal entwickeln
+
+Node 20+, SQLite unter `./data/routy.db`:
 
 ```bash
 npm install
 npm run dev
 ```
 
-Stack: Next.js (App Router), React, TypeScript, Leaflet, Zod, Vitest. HTTP API notes for the Android client: [docs/API.md](docs/API.md).
+Stack: Next.js (App Router), React, TypeScript, Leaflet, Zod, Vitest. HTTP-API-Hinweise für den Android-Client: [docs/API.md](docs/API.md).
 
-Walk completion sounds (*Purchase Success* / *Brass Fanfare Short* from Pixabay, edited) ship as MP3/OGG in `public/sounds/` (Android `res/raw` uses OGG).
-
----
-
-## Version numbers
-
-Server and Android share the **same numeric part** for a release batch; only the suffix differs:
-
-| Component | Tag example | Shown as | Where |
-|-----------|-------------|----------|-------|
-| Server | `v0.56s` | **0.56s** | `package.json` |
-| Android | `v0.56a` | **0.56a** | `app/build.gradle.kts` |
-
-Pattern is always `0.<number>s` / `0.<number>a` — never swap suffixes, never use `b` / semver patch like `0.35.2`.
+Geh-Sounds (*Purchase Success* / *Brass Fanfare Short* von Pixabay, bearbeitet) sind als MP3/OGG in `public/sounds/` (Android `res/raw` nutzt OGG).
 
 ---
 
-## Acknowledgments
+## Versionsnummern
 
-Must-visit ordering and the explicit route-quality snapshot were inspired by ideas from **[Kōji](https://github.com/TurtIeSocks/Koji)** (TurtIeSocks) — Pokemon mapping / geofence routing. Implemented natively in Routy’s TypeScript graph stack; **no Kōji code was ported**.
+Server und Android haben für einen Release-Haufen den **gleichen Zahlenteil**, nur das Suffix unterscheidet sich:
+
+| Komponente | Tag-Beispiel | Angezeigt als | Wo |
+|-----------|-------------|--------------|-----|
+| Server | `v0.58s` | **0.58s** | `package.json` |
+| Android | `v0.58a` | **0.58a** | `app/build.gradle.kts` |
+
+Muster ist immer `0.<nummer>s` / `0.<nummer>a` — Suffixe nie tauschen, keine `b`- oder semver-Patches wie `0.35.2`.
+
+---
+
+## Danksagung
+
+Die Must-visit-Reihenfolge und die explizite Routenqualitäts-Messung wurden von Ideen aus **[Kōji](https://github.com/TurtIeSocks/Koji)** (TurtIeSocks) inspiriert — Pokemon-Mapping/Geofence-Routing. Nativ in Routys TypeScript-Graph-Stack umgesetzt; **kein Kōji-Code wurde übernommen**.
