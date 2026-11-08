@@ -1,46 +1,46 @@
 # Routy
 
-> Der selbst-hostenbare Routenplaner für Hundespaziergänge — und für jede andere Runde, die du aufzeichnen möchtest.
+> The self-hosted route planner for dog walks — and for any other round you want to log.
 
-**Routy** baut eine geteilte Karte der Wege, die dein Haushalt kennt: zeichnen, GPX importieren oder per GPS aufzeichnen. Aus diesem gemeinsamen Wegnetz schlägt Routy täglich Routen vor — bevorzugt Strecken, die du lange nicht gelaufen bist, und saubere Runden statt unbequemer Hin- und Rückwege.
+**Routy** builds a shared map of the paths your household knows: draw them, import GPX, or record them via GPS while walking. From that shared path network, Routy suggests routes every day — favoring stretches you haven't walked in a long time, and clean loops over awkward out-and-backs.
 
 <details open>
-<summary><b>So sieht Routy aus</b></summary>
+<summary><b>What Routy looks like</b></summary>
 
-| Routenplanung (Web) | Geteiltes Wegnetz (Web) |
+| Route planning (web) | Shared path network (web) |
 |-|-|
-| ![Routenplanung](docs/screenshots/web-route.png) | ![Wegnetz-Karte](docs/screenshots/web-map.png) |
+| ![Route planning](docs/screenshots/web-route.png) | ![Path network map](docs/screenshots/web-map.png) |
 
-| Login | Statistiken & Spiel-Hub | Einstellungen |
+| Login | Stats & game hub | Settings |
 |-|-|-|
-| ![Login](docs/screenshots/web-login.png) | ![Spiel-Hub](docs/screenshots/web-stats.png) | ![Einstellungen](docs/screenshots/web-settings.png) |
+| ![Login](docs/screenshots/web-login.png) | ![Game hub](docs/screenshots/web-stats.png) | ![Settings](docs/screenshots/web-settings.png) |
 
 </details>
 
 ---
 
-## Was Routy kann
+## What Routy can do
 
-- **Wegnetz aufbauen** — Wege per Klick zeichnen, GPX importieren oder unterwegs mit GPS aufnehmen. Kreuzungen rasten automatisch aneinander ein; Namen können Bausteine wiederverwenden (mit OSM-Vorschlägen). Wege bearbeiten, teilen, umbenennen, sperren und in den Papierkorb legen.
-- **Routen planen** — Startpunkt (und optional Wegpunkte, Pflicht-/Verbotswege) wählen. Voreinstellungen **Kurz / Normal / Lang / Überraschung** schlagen eine Route in deiner Wunschlänge vor, bewertet nach Runden-Qualität, Abwechslung und einer **Punkte-Vorschau** (tägliche goldene Wege boosten die Punktzahl).
-- **Losgehen** — Route als aktive Wanderung übernehmen, optional mit Spitzname, Live-Standort und Sprachansagen. Nach Abschluss gibt es Punkte (Vorschau-Bonus × Streak), golden-Hit-Celebration und geloggte Statistiken — Streaks, Errungenschaften und ein Haushalts-Ranking schließen sich an.
-- **Wege einschränken** — zeitlich begrenzt meiden (selbst) oder sperren (Eigentümer/Admin; andere stellen Sperr-Vorschläge). Weiche Abzüge und Sperren fließen ins Routing ein.
-- **Konten & Rechte** — erster Benutzer ist Admin (Benutzer, Vorgaben, Backups, Aktivitätslog). Wege gehören ihrem Ersteller; nur Eigentümer/Admin darf fremde Wege bearbeiten. DE/EN-UI, mehrere Themes und Routing-Parameter in den Admin-Einstellungen.
+- **Build your path network** — draw paths by clicking, import GPX, or record them with GPS while walking. Intersections snap together automatically; names can reuse building blocks (with OSM suggestions). Edit, share, rename, hide and trash paths.
+- **Plan routes** — pick a starting point (and optionally waypoints, require/avoid paths). **Short / Normal / Long / Surprise** presets suggest a route in your desired length, ranked by loop quality, variety and a **points preview** (daily golden paths boost your score).
+- **Go out** — take a route as an active walk, optionally with a nickname, live location and spoken turn hints. Finishing awards points (preview bonus × streak), a golden-hit celebration, and logs your stats — streaks, achievements and a household leaderboard follow.
+- **Restrict paths** — temporarily avoid paths (yourself) or hide them (owner/admin; others can suggest hides). Soft penalties and hides feed into routing.
+- **Accounts & permissions** — the first user is admin (users, presets, backups, activity log). Paths belong to their creator; only owner/admin may edit foreign paths. DE/EN UI, several themes and routing parameters in admin settings.
 
 **Clients**
 
-| | Browser (PWA) | [Android-App](https://github.com/Emil007/routy-android) |
+| | Browser (PWA) | [Android app](https://github.com/Emil007/routy-android) |
 |---|---|---|
-| Route, Karte, Statistiken | Vollständige Web-UI + Spiel-Hub | Nativ (MapLibre-Karte, Offline-Cache) + Spiel-Hub |
-| GPS-Aufnahme | Nur Vordergrund (Browser-Limit) | Nativer Vordergrund-Dienst |
-| Admin | Web (kompaktes ⋮-Menü) | WebView-Tab (gleiche UI) |
-| Kontosicherheit (Passwort, 2FA) | Einstellungen `#account` | Authentifiziertes WebView-Sheet in der App |
+| Route, map, stats | Full web UI + game hub | Native (MapLibre map, offline cache) + game hub |
+| GPS recording | Foreground only (browser limitation) | Native foreground service |
+| Admin | Web (compact ⋮ menu) | WebView tab (same UI) |
+| Account security (password, 2FA) | Settings `#account` | Authenticated in-app WebView sheet |
 
-Kartenkacheln und Höhen-/Namensabfragen kommen aus öffentlichen OSM-bezogenen Diensten (ohne API-Schlüssel). Siehe Kompositions-Kommentare, wenn du eine Outbound-Allowlist brauchst.
+Map tiles and name/elevation lookups come from public OSM-based services (no API key). See the compose comments if you need an outbound allowlist.
 
 ---
 
-## Loslegen (Docker)
+## Get started (Docker)
 
 ```bash
 git clone https://github.com/Emil007/routy.git
@@ -49,81 +49,81 @@ docker compose pull
 docker compose up -d
 ```
 
-Öffne die Seite (Port **3000**). Beim ersten Start holst du das **einmalige Setup-Token** aus den Logs:
+Open the site (port **3000**). On first start, grab the **one-time setup token** from the logs:
 
 ```bash
 docker compose logs -f
 ```
 
-Damit legst du das erste Konto an (das wird Admin). Keine `.env` nötig — alles über `docker-compose.yml` steuerbar.
+Use it to create the first account (becomes admin). No `.env` needed — everything is controlled by `docker-compose.yml`.
 
 | | |
 |---|---|
-| Daten | SQLite unter `./data` (bind-mounted) |
-| Aktualisieren | `docker compose pull && docker compose up -d` |
-| Health | `GET /api/health` (Version, DB, Zähler, Backup-Zeit) |
-| Wiederherstellen | [RESTORE_FROM_BACKUP.md](RESTORE_FROM_BACKUP.md) |
+| Data | SQLite under `./data` (bind-mounted) |
+| Update | `docker compose pull && docker compose up -d` |
+| Health | `GET /api/health` (version, DB, counters, backup time) |
+| Restore | [RESTORE_FROM_BACKUP.md](RESTORE_FROM_BACKUP.md) |
 
-Für Produktion einen Reverse-Proxy mit HTTPS davor setzen. `COOKIE_SECURE=true` ist Standard; nur für reines HTTP im LAN auf `false` setzen.
+For production, put a reverse proxy with HTTPS in front. `COOKIE_SECURE=true` is the default; only set it to `false` for plain HTTP on a LAN.
 
-### Backups (lohnt sich)
+### Backups (worth it)
 
-- **Manuell:** Admin-Seite → jederzeit DB-Snapshot herunterladen.
-- **Automatisch:** tägliche Kopie in `./data/backups/`, 14 Tage Aufbewahrung. Nur lokal — für Off-Site-Schutz woanders hinkopieren.
-- Gelöschte Knoten/Wege liegen **30 Tage im Papierkorb**, bevor sie endgültig gelöscht werden.
+- **Manual:** admin page → download a DB snapshot at any time.
+- **Automatic:** daily copy in `./data/backups/`, kept for 14 days. Local only — copy it elsewhere for off-site protection.
+- Deleted nodes/paths sit in the **trash for 30 days** before being permanently deleted.
 
-### Optionale Extras
+### Optional extras
 
-- **HTTPS:** Caddy-Dienst in `docker-compose.yml` einkommentieren, `DOMAIN` setzen, Ports 80/443 öffnen.
-- **CAPTCHA** auf Login/Setup: `CAPTCHA_PROVIDER` + Site/Secret-Keys in Compose.
-- **2FA (TOTP):** pro Benutzer in den Einstellungen; Admin kann eine Sperre zurücksetzen.
+- **HTTPS:** uncomment the Caddy service in `docker-compose.yml`, set `DOMAIN`, open ports 80/443.
+- **CAPTCHA** on login/setup: `CAPTCHA_PROVIDER` + site/secret keys in compose.
+- **2FA (TOTP):** per user in settings; admin can reset somebody's 2FA lock.
 
-Login und Setup sind standardmäßig rate-limited. Der Container läuft read-only als Root mit gedroppten Capabilities und Memory/CPU-Limits — Details in der Compose-Datei.
+Login and setup are rate-limited by default. The container runs read-only as root with dropped capabilities and memory/CPU limits — see the compose file for details.
 
 ---
 
-## Demo-Daten (für Ausprobieren & Entwicklung)
+## Demo data (for trying it out & development)
 
-`scripts/seed-demo/seed.js` erzeugt eine **fiktive, wiederverwendbare Demo-Datenbank** — keine echten Standorte, sondern ein realistisches Spazier-Netz mit Londoner Straßennamen (Camden / Hampstead / Highgate), 14 Walk-Logs, Favoriten und goldenen Wegen. Perfekt zum Ausprobieren des Spiel-Hubs ohne echte GPS-Daten.
+`scripts/seed-demo/seed.js` generates a **fictional, reusable demo database** — no real locations, but a realistic walking network with London street names (Camden / Hampstead / Highgate), 14 walk logs, favorites and golden paths. Perfect for trying out the game hub without real GPS data.
 
 ```bash
 node scripts/seed-demo/seed.js
-# → schreibt scripts/seed-demo/data/demo.db
+# → writes scripts/seed-demo/data/demo.db
 DATABASE_PATH=scripts/seed-demo/data/demo.db npm run dev
 ```
 
-**Login:** `demo` / `demo1234` (Benutzer "demo" ist Admin). Eine fertige DB liegt unter `scripts/seed-demo/data/demo.db` und kann direkt verwendet werden.
+**Login:** `demo` / `demo1234` (the "demo" user is admin). A ready-made DB ships at `scripts/seed-demo/data/demo.db` and can be used directly.
 
 ---
 
-## Lokal entwickeln
+## Develop locally
 
-Node 20+, SQLite unter `./data/routy.db`:
+Node 20+, SQLite under `./data/routy.db`:
 
 ```bash
 npm install
 npm run dev
 ```
 
-Stack: Next.js (App Router), React, TypeScript, Leaflet, Zod, Vitest. HTTP-API-Hinweise für den Android-Client: [docs/API.md](docs/API.md).
+Stack: Next.js (App Router), React, TypeScript, Leaflet, Zod, Vitest. HTTP API notes for the Android client: [docs/API.md](docs/API.md).
 
-Geh-Sounds (*Purchase Success* / *Brass Fanfare Short* von Pixabay, bearbeitet) sind als MP3/OGG in `public/sounds/` (Android `res/raw` nutzt OGG).
+Walk sounds (*Purchase Success* / *Brass Fanfare Short* from Pixabay, edited) ship as MP3/OGG in `public/sounds/` (Android `res/raw` uses OGG).
 
 ---
 
-## Versionsnummern
+## Version numbers
 
-Server und Android haben für einen Release-Haufen den **gleichen Zahlenteil**, nur das Suffix unterscheidet sich:
+Server and Android share the **same numeric part** for a release batch; only the suffix differs:
 
-| Komponente | Tag-Beispiel | Angezeigt als | Wo |
-|-----------|-------------|--------------|-----|
+| Component | Tag example | Displayed as | Where |
+|-----------|-------------|--------------|-------|
 | Server | `v0.58s` | **0.58s** | `package.json` |
 | Android | `v0.58a` | **0.58a** | `app/build.gradle.kts` |
 
-Muster ist immer `0.<nummer>s` / `0.<nummer>a` — Suffixe nie tauschen, keine `b`- oder semver-Patches wie `0.35.2`.
+Pattern is always `0.<number>s` / `0.<number>a` — never swap suffixes, no `b` or semver patches like `0.35.2`.
 
 ---
 
-## Danksagung
+## Acknowledgments
 
-Die Must-visit-Reihenfolge und die explizite Routenqualitäts-Messung wurden von Ideen aus **[Kōji](https://github.com/TurtIeSocks/Koji)** (TurtIeSocks) inspiriert — Pokemon-Mapping/Geofence-Routing. Nativ in Routys TypeScript-Graph-Stack umgesetzt; **kein Kōji-Code wurde übernommen**.
+The must-visit ordering and explicit route-quality measurement were inspired by ideas from **[Kōji](https://github.com/TurtIeSocks/Koji)** (TurtIeSocks) — pokemon mapping/geofence routing. Reimplemented natively on Routy's TypeScript graph stack; **no Kōji code was taken**.
